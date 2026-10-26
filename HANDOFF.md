@@ -1,6 +1,6 @@
 # Handoff — lucid-coder
 
-**Date:** 2026-10-26 · **Branch:** main, not pushed · **Status:** Phases 0, 1 and 2 committed and verified; Phase 3 not started
+**Date:** 2026-10-26 · **Branch:** main, not pushed · **Status:** Phases 0-2 committed; Phase 3 harness built and pilot run (32 runs); house rules revised after the pilot
 
 ## Goal
 Build a ponytail-like Claude Code plugin with three properties:
@@ -12,10 +12,22 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-Plan Phase 3, the evaluation in `PLAN.md` section 8.
+Rerun arms C and D after the post-pilot rule changes (check budget D8, `|>` always D1, `theme_bw(base_size = 8)` D9) to see whether the median check count drops from 8 toward 3. Before that, replace arm D's three test rules in `eval/arms/rules-d.json`. Its `%>%` rule now contradicts the user's rule, and its theme rule is now the default, so it no longer tests uptake.
+
+## Phase 3 pilot (2026-10-26)
+- Run: `eval/results/pilot-20261026/`, 4 tasks × 4 arms × 2 reps, Opus 5.5, all 32 completed. Usage $11.11. Scores in `eval/results/results.tsv`, report in `eval/results/report.md`.
+- Isolation: `claude --safe-mode --no-session-persistence` on the user's subscription. `--bare` needs an API key, and that account had no credit. Plugin hooks don't run in an isolated session, so arms B-D get their text through `--append-system-prompt-file` (`eval/arm-prompt.js`).
+- Results, n = 8 per arm:
+  - Every gate passed in every arm, both traps included. Opus 5.5 avoids pseudoreplication and the misaligned join without help, so these tasks can't show a safety gain.
+  - Complete headers: 0/8 in A and B, 8/8 in C and D.
+  - Median checks: 3.5 (A), 3 (B), 8 (C), 6 (D). The plugin over-checked; D8 now caps it.
+  - Arm D took up all three learned rules; no other arm did.
+- LLM judges hit the ceiling: a median of 5/5 for every arm on one-read clarity, and weak agreement (kappa 0.64, 0.23, 0.00). Treat them as uninformative.
+- Human packet: `eval/results/pilot-20261026/packet/` (32 blinded scripts plus `sheet.tsv`; the key is in `packet-key.tsv`). It is gitignored, so it exists only on this machine. One arm B script contains a `ponytail:` comment that reveals its arm; it was left unchanged.
+- `run.sh --out NAME` lets one process per arm share a results folder, so the arms run in parallel.
 
 ## State
-- Phases 0, 1 and 2 are committed on `main`. Nothing is pushed.
+- Phases 0-2 and the Phase 3 harness and pilot are committed on `main`. Nothing is pushed.
 - Phase 2 added `templates/` (`air.toml`, `.lintr`, `ruff.toml`, `palettes.{R,py}`, `theme.{R,py}`, `.here`, and `examples/01_fit-contrasts.{R,py}`), `skills/align/`, `skills/review/` and `tests/templates.test.js`. Two parallel Opus agents built it.
 - Tests: `node --test tests/*.test.js` runs 36 cases, all passing, none skipped. The template tests run air, ruff, lintr, both example scripts and a scratch-repo align simulation. That simulation is the Phase 2 done-when.
 - Tools: air 0.12.0 comes from conda-forge (`pixi global install air`), at `~/.pixi/bin/air` with a symlink at `~/.local/bin/air`. Posit's installer refuses glibc 2.28. R is `module load statistical/R/4.5.2/gcc.8.5.0`, which has lintr, ggplot2 and here but not styler or janitor. Python examples run through `uv run --python 3.12 --with matplotlib,pandas,scipy`.
