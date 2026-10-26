@@ -42,6 +42,18 @@ Run it before writing each script or function. Stop at the first rung that holds
    (`donor_counts`, `de_results`), not after the operation (`tmp`, `df2`).
 3. Is each decision visible? Put cutoffs, reference levels, formulas and seeds
    in named constants near the top, each with a one-line reason.
+
+   ```r
+   # before: a typo in the argument name is swallowed by `...`
+   pep_rich <- FindClusters(pep_rich, repep_richlution = 0.5)
+   # after
+   CLUSTER_RESOLUTION <- 0.5  # chosen on the 2024-03 run; cluster ids below refer to it
+   pep_rich <- FindClusters(pep_rich, resolution = CLUSTER_RESOLUTION)
+   ```
+
+   A threshold, level order or ID list is one named constant. Prose names the
+   constant and never repeats its value. Shared across scripts means one
+   sourced `R/constants.R`.
 4. Is a block repeated? Loop or `lapply`/`purrr::map` over a named vector or a
    list. Write a function when the block repeats, or when it holds logic that
    needs its own test.
@@ -102,6 +114,7 @@ Write a comment at:
 - a non-obvious API need: "`library(Matrix)`: needed for `[` on dgCMatrix."
 - a known limit: "Descriptive only; no p-values at cell level."
 - the source of a curated marker list or copied code.
+- a platform UUID or file-id literal: name the file it points to.
 
 Never write:
 
@@ -110,6 +123,7 @@ Never write:
 - conversational or tutorial voice
 - `# <- added` markers or stale panel labels
 - commented-out code; delete it, because git keeps it
+- parked code behind `knit_exit()` or a bare `STOP` cell
 
 When you change code, update the comment beside it in the same edit. A stale
 comment is worse than none.
@@ -131,6 +145,8 @@ comment is worse than none.
 - Match exactly: `%in%`, `fixed = TRUE`, or an anchored pattern. Never
   `grep(paste(genes, collapse = "|"))`. Filter with `!grepl()`, never
   `x[-grep()]` or `x[-which()]`, which return everything when nothing matches.
+- Select rows, columns and coefficients by name, never by position. After a
+  join, assign by key, never positionally.
 - Use current argument names: `linewidth`, not `size`, for lines; no
   `aes_string()`, `spread()` or `is_categorical_dtype()`.
 
@@ -145,8 +161,33 @@ comment is worse than none.
 - Recode with one named level vector that drives both the recode and
   `factor()`. No catch-all arm such as `TRUE ~ "Other"` or `.fillna("Other")`,
   so an unmapped label surfaces as `NA` instead of joining a group.
+
+  ```r
+  # before: the catch-all arm turns any unmapped cohort into "Older"
+  age_group <- case_when(startsWith(donor, "BR1") ~ "Young", TRUE ~ "Older")
+  # after: an unmapped cohort becomes NA and surfaces
+  AGE_GROUP <- c(BR1 = "Young", BR2 = "Older")
+  age_group <- factor(AGE_GROUP[cohort], levels = AGE_GROUP)
+  ```
+
 - Name `by =` in every join; in pandas, pass `validate=`.
 - Read and write plain-text data with ISO 8601 dates.
+- Write tables with `readr::write_tsv()` or `write.csv(row.names = FALSE)`,
+  rownames moved to a column first. Never write a file and read it back
+  within one script.
+- Keep raw counts, normalised values and scores as separately named layers or
+  assays, and say which one each model reads. Name the raw-count layer once
+  per project, for example `layers["counts"]`, and never overwrite an input
+  file in place.
+- AnnData: subsetting returns a view; `.copy()` before assigning into it.
+
+  ```python
+  # before: writes into a view
+  adata_ad = adata[adata.obs["disease"] == "AD"]
+  adata_ad.obs["niche"] = adata_ad.obs["niche"].astype("category")
+  # after
+  adata_ad = adata[adata.obs["disease"] == "AD"].copy()
+  ```
 
 ## Checks: few, consequential, able to fail
 
@@ -188,22 +229,33 @@ Do not write:
 Prefer completeness by construction, for example a completed sample x type
 grid, over an assert after the fact.
 
-Place each check on the line after the step it guards. Its message names the
-object and the fix:
+Place each check on the line after the step it guards. Its message is
+`stop("<object>: <problem>; <fix>.", call. = FALSE)` in a script and
+`stop("fn(): <object>: <problem>; <fix>.", call. = FALSE)` inside a helper function:
 
 ```r
 if (anyDuplicated(metadata$donor_id)) {
-  stop("donor_id is duplicated in metadata; fix the sample sheet before joining.", call. = FALSE)
+  stop("metadata$donor_id: duplicated; fix the sample sheet before joining.", call. = FALSE)
 }
 ```
 
 In Python, raise an explicit exception (`ValueError`, `KeyError`). `assert`
 disappears under `python -O`; use it only in tests.
 
-Never swallow errors. Avoid bare `except:` and blanket `tryCatch`. Never
-silence all warnings with `suppressWarnings()`, `options(warn = -1)` or
+Never swallow errors. Avoid bare `except:` and blanket `tryCatch`.
+
+```python
+# before
+try: adata.uns.pop("celltype_colors")
+except: 1
+# after: absent is fine; the palette is set below
+adata.uns.pop("celltype_colors", None)
+```
+
+Never silence all warnings with `suppressWarnings()`, `options(warn = -1)` or
 `warnings.filterwarnings("ignore")`; silence one category, with a one-line
-reason. Never fill missing data silently, for example `mat[is.na(mat)] <- 0`.
+reason. In Rmd, no `opts_chunk$set(warning = FALSE, message = FALSE)`.
+Never fill missing data silently, for example `mat[is.na(mat)] <- 0`.
 Make the choice explicit and say why.
 
 ## Reproducibility defaults
@@ -212,13 +264,13 @@ Make the choice explicit and say why.
   replicate. Never reuse one fixed seed inside a helper that runs repeatedly.
   For parallel code use `RNGkind("L'Ecuyer-CMRG")` or seed inside the worker.
   Pass `random_state` as an argument in Python; set `scvi.settings.seed`.
+  Pass `seed =` to `geom_text_repel()` and `position_jitter()`.
 - Never pick clusters by number from an unseeded run.
 - Set factor levels explicitly before modelling or plotting.
 - Name the multiple-testing family.
 - End R scripts with `writeLines(capture.output(sessionInfo()), file.path(run_dir, "session_info.txt"))`.
-  In Python, record package versions the same way.
-- Keep raw counts, normalised values and scores as separately named layers or
-  assays, and say which one each model reads.
+  In Python, `sc.logging.print_versions()` or `session_info.show()`, written
+  to the run dir.
 - Log every removed sample, cell or gene with the reason and the count removed,
   and every group a loop skips, with why.
 - Commit a lockfile: `renv.lock`, `uv.lock` or `environment.yml`. Export conda
@@ -245,9 +297,14 @@ Make the choice explicit and say why.
   Omit "ns".
 - Put group sizes in tick labels, `(n = 12)`. Build maths labels with
   `bquote()`. Never show a raw column or variable name as a label.
+- Build each plot once and pass it explicitly: `ggsave(plot = p_fig2c, ...)`.
+  Never a second copy of the plot code for export, never `last_plot()`.
+  Display and save sizes come from the same constants.
+- One named vector, `panels <- c(fig2c = "umap-donor")`, drives the plot
+  object name, the file name and the source-data name.
 - Write a source-data table per panel from the same data frame passed to `ggplot()`.
-- Name the output file after its panel.
-- In Python, save before `plt.show()`.
+- In Python, save before `plt.show()`: `fig.savefig(run_dir / name, bbox_inches = "tight")`,
+  then `plt.close(fig)`; set `sc.settings.figdir = run_dir` once.
 - State the denominator of every fraction in the legend or caption.
 - Show donor points when inference is at donor level.
 
