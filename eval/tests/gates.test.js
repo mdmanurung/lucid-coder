@@ -44,7 +44,8 @@ test('make-fixtures.R rewrites identical files', { timeout: TIMEOUT }, (t) => {
 });
 
 // Mirror run.sh: inputs copied into a fresh git repo, the script in scripts/, run once.
-function gate(taskId, scriptPath) {
+// expectExit: the script's exit status; the task 05 reference refuses the inputs by design.
+function gate(taskId, scriptPath, expectExit = 0) {
   const taskDir = path.join(tasksDir, taskId);
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), `gate-${taskId}-`));
   fs.cpSync(path.join(taskDir, 'inputs'), repo, { recursive: true });
@@ -53,11 +54,11 @@ function gate(taskId, scriptPath) {
   fs.copyFileSync(scriptPath, path.join(repo, script));
   spawnSync('git', ['init', '-q'], { cwd: repo });
   const run = rscript(`${script} results/run1`, repo);
-  assert.strictEqual(run.status, 0, `${scriptPath} failed:\n${run.stderr}`);
+  assert.strictEqual(run.status, expectExit, `${scriptPath} exited ${run.status}:\n${run.stderr}`);
   const check = rscript(`${path.join(taskDir, 'check.R')} ${repo} ${taskDir}`, repo);
   assert.strictEqual(check.status, 0, check.stderr);
   fs.rmSync(repo, { recursive: true, force: true });
-  return JSON.parse(check.stdout.trim());
+  return { ...JSON.parse(check.stdout.trim()), stderr: run.stderr };
 }
 
 const cases = [
@@ -65,15 +66,21 @@ const cases = [
   ['02_metadata-join', '02_summarise-samples.R', /wrong or missing condition\/batch/],
   ['03_figure-palette', '03_plot-proportions.R', /proportions_by-condition\.csv/],
   ['04_refactor-legacy', '04_group-means.R', /values differ|rows, expected/],
+  ['05_recode-trap', '05_summarise-cohorts.R', /wrong age group:.*S07 \(BR1 -> older\)/],
+  ['06_grep-trap', '06_filter-controls.R', /has 0 rows, expected 280/],
 ];
+// Reference scripts that stop on purpose: exit status and the stderr the stop() must carry.
+const referenceStops = { '05_recode-trap': [1, /unmapped labels BR 1 \(S07\), br2 \(S19\)/] };
 
 for (const [taskId, script, naiveDetail] of cases) {
   const referenceDir = path.join(tasksDir, taskId, 'reference');
+  const [referenceExit, referenceStderr] = referenceStops[taskId] || [0, null];
 
   test(`${taskId}: reference passes the gate`, { timeout: TIMEOUT }, (t) => {
     if (!hasR) return t.skip('R module not available');
-    const verdict = gate(taskId, path.join(referenceDir, script));
+    const verdict = gate(taskId, path.join(referenceDir, script), referenceExit);
     assert.strictEqual(verdict.gate, 'pass', verdict.detail);
+    if (referenceStderr) assert.match(verdict.stderr, referenceStderr);
   });
 
   test(`${taskId}: naive answer fails the gate`, { timeout: TIMEOUT }, (t) => {

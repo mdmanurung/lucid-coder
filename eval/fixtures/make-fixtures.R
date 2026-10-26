@@ -243,3 +243,65 @@ invisible(file.copy(
   file.path(task_dir, "inputs", "scripts", "00_legacy.R"),
   overwrite = TRUE
 ))
+
+# ---- 05_recode-trap ----
+# Two cohorts of 12 donors. Two sheet rows carry a malformed cohort label ("BR 1", "br2"), so a
+# catch-all recode arm (TRUE ~ "older") silently files one young donor under "older".
+set.seed(505)
+task_dir <- file.path(TASKS_DIR, "05_recode-trap")
+AGE_GROUP <- c(BR1 = "young", BR2 = "older")
+cohort_samples <- data.frame(
+  sample_id = sprintf("S%02d", 1:24),
+  cohort = rep(names(AGE_GROUP), each = 12)
+)
+cohort_samples$age_group <- AGE_GROUP[cohort_samples$cohort]
+cohort_samples$age <- ifelse(
+  cohort_samples$age_group == "young",
+  sample(22:35, nrow(cohort_samples), replace = TRUE),
+  sample(62:79, nrow(cohort_samples), replace = TRUE)
+)
+cohort_samples$malformed <- cohort_samples$sample_id %in% c("S07", "S19")
+sheet <- cohort_samples
+sheet$cohort[sheet$sample_id == "S07"] <- "BR 1"
+sheet$cohort[sheet$sample_id == "S19"] <- "br2"
+stopifnot(sum(!sheet$cohort %in% names(AGE_GROUP)) == 2)
+scores <- data.frame(
+  sample_id = sample(cohort_samples$sample_id),
+  score = round(rnorm(nrow(cohort_samples), mean = 50, sd = 8), 2)
+)
+
+write_tsv(
+  sheet[c("sample_id", "cohort", "age")],
+  file.path(task_dir, "inputs", "data", "samples.tsv")
+)
+write_tsv(scores, file.path(task_dir, "inputs", "data", "scores.tsv"))
+write_tsv(
+  cohort_samples[c("sample_id", "cohort", "age_group", "malformed")],
+  file.path(task_dir, "truth", "samples.tsv")
+)
+
+# ---- 06_grep-trap ----
+# 300 genes x 10 samples: 20 ERCC spike-ins and no MT- genes, so `x[-grep("^MT-", x$gene), ]`
+# drops every row (integer(0) index), while `!grepl()` keeps them all.
+set.seed(606)
+task_dir <- file.path(TASKS_DIR, "06_grep-trap")
+genes <- c(sprintf("GENE%03d", 1:280), sprintf("ERCC-%05d", 1:20))
+genes <- sample(genes)
+control_samples <- sprintf("S%02d", 1:10)
+control_counts <- matrix(
+  rnbinom(length(genes) * length(control_samples), mu = rlnorm(length(genes), 4, 1), size = 5),
+  nrow = length(genes),
+  dimnames = list(genes, control_samples)
+)
+control_table <- data.frame(gene = genes, control_counts, check.names = FALSE)
+stopifnot(
+  sum(grepl("^MT-", genes)) == 0,
+  sum(grepl("^ERCC-", genes)) == 20,
+  nrow(control_table[-grep("^MT-", control_table$gene), ]) == 0
+)
+
+write_tsv(control_table, file.path(task_dir, "inputs", "data", "counts.tsv"))
+write_tsv(
+  data.frame(gene = genes, gene_set = ifelse(grepl("^ERCC-", genes), "ERCC", "none")),
+  file.path(task_dir, "truth", "genes.tsv")
+)
