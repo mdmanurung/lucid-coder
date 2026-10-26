@@ -6,3 +6,7 @@ eval/results/*
 !eval/results/results.tsv
 !eval/results/report.md
 !eval/results/report-*.md
+!eval/results/packet-*/
+eval/results/packet-*/*
+!eval/results/packet-*/judges.tsv
+!eval/results/packet-*/packet/
