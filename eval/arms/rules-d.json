@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "r-0001",
+      "topic": "r.pipe",
+      "scope": { "kind": "global" },
+      "statement": "Use the magrittr pipe %>% in all R code.",
+      "why": "Eval arm D: a learned rule that runs against the model default, so uptake is grep-checkable.",
+      "good": "counts %>% filter(n > 0)",
+      "bad": "counts |> filter(n > 0)",
+      "status": "active",
+      "supersedes": null,
+      "source": "user-preference",
+      "created": "2026-10-26",
+      "approved": "2026-10-26"
+    },
+    {
+      "id": "r-0002",
+      "topic": "user.plot_titles",
+      "scope": { "kind": "global" },
+      "statement": "Do not add plot titles; describe the plot in the file name and caption.",
+      "why": "Eval arm D: a learned rule that runs against the model default, so uptake is grep-checkable.",
+      "good": "ggsave(\"proportion_by_condition.pdf\", p)",
+      "bad": "p + ggtitle(\"Proportion by condition\")",
+      "status": "active",
+      "supersedes": null,
+      "source": "user-preference",
+      "created": "2026-10-26",
+      "approved": "2026-10-26"
+    },
+    {
+      "id": "r-0003",
+      "topic": "fig.theme",
+      "scope": { "kind": "global" },
+      "statement": "Use theme_bw(base_size = 8) for every plot.",
+      "why": "Eval arm D: a learned rule that runs against the model default, so uptake is grep-checkable.",
+      "good": "p + theme_bw(base_size = 8)",
+      "bad": "p + theme_minimal()",
+      "status": "active",
+      "supersedes": null,
+      "source": "user-preference",
+      "created": "2026-10-26",
+      "approved": "2026-10-26"
+    }
+  ],
+  "trusted": []
+}
