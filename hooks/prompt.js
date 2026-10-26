@@ -1,5 +1,6 @@
 // UserPromptSubmit: handle /lucid-coder on|off|status and nudge on|off.
-// Other prompts get at most one nudge line. Nothing is stored (PLAN.md 5.4).
+// Other prompts get at most one nudge line. Only the on/off flags are stored;
+// prompt text never is (PLAN.md 5.4).
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
