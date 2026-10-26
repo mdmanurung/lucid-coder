@@ -1,6 +1,6 @@
 # Handoff — lucid-coder
 
-**Date:** 2026-10-26 · **Branch:** main, not pushed · **Status:** Phases 0 and 1 committed and verified; Phase 2 not started
+**Date:** 2026-10-26 · **Branch:** main, not pushed · **Status:** Phases 0, 1 and 2 committed and verified; Phase 3 not started
 
 ## Goal
 Build a ponytail-like Claude Code plugin with three properties:
@@ -12,10 +12,18 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-Start Phase 2 (`PLAN.md` section 9): `templates/` configs and palette/theme files, plus the `align` and `review` skills.
+Plan Phase 3, the evaluation in `PLAN.md` section 8.
 
 ## State
-- Phases 0 and 1 are committed on `main`. Nothing is pushed.
+- Phases 0, 1 and 2 are committed on `main`. Nothing is pushed.
+- Phase 2 added `templates/` (`air.toml`, `.lintr`, `ruff.toml`, `palettes.{R,py}`, `theme.{R,py}`, `.here`, and `examples/01_fit-contrasts.{R,py}`), `skills/align/`, `skills/review/` and `tests/templates.test.js`. Two parallel Opus agents built it.
+- Tests: `node --test tests/*.test.js` runs 36 cases, all passing, none skipped. The template tests run air, ruff, lintr, both example scripts and a scratch-repo align simulation. That simulation is the Phase 2 done-when.
+- Tools: air 0.12.0 comes from conda-forge (`pixi global install air`), at `~/.pixi/bin/air` with a symlink at `~/.local/bin/air`. Posit's installer refuses glibc 2.28. R is `module load statistical/R/4.5.2/gcc.8.5.0`, which has lintr, ggplot2 and here but not styler or janitor. Python examples run through `uv run --python 3.12 --with matplotlib,pandas,scipy`.
+- Phase 2 live checks, 2026-10-26:
+  - `/lucid-coder:review` on a deliberately bad R script gave 10 findings grouped by topic, each with `file:line`.
+  - `/lucid-coder:review templates/examples` found real bugs in the examples: two non-empty checks that could never fire, unknown condition labels silently becoming `NA`, and R paths not using `here::here()`. All three are fixed. The Python example then gained scipy p-values and BH q-values; they match the R example to floating-point precision.
+  - The `allowed-tools` line on `review` lets `rules.js list` run without a prompt (checked in `-p` mode).
+- `templates/.here` marks `templates/` as the root for `here::here()` when the examples run in place.
 - Phase 1 added `scripts/rules.js` (the only store writer), `skills/learn/`, `skills/rules/` and `tests/{rules,prompt}.test.js`, and extended `hooks/lib.js` and `hooks/prompt.js`. Two parallel Opus agents built it against one CLI contract.
 - Tests: `node --test tests/*.test.js` runs 27 cases, all passing.
 - Phase 1 live checks, 2026-10-26:
@@ -66,4 +74,5 @@ Start Phase 2 (`PLAN.md` section 9): `templates/` configs and palette/theme file
 - `/lucid-coder:learn` has not run live end to end, from correction through `propose`, `approve` and `supersede`. The CLI side is unit-tested.
 - `rules.js` `parseArgs` rejects a value that starts with `-`, such as `--statement "-x"`. `--statement=-x` works.
 - `claude plugin validate .` warns about a missing README, LICENSE and icon. These matter only before publishing.
-- Phase 2: `review` should compare outputs before and after a refactor (PLOS 2021 regression-test rule). Add this to `PLAN.md` section 7 when Phase 2 starts.
+- `/lucid-coder:align` has not run end to end, because `-p` mode cannot answer its prompts. The copy step is simulated in tests.
+- `.lintr` allows `SNAKE_CASE` alongside `snake_case`, so the house style's UPPER_SNAKE constants pass.

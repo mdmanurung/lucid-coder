@@ -308,7 +308,8 @@ already does it where installed, and a second linter hook would double the messa
 | `/lucid-coder:align` | repo configs | `air.toml`, `.lintr`, `ruff.toml`, after showing the diff and asking |
 
 `review` may propose rules ("this repository uses `%>%` in 40 files; add a
-repo exception?"). It never activates them.
+repo exception?"). It never activates them. When a change is a refactor, it
+asks whether outputs were compared before and after (Stoudt et al. 2021).
 
 ## 8. Evaluation: does the persona change what agents write?
 
