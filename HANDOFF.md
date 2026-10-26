@@ -12,7 +12,14 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-Decide whether the DE task still over-checks after the corpus-audit wording (rerun C wrote 8 and 6 checks on task 01 against 3 in the baseline). Options: one more C rerun on task 01 only (2 runs), or accept 5 as the ceiling and move to the human packet. Then Phase 4 only if the human sheets show an effect.
+Score `rerun2-cd-20261026` when it finishes (`node eval/score.js eval/results/rerun2-cd-20261026`) and compare its check counts with the first rerun (C median 5, D 6). Then decide which of today's `SKILL.md` additions earn a line in `rules/core.md`, paid for by a cut, so the eval arms can see them. Then the human packet; Phase 4 only if the human sheets show an effect.
+
+## Per-file audit (2026-10-26, after the C/D rerun)
+- Three Opus agents audited the house style against the primary digests, `cc_learnings/repos_summary/` (17 files) and `cc_learnings/per_file/` (198 shards), which no earlier audit had read. A Fable agent spot-checked 12 cited lines and rejected six audit claims, among them "zero `oob = squish`" (MM and immgenT use it) and "`call. = FALSE` in MM only" (immgenT too).
+- Applied in `house-style.md`: about 25 evidence corrections and relabels (`r.errors` now credits immgenT's `fn():` prefix and `call. = FALSE`; `r.indent` and `r.assign` are split, not dominant; `fig.theme` names MM, MOCHA and IHA; `comments.header` "no author line" is new, since every corpus header has one; `py.paths` is new; `here()` has 0 of 17 witnesses); 6 new rows: `code.constants`, `code.by_name`, `py.views`, `data.write`, `fig.panel_id`, `fig.once`; 7 clause merges. Dropped as covered or single-lineage: bare-except as a separate row, notebook parameterising, pure helpers, stats outside the plot, scanpy palette form.
+- Applied in `SKILL.md`: the same rules plus four before/after examples (constant swallowed by `...`, recode without a catch-all, Python bare `except`, AnnData view mutation).
+- `rules/core.md` is unchanged at 3,990 chars: the reviewer judged core should shrink, not grow, because agents still over-check. So the eval arms, which inject only core, have not seen today's additions.
+- A second C/D rerun, `eval/results/rerun2-cd-20261026/`, started after these edits. It replicates the first rerun (same core text), taking n to 4 per task and arm.
 
 ## C/D rerun and corpus audit (2026-10-26, after the pilot)
 - Rerun: `eval/results/rerun-cd-20261026/`, tasks 01-04 x arms C,D x 2 reps, all 16 completed. Report in `eval/results/report.md`; the pilot report is kept as `eval/results/report-pilot-20261026.md`.
