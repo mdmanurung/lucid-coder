@@ -1,0 +1,10 @@
+{
+  "name": "lucid-coder",
+  "version": "0.2.0",
+  "description": "Readable, reproducible bioinformatics and statistics R/Python: one house style across repositories, few consequential checks, and rules learned from user corrections.",
+  "author": {
+    "name": "mdmanurung",
+    "url": "https://github.com/mdmanurung"
+  },
+  "hooks": "./hooks/hooks.json"
+}
