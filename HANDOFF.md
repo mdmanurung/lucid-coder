@@ -1,6 +1,6 @@
 # Handoff — lucid-coder
 
-**Date:** 2026-10-26 · **Branch:** main, not pushed · **Status:** Phase 0 done and verified; Phase 1 not started
+**Date:** 2026-10-26 · **Branch:** main, not pushed · **Status:** Phases 0 and 1 committed and verified; Phase 2 not started
 
 ## Goal
 Build a ponytail-like Claude Code plugin with three properties:
@@ -12,10 +12,18 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-Start Phase 1 (`PLAN.md` section 9): `scripts/rules.js`, the `learn` and `rules` skills, the correction nudge in `hooks/prompt.js`, and trust-by-hash for repository rule files.
+Start Phase 2 (`PLAN.md` section 9): `templates/` configs and palette/theme files, plus the `align` and `review` skills.
 
 ## State
-- Phase 0 is committed on `main` in five commits. Nothing is pushed.
+- Phases 0 and 1 are committed on `main`. Nothing is pushed.
+- Phase 1 added `scripts/rules.js` (the only store writer), `skills/learn/`, `skills/rules/` and `tests/{rules,prompt}.test.js`, and extended `hooks/lib.js` and `hooks/prompt.js`. Two parallel Opus agents built it against one CLI contract.
+- Tests: `node --test tests/*.test.js` runs 27 cases, all passing.
+- Phase 1 live checks, 2026-10-26:
+  - A repo-scope rule made with `rules.js propose` then `approve` was injected in a session in this repo, and absent in a session run from `/tmp`.
+  - `/lucid-coder:rules list` ran the CLI through the skill.
+  - The nudge hook was run against 9 real transcripts. It fired only on the one whose last turn ran Write.
+  - The probe store was deleted afterwards.
+- Data dir: hooks under `--plugin-dir` get `CLAUDE_PLUGIN_DATA=~/.claude/plugins/data/lucid-coder-inline`. The Bash tool may lack that variable, so SessionStart writes its path to `~/.claude/.lucid-coder-data` and `rules.js` reads it. `${CLAUDE_PLUGIN_ROOT}` substitutes inside skill text (checked live).
 - Phase 0 files: `.claude-plugin/plugin.json`, `hooks/{hooks.json,lib.js,activate.js,subagent.js,prompt.js}`, `rules/core.md` (3,869 chars), `tests/hooks.test.js`, `package.json`.
 - Tests: `node --test tests/*.test.js` runs 12 cases, all passing. `npm` is not installed on this host; `package.json` holds the same command. `claude plugin validate .` passes, with directory warnings for a missing README, LICENSE and icon.
 - Live check 2026-10-26: `claude --plugin-dir . -p ...` quoted the core heading and ladder rung 1. With `~/.claude/.lucid-coder-active` set to `off`, a new session reported NOT FOUND. `-p "/lucid-coder off"` wrote the flag and `-p "/lucid-coder on"` removed it. An Explore subagent quoted ladder rung 1 from its SubagentStart context. This covers level 2 of `PLAN.md` section 8.
@@ -48,10 +56,14 @@ Start Phase 1 (`PLAN.md` section 9): `scripts/rules.js`, the `learn` and `rules`
 - `skills/lucid-coder/SKILL.md`: the full persona.
 - `rules/core.md`: the injected form. Keep it under 4,000 chars; a test enforces this.
 - `skills/lucid-coder/references/house-style.md`: topic keys and defaults.
-- `hooks/lib.js`: store read, render, escape, budget. Phase 1's `rules.js` should reuse `escapeRule`.
+- `hooks/lib.js`: store read, repo id, trust check, render, escape, budget, data-dir pointer.
+- `scripts/rules.js`: run it with no arguments for the usage text. Exit codes: 0 ok, 1 validation error, 2 conflict.
 - `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans-lucidcoder/lucid-coder/`: the old v0.1 bundle. Its plan docs were revised 2026-10-26 at the user's request: `AGENT_IMPLEMENTATION_PROMPT.md` points the build at this repository, and the other docs are marked superseded. Its code is reference only. The original is archived at `../lucid-coder-v0.1-orig.tar.gz`.
 
 ## Open items
-- Before Phase 1 fixes the store path, confirm `CLAUDE_PLUGIN_DATA` is set in the hook environment under both `--plugin-dir` and an installed plugin. If only one sets it, the hooks and `rules.js` could read different files. Ponytail never uses this variable, so there is no prior evidence.
+- The data-dir pointer is one file. If a dev copy (`--plugin-dir`) and an installed copy both run, the last session to start wins, and `rules.js` writes to that copy's store. Not tested with an installed copy.
+- No conflict check runs between a trusted repo file's rules and the user's own repo-scope rules on the same topic. Both are injected.
+- `/lucid-coder:learn` has not run live end to end, from correction through `propose`, `approve` and `supersede`. The CLI side is unit-tested.
+- `rules.js` `parseArgs` rejects a value that starts with `-`, such as `--statement "-x"`. `--statement=-x` works.
 - `claude plugin validate .` warns about a missing README, LICENSE and icon. These matter only before publishing.
 - Phase 2: `review` should compare outputs before and after a refactor (PLOS 2021 regression-test rule). Add this to `PLAN.md` section 7 when Phase 2 starts.

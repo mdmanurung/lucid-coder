@@ -227,7 +227,7 @@ Rule schema:
 {
   "id": "r-0007",
   "topic": "r.pipe",
-  "scope": {"kind": "repo", "repo": "git@github.com:lab/atlas.git"},
+  "scope": {"kind": "repo", "repo": "github.com/lab/atlas"},
   "statement": "Use %>% in this repository; it predates base R 4.1.",
   "why": "Mixed pipes in one codebase slow review.",
   "good": "counts %>% filter(n_cells >= MIN_CELLS)",
@@ -243,13 +243,13 @@ Rule schema:
 Field rules:
 
 - `topic` is required. Each rule uses a house-style key or a new `user.*` key.
-- `scope.kind` is one of `global`, `language`, `repo`, `file-glob`.
+- `scope.kind` is one of `global`, `language`, `repo`, `file-glob`. The other scope key is `language` (`r` or `python`), `repo` (the origin remote as `host/owner/repo`, else the repo root path) or `glob`.
 - `status` is one of `proposed`, `active`, `rejected`, `superseded`, `retired`.
 - `source` is one of `user-correction`, `user-preference`, `repo-review`. A rule from `repo-review` was proposed by `/lucid-coder:review` reading local code, and it still needs approval.
 
 ### 5.3 Conflict and supersession, mechanically
 
-- At most one `active` rule per `(topic, scope)`. Activating a second rule asks to supersede the first. The old rule keeps its record and points forward.
+- At most one `active` rule per `(topic, scope)`. Activating a second rule asks to supersede the first. The old rule keeps its record with status `superseded`, and the new rule's `supersedes` points back to it.
 - Precedence across scopes is `file-glob > repo > language > global > house style`. This applies only within a topic, and it is below scientific correctness and the current request.
 - Recency never resolves a conflict on its own. The user chooses.
 - Approval is per rule, never per profile.
