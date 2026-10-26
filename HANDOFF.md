@@ -1,6 +1,6 @@
 # Handoff — lucid-coder
 
-**Date:** 2026-10-26 · **Branch:** main, not pushed · **Status:** Phases 0-2 committed; Phase 3 harness built and pilot run (32 runs); house rules revised after the pilot
+**Date:** 2026-10-26 · **Branch:** main, not pushed · **Status:** Phases 0-3 committed: harness, 32-run pilot, 16-run C/D rerun; house style revised after a corpus audit
 
 ## Goal
 Build a ponytail-like Claude Code plugin with three properties:
@@ -12,7 +12,16 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-Rerun arms C and D after the post-pilot rule changes (check budget D8, `|>` always D1, `theme_bw(base_size = 8)` D9) to see whether the median check count drops from 8 toward 3. Before that, replace arm D's three test rules in `eval/arms/rules-d.json`. Its `%>%` rule now contradicts the user's rule, and its theme rule is now the default, so it no longer tests uptake.
+Decide whether the DE task still over-checks after the corpus-audit wording (rerun C wrote 8 and 6 checks on task 01 against 3 in the baseline). Options: one more C rerun on task 01 only (2 runs), or accept 5 as the ceiling and move to the human packet. Then Phase 4 only if the human sheets show an effect.
+
+## C/D rerun and corpus audit (2026-10-26, after the pilot)
+- Rerun: `eval/results/rerun-cd-20261026/`, tasks 01-04 x arms C,D x 2 reps, all 16 completed. Report in `eval/results/report.md`; the pilot report is kept as `eval/results/report-pilot-20261026.md`.
+- Check budget (D8) took C from a median of 8 checks to 5; D stayed at 6. Baseline is 3. Per task, C: 01 8,6; 02 5,4; 03 6,4; 04 4,7.
+- Every new house rule took in 8/8: `|>` only, `theme_bw(base_size = 8)`, zero lints. Arm D followed its three new learned rules (`out_dir`, no titles, `options(warn = 1)`) in 8/8; C in 0/8.
+- Arm D's rules were replaced before the rerun: the old `%>%` rule contradicted D1 and the old theme rule had become the default. `results.tsv` gained three columns (`native_pipe`, `rule_out_dir`, `rule_warn1`); pilot rows hold NA there.
+- Corpus audit: three Opus agents compared the house style with `cc_learnings/final/` and `repos_new/`; a Fable agent then reviewed the 16 proposed additions. Applied: the seed rule corrected (distinct seed per replicate, never one fixed seed in a repeated helper), exact matching and named joins, recode without a catch-all, logged skips, functions and helper namespacing, no blanket warning suppression, no reported numbers from notebooks, shebang and strict shell, shadowing and full argument names, deprecated args, provenance comments, heatmap/stars/labels, string "NA" and trailing-space labels, conda exports without `prefix:`. Dropped on review: replication unit and paired designs (sc-conventions pack owns them), min sizes and alpha (values split across repos), run receipts (mycelium-extra `verify`), per-group tryCatch logging (one repo).
+- Citation fixes in `house-style.md`: source data is IHA, IFN, MOCHA only; `py.paths`/`py.args` now cite cns; `here()` is labelled external-only; the corpus is about 8 lineages, not 9-10.
+- `rules/core.md` is at 3,990 chars; the R dispatch detail moved to the house style to make room.
 
 ## Phase 3 pilot (2026-10-26)
 - Run: `eval/results/pilot-20261026/`, 4 tasks × 4 arms × 2 reps, Opus 5.5, all 32 completed. Usage $11.11. Scores in `eval/results/results.tsv`, report in `eval/results/report.md`.
