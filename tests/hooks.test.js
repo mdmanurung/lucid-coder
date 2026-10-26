@@ -131,3 +131,73 @@ test('hook commands are portable and point at real files', () => {
     assert.ok(fs.existsSync(path.join(root, 'hooks', script)), script);
   }
 });
+
+// A fake git repo with an origin remote, for repo-scope and trust tests.
+function fakeRepo(home, name, origin) {
+  const repo = path.join(home, name);
+  fs.mkdirSync(path.join(repo, '.git'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.git', 'config'), `[remote "origin"]\n\turl = ${origin}\n`);
+  fs.writeFileSync(path.join(repo, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+  return repo;
+}
+
+function runAt(script, home, cwd, ...args) {
+  return spawnSync(process.execPath, [path.join(root, script), ...args], {
+    cwd,
+    env: { ...process.env, HOME: home, CLAUDE_CONFIG_DIR: home, CLAUDE_PLUGIN_DATA: path.join(home, 'data') },
+    encoding: 'utf8',
+  });
+}
+
+test('repo-scope rule is injected only in its own repo', () => {
+  const home = setup();
+  const atlas = fakeRepo(home, 'atlas', 'git@github.com:lab/atlas.git');
+  const other = fakeRepo(home, 'other', 'https://github.com/lab/other');
+  writeStore(home, JSON.stringify({ rules: [
+    { ...rule(1), scope: { kind: 'repo', repo: 'github.com/lab/atlas' }, statement: 'ATLAS ONLY' },
+    { ...rule(2), scope: { kind: 'file-glob', glob: '*.R' }, statement: 'GLOB RULE' },
+  ] }));
+  const inAtlas = runAt('hooks/activate.js', home, atlas).stdout;
+  assert.match(inAtlas, /\[user\.t1, repo\] ATLAS ONLY/);
+  assert.match(inAtlas, /\[user\.t2, file-glob: \*\.R\] GLOB RULE/);
+  const inOther = runAt('hooks/activate.js', home, other).stdout;
+  assert.doesNotMatch(inOther, /ATLAS ONLY/);
+  assert.match(inOther, /GLOB RULE/);
+});
+
+test('repo rules file loads only while its trusted hash matches', () => {
+  const home = setup();
+  const repo = fakeRepo(home, 'atlas', 'git@github.com:lab/atlas.git');
+  const file = path.join(repo, 'lucid-coder.rules.json');
+  const team = s => JSON.stringify({ rules: [{ ...rule(9), scope: { kind: 'global' }, statement: s }] });
+  const notice = /lucid-coder\.rules\.json in this repo is not trusted/;
+
+  fs.writeFileSync(file, team('TEAM RULE'));
+  let out = runAt('hooks/activate.js', home, repo).stdout;
+  assert.doesNotMatch(out, /TEAM RULE/);
+  assert.match(out, notice);
+
+  assert.strictEqual(runAt('scripts/rules.js', home, repo, 'trust').status, 0);
+  out = runAt('hooks/activate.js', home, repo).stdout;
+  assert.match(out, /\[user\.t9, repo\] TEAM RULE/);
+  assert.doesNotMatch(out, notice);
+
+  fs.writeFileSync(file, team('CHANGED RULE'));
+  out = runAt('hooks/activate.js', home, repo).stdout;
+  assert.doesNotMatch(out, /CHANGED RULE|TEAM RULE/);
+  assert.match(out, notice);
+});
+
+test('activate leaves a data-dir pointer that the CLI uses without CLAUDE_PLUGIN_DATA', () => {
+  const home = setup();
+  const plugin = path.join(home, 'plugin-data');
+  run('activate.js', home, { env: { CLAUDE_PLUGIN_DATA: plugin } });
+  assert.strictEqual(fs.readFileSync(path.join(home, '.lucid-coder-data'), 'utf8'), plugin);
+
+  const env = { ...process.env, HOME: home, CLAUDE_CONFIG_DIR: home };
+  delete env.CLAUDE_PLUGIN_DATA;
+  const r = spawnSync(process.execPath, [path.join(root, 'scripts', 'rules.js'), 'propose',
+    '--topic', 'user.x', '--scope', 'global', '--statement', 'S', '--why', 'W'], { cwd: home, env, encoding: 'utf8' });
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.ok(fs.existsSync(path.join(plugin, 'rules.json')));
+});

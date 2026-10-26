@@ -1,5 +1,6 @@
 // Shared helpers for the lucid-coder hooks. Every reader fails open: a bad
 // store or flag never removes the core ruleset.
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -23,8 +24,74 @@ function flagPath() {
   return path.join(stateDir(), '.lucid-coder-active');
 }
 
+function pointerPath() {
+  return path.join(stateDir(), '.lucid-coder-data');
+}
+
+// Skills' Bash calls may lack CLAUDE_PLUGIN_DATA, so the hooks leave a pointer
+// to the dir the plugin really uses.
 function dataDir() {
-  return process.env.CLAUDE_PLUGIN_DATA || path.join(stateDir(), 'lucid-coder');
+  if (process.env.CLAUDE_PLUGIN_DATA) return process.env.CLAUDE_PLUGIN_DATA;
+  try {
+    const pointed = fs.readFileSync(pointerPath(), 'utf8').trim();
+    if (pointed) return pointed;
+  } catch (e) {}
+  return path.join(stateDir(), 'lucid-coder');
+}
+
+function rememberDataDir() {
+  if (!process.env.CLAUDE_PLUGIN_DATA) return;
+  try {
+    fs.mkdirSync(stateDir(), { recursive: true });
+    fs.writeFileSync(pointerPath(), process.env.CLAUDE_PLUGIN_DATA);
+  } catch (e) {}
+}
+
+// 'git@host:owner/repo.git' and 'https://host/owner/repo' both become 'host/owner/repo'.
+function normaliseRemote(url) {
+  const u = url.trim().replace(/\/+$/, '').replace(/\.git$/, '');
+  const full = u.match(/^[a-z+]+:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i);
+  if (full) return full[1].toLowerCase() + '/' + full[2];
+  const scp = u.match(/^(?:[^@/]+@)?([^/:]+):(.+)$/);
+  if (scp) return scp[1].toLowerCase() + '/' + scp[2].replace(/^\/+/, '');
+  return u;
+}
+
+// The git dir behind <dir>/.git, or null. Like git, a .git without HEAD
+// (e.g. a stray empty /tmp/.git) is not a repo.
+function gitDirOf(dir) {
+  const dotGit = path.join(dir, '.git');
+  let gitdir = dotGit;
+  try {
+    if (fs.statSync(dotGit).isFile()) {
+      const m = fs.readFileSync(dotGit, 'utf8').match(/^gitdir:\s*(.+)$/m);
+      gitdir = m ? path.resolve(dir, m[1].trim()) : '';
+    }
+  } catch (e) {
+    return null;
+  }
+  return gitdir && fs.existsSync(path.join(gitdir, 'HEAD')) ? gitdir : null;
+}
+
+// Reads .git directly (no git spawn): id is the origin remote, else the root path.
+function repoInfo(cwd) {
+  for (let dir = path.resolve(cwd); ; dir = path.dirname(dir)) {
+    const gitdir = gitDirOf(dir);
+    if (gitdir) {
+      // Worktrees keep config in the common dir.
+      let configDir = gitdir;
+      try { configDir = path.resolve(gitdir, fs.readFileSync(path.join(gitdir, 'commondir'), 'utf8').trim()); } catch (e) {}
+      let id = dir;
+      try {
+        const config = fs.readFileSync(path.join(configDir, 'config'), 'utf8');
+        const section = config.match(/^\s*\[remote\s+"origin"\]([^[]*)/m);
+        const url = section && section[1].match(/^\s*url\s*=\s*(.+)$/m);
+        if (url) id = normaliseRemote(url[1]);
+      } catch (e) {}
+      return { root: dir, id };
+    }
+    if (path.dirname(dir) === dir) return null;
+  }
 }
 
 // Absent flag means on: lucid-coder is always-on until the user turns it off.
@@ -53,13 +120,39 @@ function readCore() {
   }
 }
 
+const UNTRUSTED = 'lucid-coder.rules.json in this repo is not trusted; run /lucid-coder:rules trust after reviewing it.';
+
+function sha256(buf) {
+  return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
+// Returns the active rules that apply here. A repo file whose hash is not
+// trusted sets rules.notice instead of loading, so render can say so.
 function readActiveRules() {
+  let store = {};
+  try { store = JSON.parse(fs.readFileSync(path.join(dataDir(), 'rules.json'), 'utf8')) || {}; } catch (e) {}
+  let repo = null;
+  try { repo = repoInfo(process.cwd()); } catch (e) {}
+  const rules = (Array.isArray(store.rules) ? store.rules : []).filter(r =>
+    r && r.status === 'active' &&
+    !(r.scope && r.scope.kind === 'repo' && !(repo && r.scope.repo === repo.id)));
+  if (!repo) return rules;
   try {
-    const store = JSON.parse(fs.readFileSync(path.join(dataDir(), 'rules.json'), 'utf8'));
-    return (store.rules || []).filter(r => r && r.status === 'active');
+    const text = fs.readFileSync(path.join(repo.root, 'lucid-coder.rules.json'));
+    const hash = sha256(text);
+    const trusted = (Array.isArray(store.trusted) ? store.trusted : [])
+      .some(t => t && t.repo === repo.id && t.sha256 === hash);
+    if (!trusted) {
+      rules.notice = UNTRUSTED;
+      return rules;
+    }
+    for (const r of JSON.parse(text).rules || []) {
+      if (r && r.status === 'active') rules.push({ ...r, scope: { kind: 'repo', repo: repo.id } });
+    }
   } catch (e) {
-    return [];
+    // no repo file, or a broken one: skip it
   }
+  return rules;
 }
 
 // One line, no leading '#', so rule text cannot open a fake heading.
@@ -72,15 +165,27 @@ function scopeRank(rule) {
   return i === -1 ? SCOPE_ORDER.length : i;
 }
 
+function scopeLabel(scope) {
+  const s = scope || {};
+  if (s.kind === 'language') return `language: ${s.language}`;
+  if (s.kind === 'file-glob') return `file-glob: ${s.glob}`;
+  return s.kind;
+}
+
 function render(core, rules) {
   let out = 'LUCID-CODER ACTIVE\n\n' + core;
-  if (!rules.length) return out;
+  if (rules.length) out += learnedBlock(out.length, rules);
+  if (rules.notice) out += '\n\n' + rules.notice;
+  return out;
+}
 
+function learnedBlock(used, rules) {
   const lines = rules
     .slice()
     .sort((a, b) => scopeRank(a) - scopeRank(b))
-    .map(r => `- [${escapeRule(r.topic)}, ${escapeRule(r.scope && r.scope.kind)}] ${escapeRule(r.statement)}`);
-  const budget = Math.min(RULES_BUDGET, OUTPUT_CAP - out.length - 200);
+    .map(r => `- [${escapeRule(r.topic)}, ${escapeRule(scopeLabel(r.scope))}] ${escapeRule(r.statement)}`);
+  // The 200-char margin also covers the header, the hidden-count line and the trust notice.
+  const budget = Math.min(RULES_BUDGET, OUTPUT_CAP - used - 200);
   let block = '';
   let shown = 0;
   for (const line of lines) {
@@ -88,7 +193,7 @@ function render(core, rules) {
     block += line + '\n';
     shown++;
   }
-  out += '\n\n## Learned rules\n' + block;
+  let out = '\n\n## Learned rules\n' + block;
   if (shown < lines.length) {
     out += `${lines.length - shown} rules not shown; run /lucid-coder:rules.\n`;
   }
@@ -129,4 +234,5 @@ function readStdin(cb) {
 module.exports = {
   FALLBACK_CORE, readMode, setMode, readCore, readActiveRules,
   escapeRule, render, writeOutput, readStdin,
+  dataDir, rememberDataDir, repoInfo, sha256, RULE_MAX,
 };
