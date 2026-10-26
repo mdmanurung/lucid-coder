@@ -10,7 +10,9 @@ const { spawnSync } = require('child_process');
 
 const COLUMNS = ['run_id', 'task', 'arm', 'rep', 'exit_code', 'cost_usd', 'duration_s', 'turns',
   'script_found', 'rerun_ok', 'gate', 'gate_detail', 'air_ok', 'lint_count', 'header_complete',
-  'check_count', 'commented_code_lines', 'uptake_pipe', 'uptake_no_title', 'uptake_theme'];
+  'check_count', 'commented_code_lines', 'uptake_pipe', 'uptake_no_title', 'uptake_theme',
+  // Added after the pilot (D1 revised, new arm D rules); pilot rows hold NA here.
+  'native_pipe', 'rule_out_dir', 'rule_warn1'];
 const EVAL_DIR = __dirname;
 const TEMPLATES = path.join(EVAL_DIR, '..', 'templates');
 // Both paths come from `module show statistical/R/4.5.2/gcc.8.5.0`.
@@ -111,6 +113,10 @@ function textMeasures(code) {
     uptake_pipe: code.includes('%>%') && !code.includes('|>'),
     uptake_no_title: plots ? !/ggtitle\(|labs\([^)]*\btitle\s*=/.test(code) : null,
     uptake_theme: plots ? /theme_bw\(\s*base_size\s*=\s*8\s*\)/.test(code) : null,
+    // House rule: |> and never %>%. A script with no pipe at all is NA, not a pass.
+    native_pipe: code.includes('|>') || code.includes('%>%') ? code.includes('|>') && !code.includes('%>%') : null,
+    rule_out_dir: /\bout_dir\s*<-/.test(code),
+    rule_warn1: /options\(\s*warn\s*=\s*1\s*\)/.test(code),
   };
 }
 

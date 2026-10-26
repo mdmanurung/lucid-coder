@@ -5,3 +5,4 @@ __pycache__/
 eval/results/*
 !eval/results/results.tsv
 !eval/results/report.md
+!eval/results/report-*.md

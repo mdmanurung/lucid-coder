@@ -94,6 +94,8 @@ test('score.js: a good script scores well on every column', () => {
     // lint_count 0: its two %>% lints are pipe_consistency, which score.js drops.
     ['true', '0', 'true', '1', '0']);
   assert.deepStrictEqual([g.uptake_pipe, g.uptake_no_title, g.uptake_theme], ['true', 'true', 'true']);
+  // It uses %>% and out_dir, and never sets options(warn = 1).
+  assert.deepStrictEqual([g.native_pipe, g.rule_out_dir, g.rule_warn1], ['false', 'true', 'false']);
 });
 
 test('score.js: a bad script fails style, rerun and uptake', () => {
@@ -104,13 +106,16 @@ test('score.js: a bad script fails style, rerun and uptake', () => {
   assert.ok(Number(b.commented_code_lines) >= 1);
   assert.strictEqual(b.check_count, '1');
   assert.deepStrictEqual([b.uptake_pipe, b.uptake_no_title, b.uptake_theme], ['false', 'false', 'false']);
+  // It pipes with |> only, so the house pipe rule passes even in a bad script.
+  assert.deepStrictEqual([b.native_pipe, b.rule_out_dir, b.rule_warn1], ['true', 'false', 'false']);
 });
 
 test('score.js: no script means script_found false and dependent columns NA', () => {
   const d = scoredGrid().rows.D;
   assert.strictEqual(d.script_found, 'false');
   for (const c of ['rerun_ok', 'air_ok', 'lint_count', 'header_complete', 'check_count',
-    'commented_code_lines', 'uptake_pipe', 'uptake_no_title', 'uptake_theme', 'cost_usd']) {
+    'commented_code_lines', 'uptake_pipe', 'uptake_no_title', 'uptake_theme', 'native_pipe',
+    'rule_out_dir', 'rule_warn1', 'cost_usd']) {
     assert.strictEqual(d[c], 'NA', c);
   }
 });

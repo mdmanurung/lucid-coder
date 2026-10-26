@@ -125,6 +125,9 @@ const L3_MEASURES = [
   ['uptake: %>% only', r => rate(r.map(x => x.uptake_pipe))],
   ['uptake: no plot title', r => rate(r.map(x => x.uptake_no_title))],
   ['uptake: theme_bw(base_size = 8)', r => rate(r.map(x => x.uptake_theme))],
+  ['house: |> only (pipe used)', r => rate(r.map(x => x.native_pipe))],
+  ['D rule: out_dir variable', r => rate(r.map(x => x.rule_out_dir))],
+  ['D rule: options(warn = 1)', r => rate(r.map(x => x.rule_warn1))],
 ];
 
 // Ratings (judges or readers) joined to arms through a key file; one table per rater.
