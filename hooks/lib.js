@@ -120,6 +120,74 @@ function readCore() {
   }
 }
 
+// Language tiers: rules/<lang>.md, injected after core for the languages
+// the repo uses. A missing tier file is just skipped.
+function readTiers(langs) {
+  const tiers = [];
+  for (const lang of langs) {
+    try { tiers.push(fs.readFileSync(path.join(__dirname, '..', 'rules', `${lang}.md`), 'utf8').trim()); } catch (e) {}
+  }
+  return tiers;
+}
+
+const SKIP_DIRS = new Set(['.git', 'node_modules', 'renv', '.venv', '__pycache__', 'results']);
+const LANG_EXT = { '.r': 'r', '.rmd': 'r', '.qmd': 'r', '.py': 'python', '.ipynb': 'python' };
+const DETECT_DEPTH = 3;
+
+// Which of r/python the tree under cwd uses, as a Set. Sync scan to depth 3,
+// stops once both are found; any fs error leaves what was found so far.
+function detectLanguages(cwd) {
+  const found = new Set();
+  const walk = (dir, depth) => {
+    if (found.size === 2 || depth > DETECT_DEPTH) return;
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return; }
+    for (const entry of entries) {
+      if (found.size === 2) return;
+      if (entry.isDirectory()) {
+        if (!SKIP_DIRS.has(entry.name)) walk(path.join(dir, entry.name), depth + 1);
+        continue;
+      }
+      const lang = LANG_EXT[path.extname(entry.name).toLowerCase()];
+      if (lang) found.add(lang);
+    }
+  };
+  walk(cwd, 0);
+  return found;
+}
+
+const LANG_VALUES = { r: ['r'], python: ['python'], both: ['r', 'python'] };
+
+function langPath() {
+  return path.join(stateDir(), '.lucid-coder-lang');
+}
+
+// Override flag: r, python, both; absent or unreadable means auto-detect.
+function readLang() {
+  try {
+    const value = fs.readFileSync(langPath(), 'utf8').trim();
+    return LANG_VALUES[value] ? value : 'auto';
+  } catch (e) {
+    return 'auto';
+  }
+}
+
+function setLang(value) {
+  if (LANG_VALUES[value]) {
+    fs.mkdirSync(stateDir(), { recursive: true });
+    fs.writeFileSync(langPath(), value);
+    return;
+  }
+  try { fs.unlinkSync(langPath()); } catch (e) {}
+}
+
+// Tier languages for this session: the override flag wins over detection.
+function languages(cwd) {
+  const lang = readLang();
+  if (lang !== 'auto') return LANG_VALUES[lang];
+  return ['r', 'python'].filter(l => detectLanguages(cwd).has(l));
+}
+
 const UNTRUSTED = 'lucid-coder.rules.json in this repo is not trusted; run /lucid-coder:rules trust after reviewing it.';
 
 function sha256(buf) {
@@ -172,8 +240,9 @@ function scopeLabel(scope) {
   return s.kind;
 }
 
-function render(core, rules) {
+function render(core, rules, tiers = []) {
   let out = 'LUCID-CODER ACTIVE\n\n' + core;
+  for (const tier of tiers) out += '\n\n' + tier;
   if (rules.length) out += learnedBlock(out.length, rules);
   if (rules.notice) out += '\n\n' + rules.notice;
   return out;
@@ -233,6 +302,7 @@ function readStdin(cb) {
 
 module.exports = {
   FALLBACK_CORE, readMode, setMode, readCore, readActiveRules,
+  readTiers, detectLanguages, readLang, setLang, languages,
   escapeRule, render, writeOutput, readStdin,
   dataDir, rememberDataDir, repoInfo, sha256, RULE_MAX,
 };

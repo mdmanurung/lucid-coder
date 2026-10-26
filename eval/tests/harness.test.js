@@ -210,10 +210,12 @@ test('run.sh real mode with a stub claude: layout, login auth, arm file, meta, r
   assert.match(twice.stderr, /99_mock_A_r1 already exists/);
 });
 
-test('arm-prompt.js: D carries the three rules, C does not, A is empty', () => {
-  const arm = a => spawnSync(process.execPath, [path.join(evalDir, 'arm-prompt.js'), a], { encoding: 'utf8' }).stdout;
+test('arm-prompt.js: D carries the three rules, C does not, A is empty, tiers follow the lang', () => {
+  const arm = (...args) => spawnSync(process.execPath, [path.join(evalDir, 'arm-prompt.js'), ...args], { encoding: 'utf8' }).stdout;
   const statements = JSON.parse(fs.readFileSync(path.join(evalDir, 'arms', 'rules-d.json'), 'utf8')).rules.map(r => r.statement);
   assert.strictEqual(statements.length, 3);
+  const rTier = /`\|>` always, never `%>%`/;
+  const pyTier = /`ruff format` \(88\)/;
   const c = arm('C');
   const d = arm('D');
   assert.match(c, /^LUCID-CODER ACTIVE/);
@@ -221,6 +223,14 @@ test('arm-prompt.js: D carries the three rules, C does not, A is empty', () => {
     assert.ok(d.includes(s), s);
     assert.ok(!c.includes(s), s);
   }
+  for (const text of [c, d, arm('C', 'r')]) {
+    assert.match(text, rTier);
+    assert.doesNotMatch(text, pyTier);
+  }
+  const py = arm('D', 'python');
+  assert.match(py, pyTier);
+  assert.doesNotMatch(py, rTier);
+  assert.ok(statements.every(s => py.includes(s)));
   assert.strictEqual(arm('A'), '');
 });
 

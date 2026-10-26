@@ -95,6 +95,17 @@ test('nudge command writes and removes its flag', () => {
   assert.ok(!fs.existsSync(path.join(home, '.lucid-coder-active')), 'mode flag untouched');
 });
 
+test('lang command writes and removes its flag', () => {
+  const home = setup();
+  const flag = path.join(home, '.lucid-coder-lang');
+  assert.strictEqual(run(home, { prompt: '/lucid-coder lang python' }), 'LUCID-CODER LANG PYTHON');
+  assert.strictEqual(fs.readFileSync(flag, 'utf8'), 'python');
+  assert.strictEqual(run(home, { prompt: '/lucid-coder:lucid-coder lang both' }), 'LUCID-CODER LANG BOTH');
+  assert.strictEqual(run(home, { prompt: '/lucid-coder lang auto' }), 'LUCID-CODER LANG AUTO');
+  assert.ok(!fs.existsSync(flag));
+  assert.strictEqual(run(home, { prompt: '/lucid-coder lang julia' }), '');
+});
+
 test('mode commands still work', () => {
   const home = setup();
   assert.strictEqual(run(home, { prompt: '/lucid-coder off' }), 'LUCID-CODER OFF');

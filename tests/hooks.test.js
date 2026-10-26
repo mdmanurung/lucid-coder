@@ -6,7 +6,11 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const root = path.join(__dirname, '..');
-const { escapeRule, render } = require('../hooks/lib');
+const { escapeRule, render, detectLanguages } = require('../hooks/lib');
+
+// Lines that occur in exactly one rule file, so a test can tell the tiers apart.
+const R_TIER = /`\|>` always, never `%>%`/;
+const PY_TIER = /`ruff format` \(88\)/;
 
 function setup() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'lucid-'));
@@ -14,10 +18,13 @@ function setup() {
   return home;
 }
 
-function run(script, home, { input = '', env = {} } = {}) {
+// cwd is the empty temp home, so the repo's own R and Python files never
+// trigger language detection in a test.
+function run(script, home, { input = '', env = {}, cwd = home } = {}) {
   const clean = { ...process.env };
   delete clean.LUCID_SUBAGENT_MATCHER;
   return spawnSync(process.execPath, [path.join(root, 'hooks', script)], {
+    cwd,
     env: { ...clean, HOME: home, CLAUDE_CONFIG_DIR: home, CLAUDE_PLUGIN_DATA: path.join(home, 'data'), ...env },
     input,
     encoding: 'utf8',
@@ -57,6 +64,56 @@ test('oversized store stays under the cap and says what it hid', () => {
   const r = run('activate.js', home);
   assert.ok(r.stdout.length < 10000, `length ${r.stdout.length}`);
   assert.match(r.stdout, /\d+ rules not shown; run \/lucid-coder:rules\./);
+  // Worst case: both tiers on top of 200 rules.
+  fs.writeFileSync(path.join(home, '.lucid-coder-lang'), 'both');
+  const both = run('activate.js', home).stdout;
+  assert.ok(both.length < 10000, `length ${both.length}`);
+  assert.match(both, R_TIER);
+  assert.match(both, PY_TIER);
+  assert.match(both, /\d+ rules not shown/);
+});
+
+// A fresh tree under home holding the given empty files.
+function langTree(home, files) {
+  const dir = fs.mkdtempSync(path.join(home, 'tree-'));
+  for (const f of files) {
+    fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+    fs.writeFileSync(path.join(dir, f), '');
+  }
+  return dir;
+}
+
+test('detectLanguages finds r and python to depth 3 and skips tool dirs', () => {
+  const home = setup();
+  assert.deepStrictEqual([...detectLanguages(langTree(home, ['a/b/c/x.R']))], ['r']);
+  assert.deepStrictEqual([...detectLanguages(langTree(home, ['notebooks/n.ipynb']))], ['python']);
+  assert.deepStrictEqual([...detectLanguages(langTree(home, ['s.qmd', 'p/q.py']))].sort(), ['python', 'r']);
+  assert.deepStrictEqual([...detectLanguages(langTree(home, ['README.md', 'data/x.tsv']))], []);
+  assert.deepStrictEqual([...detectLanguages(langTree(home, ['a/b/c/d/x.R']))], [], 'depth 4 is not scanned');
+  const skipped = ['.git/h.R', 'node_modules/m.py', 'renv/r.R', '.venv/v.py', '__pycache__/c.py', 'results/o.R'];
+  assert.deepStrictEqual([...detectLanguages(langTree(home, skipped))], []);
+  assert.deepStrictEqual([...detectLanguages(path.join(home, 'missing'))], [], 'fails open');
+});
+
+test('activate injects the tier for the detected language, and the flag overrides detection', () => {
+  const home = setup();
+  const bare = run('activate.js', home).stdout;
+  assert.doesNotMatch(bare, R_TIER);
+  assert.doesNotMatch(bare, PY_TIER);
+  const rRepo = langTree(home, ['scripts/01_x.R']);
+  const inR = run('activate.js', home, { cwd: rRepo }).stdout;
+  assert.match(inR, R_TIER);
+  assert.doesNotMatch(inR, PY_TIER);
+  assert.ok(inR.indexOf('## Learning') < inR.indexOf('\n## R\n'), 'tier follows core');
+
+  fs.writeFileSync(path.join(home, '.lucid-coder-lang'), 'python');
+  const overridden = run('activate.js', home, { cwd: rRepo }).stdout;
+  assert.match(overridden, PY_TIER);
+  assert.doesNotMatch(overridden, R_TIER);
+  const sub = JSON.parse(run('subagent.js', home, { cwd: rRepo }).stdout).hookSpecificOutput.additionalContext;
+  assert.strictEqual(sub, overridden, 'subagent gets the same tiers');
+  fs.writeFileSync(path.join(home, '.lucid-coder-lang'), 'garbage');
+  assert.match(run('activate.js', home, { cwd: rRepo }).stdout, R_TIER, 'bad flag means auto');
 });
 
 test('narrowest scope is shown first', () => {
@@ -117,8 +174,13 @@ test('rule text cannot open a heading or span lines', () => {
   assert.doesNotMatch(out, /^# Injected/m);
 });
 
-test('core ruleset fits its budget', () => {
-  assert.ok(fs.readFileSync(path.join(root, 'rules', 'core.md'), 'utf8').length <= 4000);
+test('rule files fit their budgets', () => {
+  const size = f => fs.readFileSync(path.join(root, 'rules', f), 'utf8').length;
+  // Design cap 2,500; the user-decided Checks section is ~930 and every old
+  // rule must land somewhere, so the measured floor is ~3,300.
+  assert.ok(size('core.md') <= 3350, `core ${size('core.md')}`);
+  assert.ok(size('r.md') <= 1500, `r ${size('r.md')}`);
+  assert.ok(size('python.md') <= 1500, `python ${size('python.md')}`);
 });
 
 test('hook commands are portable and point at real files', () => {

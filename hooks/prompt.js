@@ -1,13 +1,14 @@
-// UserPromptSubmit: handle /lucid-coder on|off|status and nudge on|off.
+// UserPromptSubmit: handle /lucid-coder on|off|status, nudge on|off and lang r|python|both|auto.
 // Other prompts get at most one nudge line. Only the on/off flags are stored;
 // prompt text never is (PLAN.md 5.4).
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { readMode, setMode, writeOutput, readStdin } = require('./lib');
+const { readMode, setMode, readLang, setLang, writeOutput, readStdin } = require('./lib');
 
 const COMMAND = /^[/@$]lucid-coder(?::lucid-coder)?(?:\s+(on|off|status))?$/;
 const NUDGE_COMMAND = /^[/@$]lucid-coder(?::lucid-coder)?\s+nudge\s+(on|off)$/;
+const LANG_COMMAND = /^[/@$]lucid-coder(?::lucid-coder)?\s+lang\s+(r|python|both|auto)$/;
 const CORRECTION = /\b(always|never|don'?t use|do not use|stop using|prefer|instead of|in this lab|from now on)\b/i;
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const TAIL_BYTES = 256 * 1024;
@@ -93,6 +94,12 @@ readStdin(payload => {
     if (nudge) {
       setNudge(nudge[1]);
       writeOutput('UserPromptSubmit', nudgeOn() ? 'LUCID-CODER NUDGE ON' : 'LUCID-CODER NUDGE OFF');
+      process.exit(0);
+    }
+    const lang = prompt.toLowerCase().match(LANG_COMMAND);
+    if (lang) {
+      setLang(lang[1]);
+      writeOutput('UserPromptSubmit', `LUCID-CODER LANG ${readLang().toUpperCase()}`);
       process.exit(0);
     }
     const match = prompt.toLowerCase().match(COMMAND);
