@@ -27,6 +27,11 @@ Step 0 confirmed this: a safe-mode session saw none of ponytail, i-have-adhd or 
 run.sh and judge.sh drop any exported `ANTHROPIC_API_KEY`, which would otherwise override the login.
 An earlier version used `--bare` with an API key; it was dropped because `--bare` accepts no login.
 
+## Tasks
+
+`eval/tasks/0N_*` are the R tasks. `01py_pseudobulk-de`, `02py_metadata-join` and `03py_figure-palette` are Python twins of 01 to 03: the same inputs, truth and `check.R`, and a prompt that asks for one Python script run through `uv run --python 3.12 --with pandas,scipy,matplotlib python`.
+Run them with `--tasks 01py,02py,03py`. The agent gets `Bash(uv:*)` for this; each task's `reference/` holds a house-style answer and `reference/naive/` a wrong one.
+
 ## Check the commands first
 
 ```bash
@@ -62,8 +67,11 @@ node eval/score.js eval/results/<timestamp>
 ```
 
 This appends one row per run to `eval/results/results.tsv` and skips runs already there.
-It reruns each script on a clean copy of the repo (120 s limit) and calls the task's `check.R` for the gate.
-It then copies `templates/air.toml` and `templates/.lintr` into the repo and runs `air format --check` and lintr.
+The script is the first `scripts/*.R` or `scripts/*.py` (never `00_legacy.*`); the language follows from the task id, so there is no language column.
+It reruns each script on a clean copy of the repo and calls the task's `check.R` for the gate: `Rscript` with a 120 s limit for `.R`, `uv run --python 3.12 --with pandas,scipy,matplotlib python` with a 600 s limit for `.py` (uv may fetch packages on its first call).
+For `.R` it then copies `templates/air.toml` and `templates/.lintr` into the repo and runs `air format --check` and lintr.
+For `.py` it copies `templates/ruff.toml` and runs `ruff format --check` (column `air_ok`, reported as "format check pass"), `ruff check` (`lint_count`) and `ruff check --select ERA001` (`commented_code_lines`).
+The R-only columns `uptake_pipe`, `uptake_theme`, `native_pipe` and `rule_warn1` are NA for `.py`; `check_count` counts `raise`, `sys.exit(` and `assert` there.
 
 ## LLM judges (proxy)
 
@@ -81,7 +89,7 @@ Outputs: `judges.tsv`, the private `judge-key.tsv`, and raw replies in `judge-ra
 node eval/make-packet.js eval/results/<timestamp>
 ```
 
-This writes `packet/` (blinded `P01.R`, ... and an empty `sheet.tsv`) and the private `packet-key.tsv` beside it.
+This writes `packet/` (blinded `P01.R` or `P01.py`, ... keeping each script's extension, and an empty `sheet.tsv`) and the private `packet-key.tsv` beside it.
 Send each reader the `packet/` folder only.
 Each reader fills a copy of `sheet.tsv`: q1 and q2 are 1 to 5, q3 is yes or no.
 
@@ -102,3 +110,4 @@ node --test eval/tests/*.test.js
 ```
 
 `harness.test.js` needs no API key; it uses stub `claude` binaries and a mock task.
+`python.test.js` runs the Python twins' reference and naive scripts through uv and `check.R`, then scores a reference run; it skips when uv or the R module is missing.

@@ -1,4 +1,4 @@
-You are reviewing one R analysis script written for a scientific project. Read it once, the way a colleague who must rerun or change it would. Do not run it and do not use any tools.
+You are reviewing one analysis script written for a scientific project. Read it once, the way a colleague who must rerun or change it would. Do not run it and do not use any tools.
 
 Answer three questions:
 

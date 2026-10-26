@@ -18,6 +18,7 @@ const TEMPLATES = path.join(EVAL_DIR, '..', 'templates');
 // Both paths come from `module show statistical/R/4.5.2/gcc.8.5.0`.
 const R_ROOT = '/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2';
 const RERUN_MS = 120000;
+const PY_RERUN_MS = 600000;
 const GATE_MS = 600000;
 const HEADER_WORDS = ['Purpose', 'Inputs', 'Outputs', 'Run', 'Notes'];
 // Two lints are dropped so no arm is penalised for following its own setup:
@@ -44,13 +45,17 @@ function readJson(file) {
 
 const oneLine = s => String(s).replace(/[\t\r\n]+/g, ' ').trim();
 
-// The agent's script: the first scripts/*.R other than the legacy input of task 04.
+// The agent's script: the first scripts/*.R or *.py other than the legacy input of task 04.
 function findScript(repo) {
   let files = [];
   try { files = fs.readdirSync(path.join(repo, 'scripts')); } catch (e) {}
-  const found = files.filter(f => /\.R$/i.test(f) && f !== '00_legacy.R').sort()[0];
+  const found = files.filter(f => /\.(R|py)$/i.test(f) && !/^00_legacy\./.test(f)).sort()[0];
   return found ? path.join('scripts', found) : null;
 }
+
+const isPython = script => /\.py$/i.test(script);
+// uv may have to fetch the interpreter and packages on its first call.
+const PY_CMD = ['uv', ['run', '--python', '3.12', '--with', 'pandas,scipy,matplotlib', 'python']];
 
 // `claude --output-format json` prints one result object; tolerate an array of events.
 function claudeStats(file) {
@@ -69,7 +74,8 @@ function rerun(repo, script) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lucid-rerun-'));
   try {
     fs.cpSync(repo, tmp, { recursive: true, filter: src => src !== path.join(repo, 'results') });
-    const r = run('Rscript', [script, path.join('results', 'rerun')], { cwd: tmp, timeout: RERUN_MS });
+    const [cmd, args, timeout] = isPython(script) ? [...PY_CMD, PY_RERUN_MS] : ['Rscript', [], RERUN_MS];
+    const r = run(cmd, [...args, script, path.join('results', 'rerun')], { cwd: tmp, timeout });
     return r.status === 0;
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -89,8 +95,25 @@ function gate(repo, taskDir) {
   return { gate: parsed.gate, gate_detail: parsed.detail || '' };
 }
 
+// ruff check exits 1 when it finds something, so the status says nothing; only a
+// missing binary (r.error) gives NA.
+function ruffCount(repo, args) {
+  const r = run('ruff', ['check', '--no-cache', '--output-format', 'json', ...args], { cwd: repo });
+  if (r.error) return null;
+  try { return JSON.parse(r.stdout).length; } catch (e) { return null; }
+}
+
 // Configs go in after the run, so the agent never saw them.
 function style(repo, script) {
+  if (isPython(script)) {
+    fs.copyFileSync(path.join(TEMPLATES, 'ruff.toml'), path.join(repo, 'ruff.toml'));
+    const fmt = run('ruff', ['format', '--check', '--no-cache', script], { cwd: repo });
+    return {
+      air_ok: fmt.error ? null : fmt.status === 0,
+      lint_count: ruffCount(repo, [script]),
+      commented_code_lines: ruffCount(repo, ['--select', 'ERA001', script]),
+    };
+  }
   fs.copyFileSync(path.join(TEMPLATES, 'air.toml'), path.join(repo, 'air.toml'));
   fs.copyFileSync(path.join(TEMPLATES, '.lintr'), path.join(repo, '.lintr'));
   const air = run('air', ['format', '--check', script], { cwd: repo });
@@ -103,19 +126,35 @@ function style(repo, script) {
   };
 }
 
-function textMeasures(code) {
-  const head = code.split('\n').slice(0, 15).join('\n');
+function textMeasures(code, script) {
+  const head = code.split('\n').slice(0, 20).join('\n');
   // The plot rules only apply to a script that plots; elsewhere they are NA, not a free pass.
-  const plots = /ggplot\(/.test(code);
-  return {
+  // `import matplotlib`, not bare `matplotlib`: the prompt's uv command names it in every header.
+  const plots = /ggplot\(|(import|from)\s+matplotlib|pyplot/.test(code);
+  const common = {
     header_complete: HEADER_WORDS.every(w => new RegExp(`\\b${w}\\b`, 'i').test(head)),
+    rule_out_dir: /\bout_dir\s*(<-|=)/.test(code),
+  };
+  // The pipe, theme and warn rules are R-only; a Python script gets NA there.
+  if (isPython(script)) {
+    return {
+      ...common,
+      check_count: (code.match(/\braise\b|\bsys\.exit\(|\bassert\b/g) || []).length,
+      uptake_pipe: null,
+      uptake_no_title: plots ? !/\.set_title\(|plt\.title\(|suptitle\(/.test(code) : null,
+      uptake_theme: null,
+      native_pipe: null,
+      rule_warn1: null,
+    };
+  }
+  return {
+    ...common,
     check_count: (code.match(/\bstop\(|\bstopifnot\(|\bvalidate_that\(|assert/g) || []).length,
     uptake_pipe: code.includes('%>%') && !code.includes('|>'),
     uptake_no_title: plots ? !/ggtitle\(|labs\([^)]*\btitle\s*=/.test(code) : null,
     uptake_theme: plots ? /theme_bw\(\s*base_size\s*=\s*8\s*\)/.test(code) : null,
     // House rule: |> and never %>%. A script with no pipe at all is NA, not a pass.
     native_pipe: code.includes('|>') || code.includes('%>%') ? code.includes('|>') && !code.includes('%>%') : null,
-    rule_out_dir: /\bout_dir\s*<-/.test(code),
     rule_warn1: /options\(\s*warn\s*=\s*1\s*\)/.test(code),
   };
 }
@@ -134,7 +173,7 @@ function scoreRun(runDir) {
   row.script_found = Boolean(script);
   if (!script) return row;
   row.rerun_ok = rerun(repo, script);
-  Object.assign(row, style(repo, script), textMeasures(fs.readFileSync(path.join(repo, script), 'utf8')));
+  Object.assign(row, style(repo, script), textMeasures(fs.readFileSync(path.join(repo, script), 'utf8'), script));
   return row;
 }
 

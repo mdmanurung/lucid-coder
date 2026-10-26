@@ -18,7 +18,7 @@ MODEL="${MODEL:-claude-opus-5-5}"
 BUDGET="${BUDGET:-2}"
 # Both paths come from `module show statistical/R/4.5.2/gcc.8.5.0`.
 R_ROOT="/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2"
-ALLOWED_TOOLS=(Read Write Edit "Bash(Rscript:*)" "Bash(ls:*)" "Bash(mkdir:*)" "Bash(cat:*)" "Bash(head:*)")
+ALLOWED_TOOLS=(Read Write Edit "Bash(Rscript:*)" "Bash(uv:*)" "Bash(ls:*)" "Bash(mkdir:*)" "Bash(cat:*)" "Bash(head:*)")
 
 die() {
   echo "run.sh: $*" >&2
@@ -96,6 +96,9 @@ for task_id in "${task_ids[@]}"; do
   task="$(resolve_task "$task_id")"
   task_dir="$TASKS_DIR/$task"
   prompt_file="$task_dir/prompt.md"
+  # Python twins carry "py" in the id (01py_...); arm-prompt.js picks the language tier.
+  lang=r
+  [[ "$task" == *py_* ]] && lang=python
   for arm in "${arm_ids[@]}"; do
     for ((rep = 1; rep <= reps; rep++)); do
       run_dir="$out/${task}_${arm}_r${rep}"
@@ -112,7 +115,7 @@ for task_id in "${task_ids[@]}"; do
       if ((dry_run)); then
         line=""
         if [[ "$arm" != "A" ]]; then
-          printf -v line 'node %q %s > %q && ' "$EVAL_DIR/arm-prompt.js" "$arm" "$arm_file"
+          printf -v line 'node %q %s %s > %q && ' "$EVAL_DIR/arm-prompt.js" "$arm" "$lang" "$arm_file"
         fi
         printf '%scd %q && claude --safe-mode --no-session-persistence -p "$(cat %q)"' \
           "$line" "$run_dir/repo" "$prompt_file"
@@ -127,7 +130,7 @@ for task_id in "${task_ids[@]}"; do
       cp -R "$task_dir/inputs/." "$run_dir/repo/"
       git -C "$run_dir/repo" init -q
       if [[ "$arm" != "A" ]]; then
-        node "$EVAL_DIR/arm-prompt.js" "$arm" >"$arm_file"
+        node "$EVAL_DIR/arm-prompt.js" "$arm" "$lang" >"$arm_file"
       fi
 
       echo "run.sh: $task arm $arm rep $rep" >&2

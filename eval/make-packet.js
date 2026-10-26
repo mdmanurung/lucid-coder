@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Blinds each run's script for readers. Writes <ts>/<name>/<id>.R in a fresh
+// Blinds each run's script for readers. Writes <ts>/<name>/<id>.R or .py in a fresh
 // random order, <ts>/<name>/sheet.tsv for the reader to fill, and the private
 // key <ts>/<name>-key.tsv (neutral_id -> run_id) outside the packet dir.
 // Ids start with the first letter of <name> (P for packet, J for judge), so
@@ -36,7 +36,7 @@ function makePacket(tsDir, name = 'packet') {
   const sheet = [SHEET_COLUMNS.join('\t')];
   shuffle(runs).forEach((r, i) => {
     const id = prefix + String(i + 1).padStart(2, '0');
-    fs.copyFileSync(path.join(r.runDir, 'repo', r.script), path.join(outDir, `${id}.R`));
+    fs.copyFileSync(path.join(r.runDir, 'repo', r.script), path.join(outDir, id + path.extname(r.script)));
     key.push(`${id}\t${r.runId}`);
     sheet.push(id + '\t'.repeat(SHEET_COLUMNS.length - 1));
   });

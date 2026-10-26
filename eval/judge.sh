@@ -30,9 +30,13 @@ trap 'rm -rf "$work"' EXIT
 instructions="$(<"$EVAL_DIR/judge-prompt.md")"
 
 # make-packet.js numbered the scripts in shuffled order, so J01, J02, ... is that order.
-for script in "$ts"/judge/*.R; do
-  id="$(basename "$script" .R)"
-  prompt="$instructions"$'\n\n```r\n'"$(<"$script")"$'\n```\n'
+shopt -s nullglob
+for script in "$ts"/judge/*.R "$ts"/judge/*.py; do
+  id="$(basename "$script")"
+  id="${id%.*}"
+  lang=r
+  [[ "$script" == *.py ]] && lang=python
+  prompt="$instructions"$'\n\n```'"$lang"$'\n'"$(<"$script")"$'\n```\n'
   for model in "${JUDGES[@]}"; do
     echo "judge.sh: $id $model" >&2
     (

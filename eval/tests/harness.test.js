@@ -162,7 +162,7 @@ test('run.sh --dry-run prints 32 commands with per-arm flags and creates nothing
     if (arm === 'A') {
       assert.doesNotMatch(line, /append-system-prompt-file|arm-prompt/);
     } else {
-      assert.match(line, new RegExp(`arm-prompt\\.js ${arm} > \\S+_${arm}_r[12]/arm-prompt\\.md && `));
+      assert.match(line, new RegExp(`arm-prompt\\.js ${arm} r > \\S+_${arm}_r[12]/arm-prompt\\.md && `));
       assert.match(line, new RegExp(`--append-system-prompt-file \\S+_${arm}_r[12]/arm-prompt\\.md`));
     }
   }

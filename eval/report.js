@@ -117,7 +117,7 @@ const L3_MEASURES = [
   ['gate pass', r => rate(r.map(x => x.gate), 'pass')],
   ['script found', r => rate(r.map(x => x.script_found))],
   ['rerun ok', r => rate(r.map(x => x.rerun_ok))],
-  ['air format pass', r => rate(r.map(x => x.air_ok))],
+  ['format check pass', r => rate(r.map(x => x.air_ok))],
   ['lint count, median', r => median(r.map(x => x.lint_count))],
   ['header complete', r => rate(r.map(x => x.header_complete))],
   ['check count, median', r => median(r.map(x => x.check_count))],

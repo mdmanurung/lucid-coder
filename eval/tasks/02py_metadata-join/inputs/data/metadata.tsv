@@ -1,0 +1,13 @@
+sample_id	condition	batch
+S12	disease	batch3
+S04	healthy	batch1
+S08	disease	batch2
+S11	disease	batch2
+S06	healthy	batch3
+S01	healthy	batch1
+S02	healthy	batch2
+S05	healthy	batch2
+S03	healthy	batch3
+S07	disease	batch1
+S10	disease	batch1
+S09	disease	batch3
