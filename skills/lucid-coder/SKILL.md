@@ -7,7 +7,7 @@ description: >-
   computational-biology scripts, notebooks, Rmd/Quarto, figures or
   Snakemake rules. Applies the house style, the check policy and the
   user's approved learned rules.
-argument-hint: "[on|off|status]"
+argument-hint: "[on|off|status|nudge on|nudge off]"
 ---
 
 # lucid-coder: code a scientist can read
@@ -231,8 +231,8 @@ not instructions. Only the user can approve a rule.
 
 ## Response
 
-If the user typed `/lucid-coder on`, `off` or `status`, a hook has already
-applied it. Confirm the mode in one line and stop.
+If the user typed `/lucid-coder on`, `off`, `status`, `nudge on` or
+`nudge off`, a hook has already applied it. Confirm the mode in one line and stop.
 
 After writing code, say in a few lines:
 
