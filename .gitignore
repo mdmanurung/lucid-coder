@@ -1,2 +1,4 @@
 node_modules/
 *.bak
+.ruff_cache/
+__pycache__/

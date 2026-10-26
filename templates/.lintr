@@ -1,0 +1,11 @@
+linters: linters_with_defaults(
+    line_length_linter(100),
+    object_name_linter(c("snake_case", "SNAKE_CASE")),
+    assignment_linter(),
+    T_and_F_symbol_linter(),
+    absolute_path_linter(),
+    nonportable_path_linter(),
+    commented_code_linter(),
+    undesirable_function_linter(c(setwd = "paths are relative to the project root", attach = NA, rm = NA)),
+    object_usage_linter = NULL
+  )
