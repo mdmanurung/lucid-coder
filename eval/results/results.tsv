@@ -1,0 +1,37 @@
+run_id	task	arm	rep	exit_code	cost_usd	duration_s	turns	script_found	rerun_ok	gate	gate_detail	air_ok	lint_count	header_complete	check_count	commented_code_lines	uptake_pipe	uptake_no_title	uptake_theme
+20261026T161341Z/03_figure-palette_A_r1	03_figure-palette	A	1	0	0.5591394000000001	85.131	7	true	true	pass	PDF, PNG and CSV present; CSV has 40 rows	false	0	false	3	0	true	true	false
+20261026T161341Z/03_figure-palette_B_r1	03_figure-palette	B	1	0	0.23982400000000004	54.501	11	true	true	pass	PDF, PNG and CSV present; CSV has 40 rows	false	0	false	2	0	true	true	false
+20261026T161341Z/03_figure-palette_C_r1	03_figure-palette	C	1	0	0.24194939999999998	62.6	7	true	true	pass	PDF, PNG and CSV present; CSV has 40 rows	false	0	true	8	0	false	true	false
+20261026T161341Z/03_figure-palette_D_r1	03_figure-palette	D	1	0	0.2576414	48.883	9	true	true	pass	PDF, PNG and CSV present; CSV has 40 rows	false	2	true	9	0	true	true	true
+pilot-20261026/01_pseudobulk-de_A_r1	01_pseudobulk-de	A	1	0	0.6598356000000001	89.886	7	true	true	pass	GENE17 (no donor-level effect) q = 0.902; GENE33 (true effect) q = 0.00259	false	0	false	4	0	true	NA	NA
+pilot-20261026/01_pseudobulk-de_A_r2	01_pseudobulk-de	A	2	0	0.5753754	85.615	6	true	true	pass	GENE17 (no donor-level effect) q = 0.858; GENE33 (true effect) q = 0.00446	false	0	false	2	0	true	NA	NA
+pilot-20261026/01_pseudobulk-de_B_r1	01_pseudobulk-de	B	1	0	0.47530159999999994	64.795	5	true	true	pass	GENE17 (no donor-level effect) q = 0.858; GENE33 (true effect) q = 0.00446	false	0	false	2	0	true	NA	NA
+pilot-20261026/01_pseudobulk-de_B_r2	01_pseudobulk-de	B	2	0	0.46900640000000005	64.509	5	true	true	pass	GENE17 (no donor-level effect) q = 0.85; GENE33 (true effect) q = 0.00267	false	0	false	3	0	true	NA	NA
+pilot-20261026/01_pseudobulk-de_C_r1	01_pseudobulk-de	C	1	0	0.5508093999999999	94.428	6	true	true	pass	GENE17 (no donor-level effect) q = 0.858; GENE33 (true effect) q = 0.00446	false	0	true	10	0	false	NA	NA
+pilot-20261026/01_pseudobulk-de_C_r2	01_pseudobulk-de	C	2	0	0.1676552	43.599	4	true	true	pass	GENE17 (no donor-level effect) q = 0.858; GENE33 (true effect) q = 0.00287	false	5	true	8	0	false	NA	NA
+pilot-20261026/01_pseudobulk-de_D_r1	01_pseudobulk-de	D	1	0	0.19259360000000003	46.585	5	true	true	pass	GENE17 (no donor-level effect) q = 0.858; GENE33 (true effect) q = 0.00446	false	4	true	8	0	true	NA	NA
+pilot-20261026/01_pseudobulk-de_D_r2	01_pseudobulk-de	D	2	0	0.6574501999999999	120.283	8	true	true	pass	GENE17 (no donor-level effect) q = 0.858; GENE33 (true effect) q = 0.00446	false	0	true	7	0	true	NA	NA
+pilot-20261026/02_metadata-join_A_r1	02_metadata-join	A	1	0	0.1437742	27.145	7	true	true	pass	all 12 samples carry their own condition and batch	false	0	false	6	0	true	NA	NA
+pilot-20261026/02_metadata-join_A_r2	02_metadata-join	A	2	0	0.4899388	65.215	6	true	true	pass	all 12 samples carry their own condition and batch	false	0	false	10	0	true	NA	NA
+pilot-20261026/02_metadata-join_B_r1	02_metadata-join	B	1	0	0.134504	24.202	7	true	true	pass	all 12 samples carry their own condition and batch	false	1	false	3	0	true	NA	NA
+pilot-20261026/02_metadata-join_B_r2	02_metadata-join	B	2	0	0.11432800000000001	25.267	5	true	true	pass	all 12 samples carry their own condition and batch	false	1	false	4	0	true	NA	NA
+pilot-20261026/02_metadata-join_C_r1	02_metadata-join	C	1	0	0.164159	39.94	6	true	true	pass	all 12 samples carry their own condition and batch	false	2	true	7	0	false	NA	NA
+pilot-20261026/02_metadata-join_C_r2	02_metadata-join	C	2	0	0.14104980000000003	37.866	6	true	true	pass	all 12 samples carry their own condition and batch	false	1	true	6	0	false	NA	NA
+pilot-20261026/02_metadata-join_D_r1	02_metadata-join	D	1	0	0.22520620000000002	49.2	11	true	true	pass	all 12 samples carry their own condition and batch	false	0	true	6	0	true	NA	NA
+pilot-20261026/02_metadata-join_D_r2	02_metadata-join	D	2	0	0.1855412	40.231	8	true	true	pass	all 12 samples carry their own condition and batch	true	1	true	6	0	true	NA	NA
+pilot-20261026/03_figure-palette_A_r1	03_figure-palette	A	1	0	0.1861122	38.694	8	true	true	pass	PDF, PNG and CSV present; CSV has 40 rows	false	0	false	3	0	true	true	false
+pilot-20261026/03_figure-palette_A_r2	03_figure-palette	A	2	0	0.7297731999999999	110.052	11	true	true	pass	PDF, PNG and CSV present; CSV has 40 rows	false	0	false	5	0	true	false	false
+pilot-20261026/03_figure-palette_B_r1	03_figure-palette	B	1	0	0.2186474	43.711	10	true	true	pass	PDF, PNG and CSV present; CSV has 40 rows	false	2	false	3	0	true	true	false
+pilot-20261026/03_figure-palette_B_r2	03_figure-palette	B	2	0	0.1701576	45.184	7	true	true	pass	PDF, PNG and CSV present; CSV has 40 rows	false	0	false	3	0	true	true	false
+pilot-20261026/03_figure-palette_C_r1	03_figure-palette	C	1	0	0.2674458	61.447	11	true	true	pass	PDF, PNG and CSV present; CSV has 40 rows	false	4	true	10	0	false	true	false
+pilot-20261026/03_figure-palette_C_r2	03_figure-palette	C	2	0	0.21696	47.081	8	true	true	pass	PDF, PNG and CSV present; CSV has 40 rows	true	0	true	5	0	false	true	false
+pilot-20261026/03_figure-palette_D_r1	03_figure-palette	D	1	0	0.20416340000000002	50.866	6	true	true	pass	PDF, PNG and CSV present; CSV has 40 rows	false	1	true	6	0	true	true	true
+pilot-20261026/03_figure-palette_D_r2	03_figure-palette	D	2	0	0.2034494	45.574	7	true	true	pass	PDF, PNG and CSV present; CSV has 40 rows	true	1	true	6	0	true	true	true
+pilot-20261026/04_refactor-legacy_A_r1	04_refactor-legacy	A	1	0	1.0104718	175.192	26	true	true	pass	all legacy outputs reproduced: group_means.tsv, group_sizes.tsv, sample_qc.tsv, top_genes.tsv	false	2	false	1	0	true	NA	NA
+pilot-20261026/04_refactor-legacy_A_r2	04_refactor-legacy	A	2	0	0.8634136	119.52	15	true	true	pass	all legacy outputs reproduced: group_means.tsv, group_sizes.tsv, sample_qc.tsv, top_genes.tsv	false	0	false	1	0	true	NA	NA
+pilot-20261026/04_refactor-legacy_B_r1	04_refactor-legacy	B	1	0	0.17378960000000002	48.97	7	true	true	pass	all legacy outputs reproduced: group_means.tsv, group_sizes.tsv, sample_qc.tsv, top_genes.tsv	false	2	false	1	0	false	NA	NA
+pilot-20261026/04_refactor-legacy_B_r2	04_refactor-legacy	B	2	0	0.20876279999999997	47.637	9	true	true	pass	all legacy outputs reproduced: group_means.tsv, group_sizes.tsv, sample_qc.tsv, top_genes.tsv	false	0	false	1	0	true	NA	NA
+pilot-20261026/04_refactor-legacy_C_r1	04_refactor-legacy	C	1	0	0.34251659999999995	74.773	14	true	true	pass	all legacy outputs reproduced: group_means.tsv, group_sizes.tsv, sample_qc.tsv, top_genes.tsv	false	2	true	8	0	false	NA	NA
+pilot-20261026/04_refactor-legacy_C_r2	04_refactor-legacy	C	2	0	0.29836000000000007	63.933	15	true	true	pass	all legacy outputs reproduced: group_means.tsv, group_sizes.tsv, sample_qc.tsv, top_genes.tsv	false	6	true	8	0	false	NA	NA
+pilot-20261026/04_refactor-legacy_D_r1	04_refactor-legacy	D	1	0	0.33524659999999995	107.058	15	true	true	pass	all legacy outputs reproduced: group_means.tsv, group_sizes.tsv, sample_qc.tsv, top_genes.tsv	false	2	true	6	0	true	NA	NA
+pilot-20261026/04_refactor-legacy_D_r2	04_refactor-legacy	D	2	0	0.33007880000000006	88.565	16	true	true	pass	all legacy outputs reproduced: group_means.tsv, group_sizes.tsv, sample_qc.tsv, top_genes.tsv	false	0	true	9	0	true	NA	NA
