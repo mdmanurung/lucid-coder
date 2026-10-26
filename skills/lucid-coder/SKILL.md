@@ -148,6 +148,17 @@ Add a check beyond these only for a known scientific assumption that would
 otherwise fail silently. Examples: raw integer counts before a count model,
 or contrast columns summing to zero.
 
+Keep to a budget: the defaults plus at most one extra check per script.
+
+- Check each input once, at load, in one `if`: required columns and key
+  uniqueness together.
+- Check each join once, in one `if`: keys missing on either side.
+- Before writing a check, ask whether the next step already fails loudly.
+  `read_tsv()` on a missing file does, so skip a file-exists check.
+- Do not audit input content, such as proportions summing to 1, one label
+  per donor, column order or duplicate palette labels, unless the user says
+  the input is untrusted.
+
 Do not write:
 
 - `stopifnot(!missing(x))` or type checks on every argument
@@ -196,8 +207,7 @@ warning suppression. Never fill missing data silently, for example
 
 - Read one project palette file of named vectors or dicts keyed by biological
   label. Fail on an unknown label. Never use positional colours.
-- Set the theme once per script, for example
-  `theme_set(theme_classic(base_size = 7))`.
+- Set the theme once per script: `theme_set(theme_bw(base_size = 8))`.
 - Set size in mm: `ggsave(..., width = 89, height = 70, units = "mm", device = cairo_pdf)`.
   Do not set `dpi` on vector output. In matplotlib, set `pdf.fonttype = 42`.
 - Rasterise only dense point layers. Keep axes and text as vectors.
@@ -210,8 +220,7 @@ warning suppression. Never fill missing data silently, for example
 ## House style (defaults; see `references/house-style.md`)
 
 - R: `<-`, two-space indent, double quotes, `TRUE`/`FALSE`, snake_case,
-  UPPER_SNAKE constants, `|>` in new repositories (an existing repository
-  keeps its pipe), `air` at 100 columns, one argument per line for long
+  UPPER_SNAKE constants, `|>` always and never `%>%`, `air` at 100 columns, one argument per line for long
   calls, `library()` at the top for what the script uses, `pkg::fn()` for
   one-off calls.
 - Python: ruff format (black-compatible, 88 columns), f-strings, `pathlib`,

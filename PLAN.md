@@ -226,12 +226,12 @@ Rule schema:
 ```json
 {
   "id": "r-0007",
-  "topic": "r.pipe",
+  "topic": "r.assign",
   "scope": {"kind": "repo", "repo": "github.com/lab/atlas"},
-  "statement": "Use %>% in this repository; it predates base R 4.1.",
-  "why": "Mixed pipes in one codebase slow review.",
-  "good": "counts %>% filter(n_cells >= MIN_CELLS)",
-  "bad": "counts |> filter(n_cells >= MIN_CELLS)",
+  "statement": "Use = for assignment in this repository; it predates the house style.",
+  "why": "Mixed assignment operators in one codebase slow review.",
+  "good": "min_cells = 25",
+  "bad": "min_cells <- 25",
   "status": "active",
   "supersedes": null,
   "source": "user-correction",
@@ -307,8 +307,8 @@ already does it where installed, and a second linter hook would double the messa
 | `/lucid-coder:review [path\|diff]` | code, house style, rules | nothing. Report: findings by topic, each with file:line and a fix |
 | `/lucid-coder:align` | repo configs | `air.toml`, `.lintr`, `ruff.toml`, after showing the diff and asking |
 
-`review` may propose rules ("this repository uses `%>%` in 40 files; add a
-repo exception?"). It never activates them. When a change is a refactor, it
+`review` may propose rules ("this repository uses `=` assignment in 40 files;
+add a repo exception?"). It never activates them. When a change is a refactor, it
 asks whether outputs were compared before and after (Stoudt et al. 2021).
 
 ## 8. Evaluation: does the persona change what agents write?
@@ -372,17 +372,20 @@ Each phase ends with a check that fails if the phase is broken.
 
 ## 10. Decisions
 
-All seven decided 2026-10-26: the user accepted every recommendation.
+D1-D7 decided 2026-10-26: the user accepted every recommendation. After the
+eval pilot the same day, the user revised D1 and added D8 and D9.
 
 | ID | Decision | Decided |
 |---|---|---|
-| D1 | Pipe: `\|>` or `%>%` for new repositories | `\|>`: base R, no dependency; existing repositories keep theirs via a repo rule |
+| D1 | Pipe: `\|>` or `%>%` | revised: `\|>` always, never `%>%`, in new and existing repositories; no repo exception |
 | D2 | R formatter: `air` or `styler` | `air`: fast, one config file, already used in immgenT's newer code (`coding_conventions_R_python.md:157`) |
 | D3 | R line width: 80 (air default) or 100 | 100, per the corpus recommendation; set in `air.toml` |
 | D4 | Hard-coded count tripwires (immgenT `107L`) | off by default, matching your stopifnot rule; allowed when you ask |
 | D5 | Correction nudge on by default | on; one offer per correction, never repeated |
 | D6 | Keep v0.1's Python CLI | no; reuse only `store.py`'s ideas in `rules.js` |
 | D7 | File names: `NN_verb_noun` or `NN_verb-noun` | `NN_verb-noun`: `_` between fields, `-` between words, per Bryan's naming sequel |
+| D8 | Check budget | the default five plus at most one extra per script; the pilot showed a median of 8 checks with lucid-coder against 3 without |
+| D9 | Plot theme | `theme_bw(base_size = 8)` |
 
 ## 11. Deferred from v0.1, with the condition to revisit
 

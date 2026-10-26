@@ -24,7 +24,7 @@ Sources are abbreviated:
 |---|---|---|
 | `r.assign` | `<-`, never `=` at top level | obs: dominant in most repos, `=` in dreamlet and MOCHA (`RS/dreamlet:53`, `RS/MOCHA:69`) |
 | `r.indent` | 2 spaces | obs: most R repos; 4 in reflex (`C:155`) |
-| `r.pipe` | `\|>` for new repositories; an existing repository keeps the pipe it uses | decided 2026-10-26 (D1 in `PLAN.md`). `%>%` appears in 16 of 17 (`C:154`); `\|>` is base R 4.1+ and needs no dependency |
+| `r.pipe` | `\|>` always, never `%>%`, in new and existing repositories | user rule 2026-10-26 (D1 revised in `PLAN.md`). `%>%` appears in 16 of 17 (`C:154`); `\|>` is base R 4.1+ and needs no dependency |
 | `r.quotes` | double quotes | new: repos mix them (`RS/reflex_manuscript:62`) |
 | `r.bool` | `TRUE`/`FALSE`, never `T`/`F` | rec (`C:209`) |
 | `r.width` | soft limit 100 columns, set as `line-width = 100` in `air.toml`; one argument per line for long calls | decided 2026-10-26 (D3); rec (`C:209`); no repo had a rule (`C:156`) |
@@ -83,6 +83,7 @@ One example correction is "stop checking column presence in this repo".
 |---|---|---|
 | `checks.default_five` | new run dir; inputs and columns at load; join cardinality; ID identity before positional copy; outputs non-empty | rec (`S:142`); ext: PLOS 2021 "data gut checks" after merges |
 | `checks.extra` | only for a known scientific assumption that would fail silently | rec (`S:142`); user rule (`SYNTHESIS.md:170`) |
+| `checks.budget` | the default five plus at most one extra per script; one `if` per input at load and per join; skip a check when the next step already fails loudly; no audits of input content unless the input is untrusted | eval pilot 2026-10-26: without a budget, lucid-coder wrote a median of 8 checks per script against 3 without it; user rule |
 | `checks.tripwires` | off: no hard-coded expected counts unless asked | decided 2026-10-26 (D4); immgenT uses them deliberately (`RS/immgenT-GP-analysis:110`) |
 | `checks.style` | R `if (...) stop(..., call. = FALSE)`; Python `raise`; message names object and fix | obs (`RS/multiple-myeloma:79`, `RS/cns-haematopoiesis:189`) |
 | `checks.files` | no separate `check_*.R` files | user rule (`SYNTHESIS.md:170`) |
@@ -95,7 +96,7 @@ One example correction is "stop checking column presence in this repo".
 | Topic | Default | Evidence |
 |---|---|---|
 | `fig.palette` | one `palettes.R` or `palettes.py` of named maps keyed by label; unknown label fails | rec (`P:449-464`); 12 repos define colours inline (`P:344`) |
-| `fig.theme` | `theme_set(theme_classic(base_size = 7))` once per script | obs: `theme_classic` in 12 of 13 ggplot repos (`P:62`); only MM defines a named theme (`P:62`) |
+| `fig.theme` | `theme_set(theme_bw(base_size = 8))` once per script | user rule 2026-10-26 (D9); obs: `theme_classic` in 12 of 13 ggplot repos (`P:62`); only MM defines a named theme (`P:62`) |
 | `fig.size` | width and height in mm; 89 mm single column, 183 mm double | rec (`P:449-464`) |
 | `fig.export` | `ggsave(..., units = "mm", device = cairo_pdf)` plus a PNG for review; no `dpi` on vector files; `pdf.fonttype = 42` | obs IHA `dpi = 1000` on PDF did nothing (`cc_learnings/03_plotting.md:75`) |
 | `fig.raster` | rasterise dense point layers only | rec (`P:456`) |

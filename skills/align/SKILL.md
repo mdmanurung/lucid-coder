@@ -53,9 +53,9 @@ Templates:
    grep -rl '%>%' --include='*.R' --include='*.Rmd' --include='*.qmd' . | wc -l
    ```
 
-   If the count is above 0, say how many files. Offer
-   `/lucid-coder:learn "in this repo keep %>%"`, which saves a repo-scope
-   `r.pipe` rule. Do not create the rule here.
+   If the count is above 0, say how many files. The house style is `|>`
+   always, so offer to convert them as a separate change. Do not convert
+   here, because `air` does not rewrite pipes.
 5. Report what was copied and what was skipped. Then list the commands to run
    next, for the languages that apply:
 

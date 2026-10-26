@@ -1,8 +1,8 @@
 # Figure theme and panel export, shared by every figure script.
 library(ggplot2)
 
-# base_size 7: journal panels are read at print size, where 7 pt is the usual minimum.
-theme_set(theme_classic(base_size = 7))
+# theme_bw at 8 pt: the lab default; panels stay legible at print size.
+theme_set(theme_bw(base_size = 8))
 
 # Write one panel as <run_dir>/<name>.pdf (vector, for the figure), .png (for
 # review) and .csv (the source data, the same frame that was passed to ggplot()).

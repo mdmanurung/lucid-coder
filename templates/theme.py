@@ -4,9 +4,9 @@ from pathlib import Path
 
 import matplotlib
 
-# Type 42 embeds editable TrueType text instead of outlines; 7 pt is the usual
-# minimum for journal panels read at print size.
-matplotlib.rcParams.update({"pdf.fonttype": 42, "ps.fonttype": 42, "font.size": 7})
+# Type 42 embeds editable TrueType text instead of outlines; 8 pt matches the
+# R theme (theme_bw(base_size = 8)).
+matplotlib.rcParams.update({"pdf.fonttype": 42, "ps.fonttype": 42, "font.size": 8})
 
 
 def save_panel(fig, data, run_dir, name, width_mm, height_mm):

@@ -64,16 +64,18 @@ diff -r results/<previous_run> results/<new_run>
 
 ### Repo-wide patterns
 
-A pattern across many files (`%>%` in N files, `=` assignment, 4-space
-indent, inline palettes in N files) is one proposed-rule suggestion, not N
-findings. Give the exact command for the user to run or decline, with the
-file count in `--why`. Wrap values in single quotes; write a single quote
-inside a value as `'\''`. Example for `%>%` in 40 files:
+A pattern across many files (`=` assignment, 4-space indent, inline palettes
+in N files) is one proposed-rule suggestion, not N findings. Give the exact
+command for the user to run or decline, with the file count in `--why`. Wrap
+values in single quotes; write a single quote inside a value as `'\''`.
+`%>%` is the exception: the house style is `|>` always, so report it as one
+`r.pipe` finding with the file count and never propose a rule that keeps it.
+Example for `=` assignment in 40 files:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/rules.js" propose --topic 'r.pipe' --scope repo \
-  --statement 'Keep %>% in this repository.' \
-  --why 'repo-review: %>% in 40 files; switching to |> would touch all of them' \
+node "${CLAUDE_PLUGIN_ROOT}/scripts/rules.js" propose --topic 'r.assign' --scope repo \
+  --statement 'Keep = for assignment in this repository.' \
+  --why 'repo-review: = assignment in 40 files; switching to <- would touch all of them' \
   --source repo-review
 ```
 
