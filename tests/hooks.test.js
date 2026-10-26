@@ -10,7 +10,7 @@ const { escapeRule, render, detectLanguages } = require('../hooks/lib');
 
 // Lines that occur in exactly one rule file, so a test can tell the tiers apart.
 const R_TIER = /`\|>` always, never `%>%`/;
-const PY_TIER = /`ruff format` \(88\)/;
+const PY_TIER = /`ruff format` at 88 columns/;
 
 function setup() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'lucid-'));

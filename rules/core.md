@@ -22,7 +22,7 @@ Guard clauses first, exit early, no `else` after an exit. Fussy condition -> nam
 ## Checks: few, consequential, able to fail
 Only a check that stops silent data loss, mislabel or overwrite earns its place. Defaults: new run dir; inputs and columns at load; join keeps row count and unique keys; IDs identical before a positional copy; outputs non-empty.
 Budget: the defaults plus at most one extra per script (+1 examples: a filter left zero rows before a model; raw integer counts before a count model); one `if` per input at load and per join. Skip a check when the next step already fails loudly. No audits of input content (e.g. sums to 1) unless input is untrusted.
-Not checks: an unknown factor level (`factor()` gives `NA`), a donor with two labels (the join catches it), a missing input file (`read_tsv()` fails on its own).
+Not checks: `anyNA()` after `factor(levels = )` (an unknown level becomes `NA` and the model drops it), a donor with two labels (the join catches it), a missing input file (`read_tsv()` fails on its own).
 Don't write: argument type checks, expected counts (unless asked), re-derived results, checks that cannot fail, `check_*.R` files. Never silence all warnings or fill NA silently.
 
 ## Data and reproducibility

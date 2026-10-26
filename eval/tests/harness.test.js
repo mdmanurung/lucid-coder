@@ -215,7 +215,7 @@ test('arm-prompt.js: D carries the three rules, C does not, A is empty, tiers fo
   const statements = JSON.parse(fs.readFileSync(path.join(evalDir, 'arms', 'rules-d.json'), 'utf8')).rules.map(r => r.statement);
   assert.strictEqual(statements.length, 3);
   const rTier = /`\|>` always, never `%>%`/;
-  const pyTier = /`ruff format` \(88\)/;
+  const pyTier = /`ruff format` at 88 columns/;
   const c = arm('C');
   const d = arm('D');
   assert.match(c, /^LUCID-CODER ACTIVE/);
