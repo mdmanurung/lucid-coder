@@ -116,3 +116,7 @@ node --test eval/tests/*.test.js
 
 `harness.test.js` needs no API key; it uses stub `claude` binaries and a mock task.
 `python.test.js` runs the Python twins' reference and naive scripts through uv and `check.R`, then scores a reference run; it skips when uv or the R module is missing.
+
+## Rubric
+
+`rubric.md` defines how to judge a script objectively. Every item is a count or a yes/no with a decision rule, evidence by line number, two blinded readers and no total score. Part 1 is quality; Part 2 is lucid-coder conformance and is reported separately. Each item says whether it comes from `score.js`, a regex or a reader.
