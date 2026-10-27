@@ -13,6 +13,7 @@
   --accent: #1f6f8b;
   --mark: #fff1c2;
   --mark-edge: #d9a400;
+  --warn: #a8432a;
   --code-bg: #f1f3f6;
   --a-tag: #7a5c3a;
   --c-tag: #1f6f8b;
@@ -23,13 +24,13 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #12161c; --surface: #1a2028; --fg: #e3e8ef; --muted: #9aa5b4; --line: #2c3540;
-    --accent: #6cc0dc; --mark: #3a3214; --mark-edge: #c79a1c; --code-bg: #161b22;
+    --accent: #6cc0dc; --mark: #3a3214; --mark-edge: #c79a1c; --warn: #f08a6c; --code-bg: #161b22;
     --a-tag: #d1a77a; --c-tag: #6cc0dc; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #12161c; --surface: #1a2028; --fg: #e3e8ef; --muted: #9aa5b4; --line: #2c3540;
-  --accent: #6cc0dc; --mark: #3a3214; --mark-edge: #c79a1c; --code-bg: #161b22;
+  --accent: #6cc0dc; --mark: #3a3214; --mark-edge: #c79a1c; --warn: #f08a6c; --code-bg: #161b22;
   --a-tag: #d1a77a; --c-tag: #6cc0dc; color-scheme: dark;
 }
 body {
@@ -38,18 +39,19 @@ body {
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 32px 64px;
 }
-main { max-width: 1180px; margin: 0 auto; display: grid; gap: 40px; }
+main { max-width: 1180px; margin: 0 auto; display: grid; gap: 44px; }
 h1, h2 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; }
 h1 { font-size: 2rem; line-height: 1.2; }
 h2 { font-size: 1.35rem; }
-p { margin: 0; max-width: 68ch; }
+p { margin: 0; max-width: 70ch; }
 .lede { color: var(--muted); }
 .intro, section { display: grid; gap: 14px; }
 .eyebrow { font: 600 0.75rem var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
 .tablewrap { overflow-x: auto; }
-table { border-collapse: collapse; font-size: 0.92rem; min-width: 560px; font-variant-numeric: tabular-nums; }
-th, td { text-align: left; padding: 6px 14px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+table { border-collapse: collapse; font-size: 0.92rem; min-width: 620px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 16px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { font-weight: 600; color: var(--muted); }
+td.no { color: var(--warn); }
 .panes { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .pane { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; display: grid; grid-template-rows: auto 1fr; }
 .pane header { display: flex; gap: 10px; align-items: baseline; padding: 8px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
@@ -61,8 +63,8 @@ pre { margin: 0; overflow-x: auto; background: var(--code-bg); padding: 10px 0; 
 pre .ln { display: block; padding: 0 12px; white-space: pre; border-left: 3px solid transparent; }
 pre .ln.hl { background: var(--mark); border-left-color: var(--mark-edge); }
 .note { font-size: 0.95rem; }
-.note b { font-weight: 600; }
-ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 72ch; }
+ul { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; max-width: 74ch; }
+li b { font-weight: 600; }
 code { font: 0.88em var(--font-mono); }
 .legend { display: inline-block; width: 0.9em; height: 0.9em; background: var(--mark); border-left: 3px solid var(--mark-edge); vertical-align: -0.1em; margin-right: 4px; }
 </style>
@@ -71,57 +73,51 @@ code { font: 0.88em var(--font-mono); }
   <div class="intro">
     <div class="eyebrow">lucid-coder · before and after</div>
     <h1>MPL differential analysis, with and without the plugin</h1>
-    <p class="lede">One script from the Senegal urban-rural study, <code>src/_MPL_differential_analysis.R</code>: a robust limma trend test on MPL-stimulated subcluster frequencies. Opus 5.5 rewrote it under the same prompt with no plugin (A), with lucid-coder (C), and with lucid-coder plus three learned rules (D). No run had the data, so no script was executed.</p>
-    <p class="note"><span class="legend"></span>Highlighted lines are the ones the comparison is about.</p>
+    <p class="lede">One script from the Senegal urban-rural study, <code>src/_MPL_differential_analysis.R</code>: a robust limma trend test on MPL-stimulated subcluster frequencies. Opus 5.5 refactored it and also wrote it fresh from a five-step spec, with no plugin (A), with lucid-coder (C), and with lucid-coder plus three learned rules (D). No run had the data, so no script was executed.</p>
+    <p class="lede">Every snippet below is <code>air</code>-formatted at 100 columns. In the from-scratch runs C and D ran <code>air</code> themselves and A happened to match it, so layout no longer separates the arms. What is left is how the code is written.</p>
+    <p class="note"><span class="legend"></span>Highlighted lines are the ones each comparison is about.</p>
   </div>
 
   <section>
-    <h2>The five scripts</h2>
+    <h2>How the code is written, from scratch</h2>
+    <p>Same spec, all three scripts pass <code>air format --check</code>. Lints use the plugin's <code>.lintr</code>.</p>
     <div class="tablewrap">
       <table>
-        <thead><tr><th>Task</th><th>Arm</th><th>Lines</th><th>Cost</th><th>Checks</th><th>Pipe</th></tr></thead>
+        <thead><tr><th></th><th>A · no plugin</th><th>C · lucid-coder</th><th>D · plus learned rules</th></tr></thead>
         <tbody>
-          <tr><td>Refactor the original (100 lines)</td><td>A</td><td>144</td><td>$0.94</td><td>0, one comment</td><td><code>%&gt;%</code></td></tr>
-          <tr><td></td><td>C</td><td>146</td><td>$1.98</td><td>1</td><td><code>|&gt;</code></td></tr>
-          <tr><td>Write from a five-step spec</td><td>A</td><td>100</td><td>$0.57</td><td>3 <code>stopifnot()</code></td><td><code>%&gt;%</code></td></tr>
-          <tr><td></td><td>C</td><td>196</td><td>$0.85</td><td>5</td><td><code>|&gt;</code></td></tr>
-          <tr><td></td><td>D</td><td>171</td><td>$0.93</td><td>6</td><td><code>|&gt;</code></td></tr>
-          <tr><td></td><td>D, after the pipe rule</td><td>178</td><td>$0.25</td><td>6</td><td><code>|&gt;</code>, one step per line</td></tr>
+          <tr><td>Lines, cost</td><td>112, $0.58</td><td>183, $0.29</td><td>189, $1.30</td></tr>
+          <tr><td>lintr lints</td><td class="no">34: 27 <code>%&gt;%</code>, 5 path strings, 2 names</td><td>0</td><td>1 commented code</td></tr>
+          <tr><td>Checks</td><td>4 <code>stopifnot()</code>, no message</td><td>5 <code>stop()</code> saying what to fix</td><td>6 <code>stop()</code> saying what to fix</td></tr>
+          <tr><td>Join guards</td><td class="no">none</td><td><code>relationship =</code> on 3 joins</td><td><code>relationship =</code> on 4 joins</td></tr>
+          <tr><td>Dropped patients</td><td class="no">silent</td><td>logged by ID</td><td>logged by ID</td></tr>
+          <tr><td>Named constants</td><td class="no">none; <code>"LD413"</code> and <code>100</code> inline</td><td>5, with a reason</td><td>3, with a reason</td></tr>
+          <tr><td>Header</td><td>2-line purpose</td><td>Purpose, Inputs, Outputs, Run, Notes</td><td>Purpose, Inputs, Outputs, Run, Notes</td></tr>
+          <tr><td>Paths</td><td>relative strings</td><td><code>here::here()</code></td><td><code>here::here()</code></td></tr>
+          <tr><td>Session info</td><td class="no">none</td><td>written to outputs</td><td>written to outputs</td></tr>
         </tbody>
       </table>
     </div>
   </section>
 
   <section>
-    <div class="eyebrow">Refactor · example 1</div>
-    <h2>Design rows matched to matrix columns by position</h2>
-    <p><code>lmFit()</code> pairs the design rows with the matrix columns by position. If the two orders differ, every patient gets another patient's group, age and sex, and the script still runs.</p>
+    <div class="eyebrow">Refactor · positional alignment</div>
+    <h2>A comment versus a check</h2>
+    <p><code>lmFit()</code> pairs design rows with matrix columns by position. If the orders differ, each patient gets another patient's group, age and sex, and the script still runs.</p>
     <div class="panes">
-      <div class="pane"><header><span class="tag">Original</span><span>lines 73 to 80</span></header>
+      <div class="pane"><header><span class="tag a">A · no plugin</span><span>explains the risk</span></header>
 <script type="text/plain" class="code">
+»# NOTE: matCounts columns (patients) and matMeta rows are aligned by position
+»# only: both follow the order in which patients first appear in `counts`.
+»# lmFit() does not match them by name, so do not reorder either one.
 matMeta <- counts %>%
-    select(patient_id, group3 = group2, groupCat = group3, age, sex, batch) %>%
-    distinct()
-
-contrasts(matMeta$group3) <- contr.poly.weighted(matMeta$group3)
-designTrend <- model.matrix(~ group3 + age + sex + batch, data = matMeta)
+  select(patient_id, group3 = group2, groupCat = group3, age, sex, batch) %>%
+  distinct()
 
 fit <- lmFit(matCounts, designTrend, method = "robust", maxit = 100)
-»res.L <- topTable(efit, coef = 2, number = Inf) %>%
-</script></div>
-      <div class="pane"><header><span class="tag a">A · no plugin</span><span>warns in a comment</span></header>
-<script type="text/plain" class="code">
-»# NOTE: matCounts columns and matMeta rows are aligned by position only;
-»# do not reorder either one.
-matMeta <- counts %>%
-    select(patient_id, group3 = group2, groupCat = group3, age, sex, batch) %>%
-    distinct()
+efit <- eBayes(fit, robust = TRUE)
 
-contrasts(matMeta$group3) <- contr.poly.weighted(matMeta$group3)
-designTrend <- model.matrix(~ group3 + age + sex + batch, data = matMeta)
-fit <- lmFit(matCounts, designTrend, method = "robust", maxit = 100)
-»# coef 2 = linear trend, coef 3 = quadratic trend
-»res.L <- tidy_toptable(efit, coef = 2, "L")
+»# coef 2 = group3.L (linear trend), coef 3 = group3.Q (quadratic trend)
+»res.L <- tidy_toptable(efit, coef = 2, suffix = "L")
 </script></div>
       <div class="pane"><header><span class="tag c">C · lucid-coder</span><span>stops on a mismatch</span></header>
 <script type="text/plain" class="code">
@@ -134,39 +130,39 @@ design_meta <- counts |>
 »  stop("design_meta: rows do not match freq_matrix columns; check metadata.", call. = FALSE)
 »}
 
-contrasts(design_meta$group) <- contr.poly.weighted(design_meta$group)
-design_trend <- model.matrix(~ group + age + sex + batch, data = design_meta)
 fit <- lmFit(freq_matrix, design_trend, method = "robust", maxit = ROBUST_MAXIT)
+efit <- eBayes(fit, robust = TRUE)
+
 »res_linear <- trend_table(efit, coef = "group.L", suffix = "L")
 </script></div>
     </div>
-    <p class="note">A explains the risk; C makes it fail loudly. C also selects the coefficient by name, so adding a term to the formula cannot move <code>coef = 2</code> onto <code>age</code>. The name <code>group.L</code> is correct: <code>weightedcontrasts.R</code> names its columns <code>.L</code>, <code>.Q</code>, <code>.C</code>.</p>
+    <p class="note">C also picks the coefficient by name, so adding a term to the formula cannot shift <code>coef = 2</code> onto <code>age</code>. The name is valid: <code>weightedcontrasts.R</code> names its columns <code>.L</code>, <code>.Q</code>, <code>.C</code>.</p>
   </section>
 
   <section>
-    <div class="eyebrow">Refactor · example 2</div>
-    <h2>The join chain and the silent drops</h2>
+    <div class="eyebrow">Refactor · data flow</div>
+    <h2>Joins in reading order</h2>
     <div class="panes">
-      <div class="pane"><header><span class="tag">Original and A</span><span>A kept this block as written</span></header>
+      <div class="pane"><header><span class="tag">Original, kept by A</span><span>read bottom-up through <code>.</code></span></header>
 <script type="text/plain" class="code">
 counts <- left_join(metaLineage, countsCluster, by = "subclusterPG_merged") %>%
-»    left_join(countsLineage, ., by = c("patient_id", "lineage")) %>%
-»    left_join(metaSample, ., by = "patient_id") %>%
-»    left_join(meta, ., by = "patient_id") %>%
-    as.data.table() %>%
-    mutate(freq_cluster_perLineage = n_cluster / n_lineage * 100) %>%
-    mutate(freq_cluster_perLineage_trans = asin(sqrt(freq_cluster_perLineage / 100))) %>%
-»    drop_na() %>%
-»    filter(patient_id != "LD413")
+»  left_join(countsLineage, ., by = c("patient_id", "lineage")) %>%
+»  left_join(metaSample, ., by = "patient_id") %>%
+»  left_join(meta, ., by = "patient_id") %>%
+  as.data.table() %>%
+  mutate(freq_cluster_perLineage = n_cluster / n_lineage * 100) %>%
+  mutate(freq_cluster_perLineage_trans = asin(sqrt(freq_cluster_perLineage / 100))) %>%
+»  drop_na() %>%
+»  filter(patient_id != "LD413")
 </script></div>
-      <div class="pane"><header><span class="tag c">C · lucid-coder</span><span>reads top-down, logs the drop</span></header>
+      <div class="pane"><header><span class="tag c">C · lucid-coder</span><span>top-down, drop counted</span></header>
 <script type="text/plain" class="code">
 counts_joined <- patient_meta |>
-  left_join(sample_meta, by = "patient_id") |>
-  left_join(lineage_counts, by = "patient_id") |>
-  left_join(cluster_counts_lineage, by = c("patient_id", "lineage")) |>
+»  left_join(sample_meta, by = "patient_id") |>
+»  left_join(lineage_counts, by = "patient_id") |>
+»  left_join(cluster_counts_lineage, by = c("patient_id", "lineage")) |>
   mutate(freq_cluster_perLineage = n_cluster / n_lineage * 100) |>
-»  # Arcsine square-root transform stabilises the variance of proportions for the linear model
+  # Arcsine square-root transform stabilises the variance of proportions for the linear model
   mutate(freq_cluster_perLineage_trans = asin(sqrt(freq_cluster_perLineage / 100)))
 
 counts_complete <- drop_na(counts_joined)
@@ -179,81 +175,115 @@ counts_complete <- drop_na(counts_joined)
 counts <- filter(counts_complete, patient_id != REFERENCE_SAMPLE)
 </script></div>
     </div>
-    <p class="note">The original nests each join through the <code>.</code> placeholder, so the reader works backwards from the last line. C writes the same four joins in reading order, says why the transform is there, and prints how many patients <code>drop_na()</code> removed.</p>
   </section>
 
   <section>
-    <div class="eyebrow">From scratch · example 3</div>
-    <h2>Which patients were dropped</h2>
-    <p>Same analysis written from a five-step spec, with no source script to copy.</p>
+    <div class="eyebrow">From scratch · checks</div>
+    <h2>A check that says what to fix</h2>
+    <p>Both arms check that each patient sits in one batch. A's version stops with R's generic message. D's names the input and the fix.</p>
     <div class="panes">
-      <div class="pane"><header><span class="tag a">A · no plugin</span><span>silent</span></header>
+      <div class="pane"><header><span class="tag a">A · no plugin</span></header>
 <script type="text/plain" class="code">
-  left_join(meta %>% select(patient_id, group2, age, sex), by = "patient_id") %>%
+# Batch is recorded per cell; collapse to one value per patient.
+patient_batch <- cells %>%
+  distinct(patient_id, batch)
+
+»stopifnot(!anyDuplicated(patient_batch$patient_id))
+</script></div>
+      <div class="pane"><header><span class="tag c">D · lucid-coder plus rules</span></header>
+<script type="text/plain" class="code">
+# One batch per patient; a patient spread over batches would duplicate rows in the design.
+patient_batch <- cells |>
+  distinct(patient_id, batch)
+»if (anyDuplicated(patient_batch$patient_id) > 0) {
+»  stop(
+»    "MPL_data.qs: some patients occur in more than one batch; resolve batch per patient.",
+»    call. = FALSE
+»  )
+»}
+</script></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">From scratch · joins and drops</div>
+    <h2>Guarded joins and logged removals</h2>
+    <div class="panes">
+      <div class="pane"><header><span class="tag a">A · no plugin</span><span>a duplicate metadata row doubles cells</span></header>
+<script type="text/plain" class="code">
+  left_join(patient_batch, by = "patient_id") %>%
+»  left_join(
+»    meta %>% select(patient_id, group2, age, sex),
+»    by = "patient_id"
+»  ) %>%
 »  drop_na() %>%
 »  filter(patient_id != "LD413")
 </script></div>
-      <div class="pane"><header><span class="tag c">C · lucid-coder</span><span>names the patients</span></header>
+      <div class="pane"><header><span class="tag c">C · lucid-coder</span><span>errors on a duplicate, names who left</span></header>
 <script type="text/plain" class="code">
-  left_join(select(metadata, patient_id, group2, age, sex),
-»    by = "patient_id", relationship = "many-to-one")
+subcluster_freq <- subcluster_freq |>
+»  left_join(patient_batch, by = "patient_id", relationship = "many-to-one") |>
+  left_join(
+    select(patient_metadata, patient_id, group2, age, sex),
+    by = "patient_id",
+»    relationship = "many-to-one"
+  )
 
-incomplete_patients <- cluster_freq |>
-  filter(if_any(c(batch, group2, age, sex), is.na)) |>
+incomplete_patients <- subcluster_freq |>
+  filter(!complete.cases(pick(everything()))) |>
   distinct(patient_id) |>
   pull(patient_id)
-»message("Removed ", length(incomplete_patients), " patient(s) with missing batch/group2/age/sex: ",
-»  paste(incomplete_patients, collapse = ", "))
-
-cluster_freq <- cluster_freq |>
-  drop_na() |>
-  filter(!patient_id %in% EXCLUDED_PATIENTS)
-</script></div>
-      <div class="pane"><header><span class="tag c">D · plus learned rules</span><span>same, shorter</span></header>
-<script type="text/plain" class="code">
-complete_freq <- drop_na(subcluster_freq)
-dropped_na <- setdiff(subcluster_freq$patient_id, complete_freq$patient_id)
-»message("Removed ", nrow(subcluster_freq) - nrow(complete_freq), " rows with missing values; ",
-»  "patients lost entirely: ", length(dropped_na), " (", toString(dropped_na), ").")
-
-analysis_freq <- complete_freq |> filter(!patient_id %in% EXCLUDED_PATIENTS)
+»message(sprintf(
+»  "Removed %d patient(s) with missing values (incl. no metadata): %s",
+»  length(incomplete_patients),
+»  toString(incomplete_patients)
+»))
 </script></div>
     </div>
-    <p class="note"><code>relationship = "many-to-one"</code> turns a duplicated metadata row into an error instead of a silent doubling of that patient's cells. Both A and the plugin arms named the coefficients and aligned the design with <code>match()</code> here, so those are model defaults, not plugin effects.</p>
   </section>
 
   <section>
-    <div class="eyebrow">Rule change · example 4</div>
-    <h2>A new line after every pipe</h2>
-    <p>D still packed short chains onto one line. A new rule in <code>rules/r.md</code> now asks for one step per line, even for two steps. The rerun of D has no line with a step after <code>|&gt;</code>.</p>
+    <div class="eyebrow">From scratch · constants</div>
+    <h2>Decisions named at the top</h2>
     <div class="panes">
-      <div class="pane"><header><span class="tag c">D · before the rule</span></header>
+      <div class="pane"><header><span class="tag a">A · no plugin</span><span>decisions inline</span></header>
 <script type="text/plain" class="code">
-»batches_per_patient <- mpl_cells |> distinct(patient_id, batch) |> count(patient_id)
+source("src/weightedcontrasts.R")
 
-»analysis_freq <- complete_freq |> filter(!patient_id %in% EXCLUDED_PATIENTS)
+dir.create("outputs", showWarnings = FALSE)
+
+»cells <- qread("data/MPL_data.qs")
+»meta <- readRDS("data/MPL_metadata.rds")
+...
+»  filter(patient_id != "LD413")
+...
+»fit <- lmFit(freq_mat, design, method = "robust", maxit = 100)
 </script></div>
-      <div class="pane"><header><span class="tag c">D · after the rule</span></header>
+      <div class="pane"><header><span class="tag c">D · lucid-coder plus rules</span><span>each with a reason</span></header>
 <script type="text/plain" class="code">
-patients_with_na <- cluster_freq |>
-»  filter(if_any(c(group2, age, sex, batch), is.na)) |>
-»  distinct(patient_id) |>
-»  pull(patient_id)
+source(here::here("src", "weightedcontrasts.R"))
 
-cluster_freq <- cluster_freq |>
-»  drop_na(group2, age, sex, batch) |>
-»  filter(!patient_id %in% EXCLUDED_PATIENTS)
+»# Patient flagged for exclusion from the trend test.
+»EXCLUDED_PATIENTS <- c("LD413")
+»# Lineage is the subcluster prefix before the first underscore, e.g. "CD4T" in "CD4T_Th1".
+»LINEAGE_PATTERN <- "_.*$"
+»# rlm() defaults to 20 iterations; raised as specified so robust fits converge.
+»LMFIT_MAXIT <- 100
+
+out_median_file <- here::here("data", "MPL_cluster_median_markers.qs")
+out_limma_file <- here::here("outputs", "MPL_limma_trend_test.rds")
 </script></div>
     </div>
   </section>
 
   <section>
-    <h2>Check before trusting the plugin versions</h2>
+    <h2>Where the plugin versions go wrong</h2>
     <ul>
-      <li><b>LD413.</b> The refactor calls it a "reference (control) sample". That is a guess; the other scripts only drop it. The from-scratch versions say the reason is not recorded.</li>
-      <li><b>Spare checks.</b> D after the pipe rule adds a row-count check after a join that already has <code>relationship = "many-to-one"</code>, which cannot fail on its own. The house style counts that as outside the budget.</li>
-      <li><b>Length.</b> C from scratch is twice as long as A. Part of that is a Notes block explaining why <code>clean_names()</code> was not used.</li>
-      <li><b>Formatting.</b> No version passes <code>air format --check</code>; all differ from air in call layout.</li>
+      <li><b>C changes an output column.</b> It strips the lineage prefix from <code>cluster</code>, so <code>CD4T_Th1</code> becomes <code>Th1</code>. Your original keeps the full name, so figure scripts that join on it would break.</li>
+      <li><b>A spare check.</b> C adds a row-count <code>stop()</code> after a join that already has <code>relationship = "many-to-one"</code>, so it cannot fail on its own.</li>
+      <li><b>D refuses to overwrite.</b> It stops if the two fixed output files exist, so every rerun needs a manual delete. The rule was written for run folders, not fixed paths.</li>
+      <li><b>Over-naming.</b> <code>LINEAGE_PATTERN</code> and <code>ANNOTATION_PATTERN</code> give a constant to a regex used twice.</li>
+      <li><b>LD413.</b> The refactor guessed it is a "reference (control) sample". The from-scratch versions say the reason is not recorded, which is accurate.</li>
     </ul>
   </section>
 </main>
