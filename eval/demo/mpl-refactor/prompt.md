@@ -1,0 +1,1 @@
+Refactor `src/_MPL_differential_analysis.R` for readability without changing what it computes or writes. Write the new version to `src/_MPL_differential_analysis_refactored.R`. Do not run anything; the data are not here. Keep the helper files as they are.

@@ -1,6 +1,6 @@
 # Handoff — lucid-coder
 
-**Date:** 2026-10-26 · **Branch:** main, not pushed · **Status:** Phases 0-3 committed: harness, 32-run pilot, 16-run C/D rerun; house style revised after a corpus audit
+**Date:** 2026-10-27 · **Branch:** main, not pushed · **Status:** Phases 0-3 committed: harness, 32-run pilot, 16-run C/D rerun; house style revised after a corpus audit
 
 ## Goal
 Build a ponytail-like Claude Code plugin with three properties:
@@ -13,6 +13,12 @@ Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.
 
 ## Next action
 Finish the grilled design (below): two-tier injection, two R trap tasks, the Python scoring path and three Python twins. Then run C/D at 3 reps, the traps at 4 arms × 3 reps, and the Python grid at 4 arms × 2 reps. Score checks by classification (default five / allowed extra / OUT); success is OUT median 0. Then the 16-script human packet; Phase 4 only if the human sheets show an effect.
+
+## Before/after demo on a user script (2026-10-27)
+- Live A-vs-C refactor of `Senegal_phipseq/.../src/_MPL_differential_analysis.R` (100 lines, limma trend test on MPL-stimulated subcluster frequencies). Same prompt, Opus, `--safe-mode`, no data; C got `arm-prompt.js C r` (4,580 chars). Files in `eval/demo/mpl-refactor/`: `original.R`, `prompt.md`, `A_refactored.R` (144 lines, $0.94, 9 turns), `C_refactored.R` (146 lines, $1.98, 14 turns).
+- A kept the script's shape and added explanation: a purpose comment, a `tidy_toptable()` helper, `REFERENCE_SAMPLE`, and a comment warning that `matCounts` columns and `matMeta` rows align by position. It kept `%>%`, `remove = F`, dot names, 4-space indent, all 12 libraries and three `source()` calls.
+- C changed what a reader can verify: header with producers (Zenodo id from the README, `[gap]` for the metadata file) and consumers (Fig4-6); `here::here()`; `|>`; snake_case; the three libraries the script uses and one `source()`; constants `N_THREADS`, `REFERENCE_SAMPLE`, `ROBUST_MAXIT` with a reason each; `message()` with the count at each drop; `coef = "group.L"`/`"group.Q"` by name (verified: `weightedcontrasts.R` names the columns `.L`, `.Q`, `.C`); writes grouped at the end; `sessionInfo()`. Exactly one check, the default "IDs identical before a positional copy", as a `stop()`; A only commented on the same risk.
+- Caveats: C dropped the unused `groupCat = group3` column from the design table (safe, nothing reads it) and calls LD413 a "reference (control) sample", which is its guess (the other scripts only drop it). Neither version was executed.
 
 ## Rerun 4 and the human packet (2026-10-26, night)
 - Second grilling: rerun 4 before the packet; name the factor-NA not-check exactly; add a ruff width line to `python.md`; keep the traps as evidence only; R-only packet of 16 (pilot A/B rep 1 + rerun-4 C/D rep 1), judges on the same 16, Python packet only if the R packet shows an effect.
