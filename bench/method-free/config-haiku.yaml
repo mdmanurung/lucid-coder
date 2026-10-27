@@ -1,0 +1,15 @@
+# acumen config for the method-free pilot: prompts state the question, not the method; sc-pipelines umbrella skill.
+repo: ../target-full # stub package: pins the analysis stack, puts an Rscript shim on PATH
+python: "3.12"
+models:
+  - claude-haiku-5-5
+n_replicates: 2
+max_concurrency: 4
+max_turns: 40
+max_usd: 1.0
+meta_model: claude-sonnet-5
+skill_name: sc-pipelines
+# pandas<3 (scvelo) + anndata 0.13 refuse to write nullable strings unless this is set;
+# export ANNDATA_ALLOW_WRITE_NULLABLE_STRINGS=1 before every acumen call so both arms get it.
+env_passthrough:
+  - ANNDATA_ALLOW_WRITE_NULLABLE_STRINGS

@@ -1,0 +1,582 @@
+# Merged from task_parts/{core,interp,struct}.yaml; edit the parts, then rerun this merge.
+tasks:
+  # skill: sc-qc; corpus: B-an-01 (Scrublet per sample, seeded), B-an-02 (fixed mito/gene limits, drop predicted_doublet)
+  - id: qc
+    data:
+    - core_pbmc3k.h5ad
+    train:
+      prompt: '`core_pbmc3k.h5ad` in the working directory holds the 10x PBMC 3k library: raw
+        UMI counts in `X`, gene symbols as `var_names`, and `obs` column `sample` (one library).
+        Run cell QC and doublet removal. Compute per-cell QC metrics on the raw counts; mitochondrial
+        genes start with `MT-`. Score doublets on all cells before any filtering with scanpy''s
+        `sc.pp.scrublet`, per `sample`: expected doublet rate 0.06, 30 principal components,
+        exact nearest neighbours (no approximate search), random state 0, and Scrublet''s own
+        automatic threshold; a cell is a doublet when its score exceeds that threshold. Keep
+        a cell when it has 200 to 2500 genes detected (inclusive), at least 500 UMI counts,
+        at most 5% mitochondrial counts, and is not a predicted doublet. Save the filtered h5ad,
+        a per-cell QC table and QC figures in the working directory. Report only the number
+        of cells kept. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '2597'
+    valid:
+      prompt: '`core_pbmc3k.h5ad` in the working directory holds the 10x PBMC 3k library: raw
+        UMI counts in `X`, gene symbols as `var_names`, and `obs` column `sample` (one library).
+        Run cell QC and doublet removal. Compute per-cell QC metrics on the raw counts; mitochondrial
+        genes start with `MT-`. Score doublets on all cells before any filtering with scanpy''s
+        `sc.pp.scrublet`, per `sample`: expected doublet rate 0.08, 30 principal components,
+        exact nearest neighbours (no approximate search), random state 1, and Scrublet''s own
+        automatic threshold; a cell is a doublet when its score exceeds that threshold. Keep
+        a cell when it has 300 to 2000 genes detected (inclusive), at least 800 UMI counts,
+        at most 10% mitochondrial counts, and is not a predicted doublet. Save the filtered
+        h5ad, a per-cell QC table and QC figures in the working directory. Report only the number
+        of cells kept. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '2567'
+    test:
+      prompt: '`core_pbmc3k.h5ad` in the working directory holds the 10x PBMC 3k library: raw
+        UMI counts in `X`, gene symbols as `var_names`, and `obs` column `sample` (one library).
+        Run cell QC and doublet removal. Compute per-cell QC metrics on the raw counts; mitochondrial
+        genes start with `MT-`. Score doublets on all cells before any filtering with scanpy''s
+        `sc.pp.scrublet`, per `sample`: expected doublet rate 0.05, 30 principal components,
+        exact nearest neighbours (no approximate search), random state 2, and Scrublet''s own
+        automatic threshold; a cell is a doublet when its score exceeds that threshold. Keep
+        a cell when it has 250 to 3000 genes detected (inclusive), at least 600 UMI counts,
+        at most 8% mitochondrial counts, and is not a predicted doublet. Save the filtered h5ad,
+        a per-cell QC table and QC figures in the working directory. Report only the number
+        of cells kept. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '2644'
+  # skill: sc-embed; corpus: B-an-06 (normalise, HVG, scale, arpack PCA, Harmony max_iter 20, kNN, UMAP), C-an-05 (leiden igraph, n_iterations=2)
+  - id: embed
+    data:
+    - kang2018.h5ad
+    train:
+      prompt: '`kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta), `replicate`
+        (patient id) and `cell_type`. Embed and cluster the CD8 T cells, both conditions together.
+        Keep the raw counts in a layer; normalise each cell to 10,000 total counts, then log1p.
+        Pick the 2,000 most highly variable genes with the `seurat` flavor on the log-normalised
+        data, with `replicate` as the batch key. Scale those genes to zero mean and unit variance
+        with no clipping and run PCA with 30 components and the ARPACK solver. Integrate the
+        PCs by `replicate` with harmonypy''s `run_harmony` (at most 20 iterations). Build a
+        15-neighbour kNN graph on the first 20 Harmony-corrected components, compute a UMAP
+        with min_dist 0.3, and run Leiden clustering (igraph flavor, 2 iterations, undirected
+        graph) at resolution 0.4. Use seed 0 for PCA, Harmony, neighbours, UMAP and Leiden.
+        Save the embedded h5ad, a cluster-size table and UMAP figures in the working directory.
+        Report only the number of Leiden clusters. Genome reference: GRCh37 (hg19), 10x Cell
+        Ranger hg19 annotation.'
+      answer: '3'
+    valid:
+      prompt: '`kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta), `replicate`
+        (patient id) and `cell_type`. Embed and cluster the NK cells, both conditions together.
+        Keep the raw counts in a layer; normalise each cell to 10,000 total counts, then log1p.
+        Pick the 2,000 most highly variable genes with the `seurat` flavor on the log-normalised
+        data, with `replicate` as the batch key. Scale those genes to zero mean and unit variance
+        with no clipping and run PCA with 30 components and the ARPACK solver. Integrate the
+        PCs by `replicate` with harmonypy''s `run_harmony` (at most 20 iterations). Build a
+        15-neighbour kNN graph on the first 20 Harmony-corrected components, compute a UMAP
+        with min_dist 0.3, and run Leiden clustering (igraph flavor, 2 iterations, undirected
+        graph) at resolution 0.5. Use seed 0 for PCA, Harmony, neighbours, UMAP and Leiden.
+        Save the embedded h5ad, a cluster-size table and UMAP figures in the working directory.
+        Report only the number of Leiden clusters. Genome reference: GRCh37 (hg19), 10x Cell
+        Ranger hg19 annotation.'
+      answer: '5'
+    test:
+      prompt: '`kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta), `replicate`
+        (patient id) and `cell_type`. Embed and cluster the B cells, both conditions together.
+        Keep the raw counts in a layer; normalise each cell to 10,000 total counts, then log1p.
+        Pick the 2,000 most highly variable genes with the `seurat` flavor on the log-normalised
+        data, with `replicate` as the batch key. Scale those genes to zero mean and unit variance
+        with no clipping and run PCA with 30 components and the ARPACK solver. Integrate the
+        PCs by `replicate` with harmonypy''s `run_harmony` (at most 20 iterations). Build a
+        15-neighbour kNN graph on the first 20 Harmony-corrected components, compute a UMAP
+        with min_dist 0.3, and run Leiden clustering (igraph flavor, 2 iterations, undirected
+        graph) at resolution 0.3. Use seed 0 for PCA, Harmony, neighbours, UMAP and Leiden.
+        Save the embedded h5ad, a cluster-size table and UMAP figures in the working directory.
+        Report only the number of Leiden clusters. Genome reference: GRCh37 (hg19), 10x Cell
+        Ranger hg19 annotation.'
+      answer: '6'
+  # skill: sc-markers; corpus: D-an-40 (Wilcoxon, benjamini-hochberg, reference='rest', use_raw=False)
+  - id: markers
+    data:
+    - kang2018.h5ad
+    train:
+      prompt: '`kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta), `replicate`
+        (patient id) and `cell_type`. Find marker genes for each `cell_type` among the ctrl
+        cells only. Normalise each cell to 10,000 total counts, then log1p. Test each cell type
+        against all other cells with a Wilcoxon rank-sum test (scanpy `rank_genes_groups`, every
+        gene, Benjamini-Hochberg correction, on the log-normalised values, not `.raw`). A gene
+        is a marker of a cell type when its adjusted p < 0.05, its log2 fold change (scanpy''s,
+        up in that type) > 1, and it is detected (value > 0) in at least 0.25 of that type''s
+        cells. Save the full marker table, a dot plot and a heatmap of the top 5 markers per
+        cell type in the working directory. Report only the number of markers of B cells. Genome
+        reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '50'
+    valid:
+      prompt: '`kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta), `replicate`
+        (patient id) and `cell_type`. Find marker genes for each `cell_type` among the stim
+        cells only. Normalise each cell to 10,000 total counts, then log1p. Test each cell type
+        against all other cells with a Wilcoxon rank-sum test (scanpy `rank_genes_groups`, every
+        gene, Benjamini-Hochberg correction, on the log-normalised values, not `.raw`). A gene
+        is a marker of a cell type when its adjusted p < 0.01, its log2 fold change (scanpy''s,
+        up in that type) > 1.5, and it is detected (value > 0) in at least 0.3 of that type''s
+        cells. Save the full marker table, a dot plot and a heatmap of the top 5 markers per
+        cell type in the working directory. Report only the number of markers of NK cells. Genome
+        reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '29'
+    test:
+      prompt: '`kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta), `replicate`
+        (patient id) and `cell_type`. Find marker genes for each `cell_type` among the ctrl
+        cells only. Normalise each cell to 10,000 total counts, then log1p. Test each cell type
+        against all other cells with a Wilcoxon rank-sum test (scanpy `rank_genes_groups`, every
+        gene, Benjamini-Hochberg correction, on the log-normalised values, not `.raw`). A gene
+        is a marker of a cell type when its adjusted p < 0.05, its log2 fold change (scanpy''s,
+        up in that type) > 0.5, and it is detected (value > 0) in at least 0.2 of that type''s
+        cells. Save the full marker table, a dot plot and a heatmap of the top 5 markers per
+        cell type in the working directory. Report only the number of markers of CD8 T cells.
+        Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '86'
+  # skill: sc-annotate; corpus: B-an-04 / D-an-41 (train CellTypist on a log1p-1e4 reference by a label column, annotate with majority voting toggled)
+  - id: annotate
+    data:
+    - core_kang_stim_ref.h5ad
+    - core_kang_ctrl_query.h5ad
+    - core_pbmc_markers.tsv
+    train:
+      prompt: '`core_kang_stim_ref.h5ad` in the working directory holds the interferon-beta
+        stimulated PBMCs of Kang et al. 2018: raw UMI counts in `X`, `obs` column `cell_type`.
+        `core_kang_ctrl_query.h5ad` holds the control PBMCs: raw UMI counts in `X`, a UMAP in
+        `obsm[''X_umap'']`, `obs` columns `replicate` and `cell_type`. `core_pbmc_markers.tsv`
+        lists marker genes per label (columns `label`, `gene`). Transfer labels from the stimulated
+        cells to the control cells with CellTypist: normalise copies of both to 10,000 counts
+        per cell, then log1p; train a model on the stimulated cells by `cell_type` with `celltypist.train`
+        (default solver, n_jobs 1, random state 0); annotate the control cells with it in best-match
+        mode without majority voting. Tabulate the transferred labels by the control cells''
+        `cell_type`, and check them against the marker genes in a dot plot. Save the annotated
+        h5ad, the tables and the figures in the working directory. Report only the number of
+        control cells with `cell_type` CD8 T cells whose transferred label is also CD8 T cells.
+        Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '586'
+    valid:
+      prompt: '`core_kang_stim_ref.h5ad` in the working directory holds the interferon-beta
+        stimulated PBMCs of Kang et al. 2018: raw UMI counts in `X`, `obs` column `cell_type`.
+        `core_kang_ctrl_query.h5ad` holds the control PBMCs: raw UMI counts in `X`, a UMAP in
+        `obsm[''X_umap'']`, `obs` columns `replicate` and `cell_type`. `core_pbmc_markers.tsv`
+        lists marker genes per label (columns `label`, `gene`). Transfer labels from the stimulated
+        cells to the control cells with CellTypist: normalise copies of both to 10,000 counts
+        per cell, then log1p; train a model on the stimulated cells by `cell_type` with `celltypist.train`
+        (default solver, n_jobs 1, random state 0); annotate the control cells with it in best-match
+        mode without majority voting. Tabulate the transferred labels by the control cells''
+        `cell_type`, and check them against the marker genes in a dot plot. Save the annotated
+        h5ad, the tables and the figures in the working directory. Report only the number of
+        control cells with `cell_type` NK cells whose transferred label is also NK cells. Genome
+        reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '757'
+    test:
+      prompt: '`core_kang_stim_ref.h5ad` in the working directory holds the interferon-beta
+        stimulated PBMCs of Kang et al. 2018: raw UMI counts in `X`, `obs` column `cell_type`.
+        `core_kang_ctrl_query.h5ad` holds the control PBMCs: raw UMI counts in `X`, a UMAP in
+        `obsm[''X_umap'']`, `obs` columns `replicate` and `cell_type`. `core_pbmc_markers.tsv`
+        lists marker genes per label (columns `label`, `gene`). Transfer labels from the stimulated
+        cells to the control cells with CellTypist: normalise copies of both to 10,000 counts
+        per cell, then log1p; train a model on the stimulated cells by `cell_type` with `celltypist.train`
+        (default solver, n_jobs 1, random state 0); annotate the control cells with it in best-match
+        mode without majority voting. Tabulate the transferred labels by the control cells''
+        `cell_type`, and check them against the marker genes in a dot plot. Save the annotated
+        h5ad, the tables and the figures in the working directory. Report only the number of
+        control cells with `cell_type` Dendritic cells whose transferred label is also Dendritic
+        cells. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '213'
+  # skill: group-tests; corpus C-an-47 (paired Wilcoxon of scores pre/post), C-an-20, C-an-48
+  - id: grouptest
+    data:
+    - kang2018_lognorm.h5ad
+    train:
+      prompt: '`kang2018_lognorm.h5ad` in the working directory holds Kang et al. 2018 PBMCs:
+        log-normalised values in `X` (`normalize_total` to 10,000 then `log1p`); `obs` columns
+        `sample` (one id per patient x condition, e.g. `patient_101_ctrl`), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Take the cells whose `cell_type`
+        is CD4 T cells. For each `sample`, compute the mean log-normalised value over its cells
+        of each of these 30 genes: ISG15, IFI6, IFIT1, IFIT3, MX1, OAS1, IFITM3, LY6E, STAT1,
+        IRF7, CD3E, CD14, LYZ, MS4A1, NKG7, GNLY, ACTB, GAPDH, B2M, CCL5, S100A8, S100A9, FCGR3A,
+        HLA-DRA, CD74, IL7R, CCR7, FTL, FTH1, TMSB4X. Test each gene stim vs ctrl with a two-sided
+        paired Wilcoxon signed-rank test, pairing the two samples of each `replicate` (ctrl
+        is the reference, so differences are stim minus ctrl; complete pairs only; zero differences
+        dropped; exact p-values as scipy gives for 8 pairs). Correct across the genes with Benjamini-Hochberg.
+        A gene is significant when the adjusted p-value < 0.05. Save the results tables and
+        figures in the working directory. Report only the number of significant genes. Genome
+        reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '22'
+    valid:
+      prompt: '`kang2018_lognorm.h5ad` in the working directory holds Kang et al. 2018 PBMCs:
+        log-normalised values in `X` (`normalize_total` to 10,000 then `log1p`); `obs` columns
+        `sample` (one id per patient x condition, e.g. `patient_101_ctrl`), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Take the cells whose `cell_type`
+        is NK cells. For each `sample`, compute the mean log-normalised value over its cells
+        of each of these 30 genes: ISG15, IFI6, IFIT1, IFIT3, MX1, OAS1, IFITM3, LY6E, STAT1,
+        IRF7, CD3E, CD14, LYZ, MS4A1, NKG7, GNLY, ACTB, GAPDH, B2M, CCL5, S100A8, S100A9, FCGR3A,
+        HLA-DRA, CD74, IL7R, CCR7, FTL, FTH1, TMSB4X. Test each gene stim vs ctrl with a two-sided
+        paired Wilcoxon signed-rank test, pairing the two samples of each `replicate` (ctrl
+        is the reference, so differences are stim minus ctrl; complete pairs only; zero differences
+        dropped; exact p-values as scipy gives for 8 pairs). Correct across the genes with Benjamini-Hochberg.
+        A gene is significant when the adjusted p-value < 0.1. Save the results tables and figures
+        in the working directory. Report only the number of significant genes. Genome reference:
+        GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '16'
+    test:
+      prompt: '`kang2018_lognorm.h5ad` in the working directory holds Kang et al. 2018 PBMCs:
+        log-normalised values in `X` (`normalize_total` to 10,000 then `log1p`); `obs` columns
+        `sample` (one id per patient x condition, e.g. `patient_101_ctrl`), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Take the cells whose `cell_type`
+        is B cells. For each `sample`, compute the mean log-normalised value over its cells
+        of each of these 30 genes: ISG15, IFI6, IFIT1, IFIT3, MX1, OAS1, IFITM3, LY6E, STAT1,
+        IRF7, CD3E, CD14, LYZ, MS4A1, NKG7, GNLY, ACTB, GAPDH, B2M, CCL5, S100A8, S100A9, FCGR3A,
+        HLA-DRA, CD74, IL7R, CCR7, FTL, FTH1, TMSB4X. Test each gene stim vs ctrl with a two-sided
+        paired Wilcoxon signed-rank test, pairing the two samples of each `replicate` (ctrl
+        is the reference, so differences are stim minus ctrl; complete pairs only; zero differences
+        dropped; exact p-values as scipy gives for 8 pairs). Correct across the genes with Benjamini-Hochberg.
+        A gene is significant when the adjusted p-value < 0.1. Save the results tables and figures
+        in the working directory. Report only the number of significant genes. Genome reference:
+        GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '25'
+  # skill: signature-scoring; corpus A-an-14 (score_genes ctrl_size/n_bins, per-group means)
+  - id: signature
+    data:
+    - kang2018_lognorm.h5ad
+    train:
+      prompt: '`kang2018_lognorm.h5ad` in the working directory holds Kang et al. 2018 PBMCs:
+        log-normalised values in `X` (`normalize_total` to 10,000 then `log1p`); `obs` columns
+        `sample` (one id per patient x condition, e.g. `patient_101_ctrl`), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Take only the cells whose
+        `cell_type` is B cells (subset first, then score). Score the gene set `ifn` (ISG15,
+        IFI6, IFIT1, IFIT3, MX1, OAS1, IFITM3, LY6E, IRF7, RSAD2, ISG20, IFI44L) in every cell
+        with scanpy `sc.tl.score_genes`: ctrl_size 50, n_bins 25, random_state 0, use_raw False;
+        require at least 5 of the set''s genes in the data. Average the score per `sample` (samples
+        nest in `label`, the groups). As a control, also score 20 random gene sets of the same
+        size drawn from the other genes (seed 0) the same way. Save the results tables and figures
+        in the working directory. Report only the `sample` with the highest mean score. Genome
+        reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: patient_1015_stim
+    valid:
+      prompt: '`kang2018_lognorm.h5ad` in the working directory holds Kang et al. 2018 PBMCs:
+        log-normalised values in `X` (`normalize_total` to 10,000 then `log1p`); `obs` columns
+        `sample` (one id per patient x condition, e.g. `patient_101_ctrl`), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Take only the cells whose
+        `cell_type` is B cells (subset first, then score). Score the gene set `mhc2` (HLA-DRA,
+        HLA-DRB1, HLA-DPA1, HLA-DPB1, HLA-DQA1, HLA-DQB1, CD74) in every cell with scanpy `sc.tl.score_genes`:
+        ctrl_size 50, n_bins 25, random_state 0, use_raw False; require at least 5 of the set''s
+        genes in the data. Average the score per `sample` (samples nest in `label`, the groups).
+        As a control, also score 20 random gene sets of the same size drawn from the other genes
+        (seed 0) the same way. Save the results tables and figures in the working directory.
+        Report only the `sample` with the highest mean score. Genome reference: GRCh37 (hg19),
+        10x Cell Ranger hg19 annotation.'
+      answer: patient_1016_ctrl
+    test:
+      prompt: '`kang2018_lognorm.h5ad` in the working directory holds Kang et al. 2018 PBMCs:
+        log-normalised values in `X` (`normalize_total` to 10,000 then `log1p`); `obs` columns
+        `sample` (one id per patient x condition, e.g. `patient_101_ctrl`), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Take only the cells whose
+        `cell_type` is CD14+ Monocytes (subset first, then score). Score the gene set `mhc2`
+        (HLA-DRA, HLA-DRB1, HLA-DPA1, HLA-DPB1, HLA-DQA1, HLA-DQB1, CD74) in every cell with
+        scanpy `sc.tl.score_genes`: ctrl_size 100, n_bins 25, random_state 0, use_raw False;
+        require at least 5 of the set''s genes in the data. Average the score per `sample` (samples
+        nest in `label`, the groups). As a control, also score 20 random gene sets of the same
+        size drawn from the other genes (seed 0) the same way. Save the results tables and figures
+        in the working directory. Report only the `sample` with the highest mean score. Genome
+        reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: patient_1016_stim
+  # skill: tf-activity; corpus A-an-27 (CollecTRI + ULM, rank_sources_groups vs rest)
+  - id: tfact
+    data:
+    - kang2018_lognorm.h5ad
+    - collectri_human.tsv
+    train:
+      prompt: '`kang2018_lognorm.h5ad` in the working directory holds Kang et al. 2018 PBMCs:
+        log-normalised values in `X` (`normalize_total` to 10,000 then `log1p`); `obs` columns
+        `sample` (one id per patient x condition, e.g. `patient_101_ctrl`), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Take the `ctrl` cells.
+        `collectri_human.tsv` is the CollecTRI network (columns `source`, `target`, `weight`).
+        Infer TF activity per cell with decoupler''s univariate linear model (`dc.mt.ulm`, tmin
+        5). Then rank the sources per `cell_type` against the rest with `dc.tl.rankby_group`
+        (reference `rest`, method `t-test_overestim_var`). Save the results tables and figures
+        in the working directory. Report only the source with the highest statistic in CD8 T
+        cells. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: KLF13
+    valid:
+      prompt: '`kang2018_lognorm.h5ad` in the working directory holds Kang et al. 2018 PBMCs:
+        log-normalised values in `X` (`normalize_total` to 10,000 then `log1p`); `obs` columns
+        `sample` (one id per patient x condition, e.g. `patient_101_ctrl`), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Take the `ctrl` cells.
+        `collectri_human.tsv` is the CollecTRI network (columns `source`, `target`, `weight`).
+        Infer TF activity per cell with decoupler''s univariate linear model (`dc.mt.ulm`, tmin
+        5). Then rank the sources per `cell_type` against the rest with `dc.tl.rankby_group`
+        (reference `rest`, method `t-test_overestim_var`). Save the results tables and figures
+        in the working directory. Report only the source with the highest statistic in CD14+
+        Monocytes. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: FOSB
+    test:
+      prompt: '`kang2018_lognorm.h5ad` in the working directory holds Kang et al. 2018 PBMCs:
+        log-normalised values in `X` (`normalize_total` to 10,000 then `log1p`); `obs` columns
+        `sample` (one id per patient x condition, e.g. `patient_101_ctrl`), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Take the `ctrl` cells.
+        `collectri_human.tsv` is the CollecTRI network (columns `source`, `target`, `weight`).
+        Infer TF activity per cell with decoupler''s univariate linear model (`dc.mt.ulm`, tmin
+        5). Then rank the sources per `cell_type` against the rest with `dc.tl.rankby_group`
+        (reference `rest`, method `t-test_overestim_var`). Save the results tables and figures
+        in the working directory. Report only the source with the highest statistic in NK cells.
+        Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: ZGLP1
+  # skill: ccc; corpus C-an-31 (liana consensus resource, expr_prop, n_perms)
+  - id: ccc
+    data:
+    - kang2018_lognorm.h5ad
+    - liana_consensus.tsv
+    train:
+      prompt: '`kang2018_lognorm.h5ad` in the working directory holds Kang et al. 2018 PBMCs:
+        log-normalised values in `X` (`normalize_total` to 10,000 then `log1p`); `obs` columns
+        `sample` (one id per patient x condition, e.g. `patient_101_ctrl`), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Take the `ctrl` cells.
+        `liana_consensus.tsv` is liana''s consensus ligand-receptor resource (columns `ligand`,
+        `receptor`). Run liana''s rank aggregate of all five methods (CellPhoneDB, Connectome,
+        log2FC, NATMI, SingleCellSignalR) between all `cell_type` pairs with this resource:
+        expr_prop 0.1, min_cells 5, n_perms 100, seed 0, use_raw False, one job and one BLAS
+        thread. An interaction passes when magnitude_rank <= 0.01 and specificity_rank <= 0.05.
+        Save the results tables and figures in the working directory. Report only the number
+        of passing interactions. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '5'
+    valid:
+      prompt: '`kang2018_lognorm.h5ad` in the working directory holds Kang et al. 2018 PBMCs:
+        log-normalised values in `X` (`normalize_total` to 10,000 then `log1p`); `obs` columns
+        `sample` (one id per patient x condition, e.g. `patient_101_ctrl`), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Take the `stim` cells.
+        `liana_consensus.tsv` is liana''s consensus ligand-receptor resource (columns `ligand`,
+        `receptor`). Run liana''s rank aggregate of all five methods (CellPhoneDB, Connectome,
+        log2FC, NATMI, SingleCellSignalR) between all `cell_type` pairs with this resource:
+        expr_prop 0.1, min_cells 5, n_perms 100, seed 0, use_raw False, one job and one BLAS
+        thread. An interaction passes when magnitude_rank <= 0.01 and specificity_rank <= 0.05.
+        Save the results tables and figures in the working directory. Report only the number
+        of passing interactions. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '8'
+    test:
+      prompt: '`kang2018_lognorm.h5ad` in the working directory holds Kang et al. 2018 PBMCs:
+        log-normalised values in `X` (`normalize_total` to 10,000 then `log1p`); `obs` columns
+        `sample` (one id per patient x condition, e.g. `patient_101_ctrl`), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Take the `ctrl` cells.
+        `liana_consensus.tsv` is liana''s consensus ligand-receptor resource (columns `ligand`,
+        `receptor`). Run liana''s rank aggregate of all five methods (CellPhoneDB, Connectome,
+        log2FC, NATMI, SingleCellSignalR) between all `cell_type` pairs with this resource:
+        expr_prop 0.2, min_cells 5, n_perms 100, seed 0, use_raw False, one job and one BLAS
+        thread. An interaction passes when magnitude_rank <= 0.05 and specificity_rank <= 0.01.
+        Save the results tables and figures in the working directory. Report only the number
+        of passing interactions. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: '2'
+  # skill: mofa; corpus C-an-32 (MOFA2 on pseudobulk views)
+  - id: mofa
+    data:
+    - struct_mofa
+    train:
+      prompt: 'The directory `struct_mofa/` in the working directory holds pseudobulk views of Kang
+        et al. 2018 PBMCs, 16 samples (8 patients x `ctrl`/`stim` interferon-beta): one TSV per
+        cell type named `<view>.tsv`, samples in rows (first column `sample`), log2(CPM + 1) features
+        named `<view>_<gene>`; and `meta.tsv` with columns `sample`, `label` and `replicate`. Run
+        MOFA2 (mofapy2) on the views `b`, `mono14`, `nk`: every view Gaussian, 5 factors, views
+        scaled to unit variance, convergence mode `fast`, seed 0, no factor dropped during training
+        (`dropR2=None`), on CPU. Sort views, samples and features before building the model. Number
+        the factors in the order of the saved model (mofapy2 sorts them by variance explained when
+        saving), so Factor1 explains the most. A factor is active when its variance explained (R²,
+        in %) is >= 15 in at least one view. Colour and test factors by `label`. Save the result
+        tables and figures in the working directory. Report only `<view in which Factor1 has the
+        largest R²>/<number of active factors>`, for example `cd8t/3`. Genome reference: GRCh37
+        (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: mono14/2
+    valid:
+      prompt: 'The directory `struct_mofa/` in the working directory holds pseudobulk views of Kang
+        et al. 2018 PBMCs, 16 samples (8 patients x `ctrl`/`stim` interferon-beta): one TSV per
+        cell type named `<view>.tsv`, samples in rows (first column `sample`), log2(CPM + 1) features
+        named `<view>_<gene>`; and `meta.tsv` with columns `sample`, `label` and `replicate`. Run
+        MOFA2 (mofapy2) on the views `cd4t`, `cd8t`, `mono16`: every view Gaussian, 5 factors, views
+        scaled to unit variance, convergence mode `fast`, seed 1, no factor dropped during training
+        (`dropR2=None`), on CPU. Sort views, samples and features before building the model. Number
+        the factors in the order of the saved model (mofapy2 sorts them by variance explained when
+        saving), so Factor1 explains the most. A factor is active when its variance explained (R²,
+        in %) is >= 5 in at least one view. Colour and test factors by `label`. Save the result
+        tables and figures in the working directory. Report only `<view in which Factor1 has the
+        largest R²>/<number of active factors>`, for example `cd8t/3`. Genome reference: GRCh37
+        (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: cd4t/5
+    test:
+      prompt: 'The directory `struct_mofa/` in the working directory holds pseudobulk views of Kang
+        et al. 2018 PBMCs, 16 samples (8 patients x `ctrl`/`stim` interferon-beta): one TSV per
+        cell type named `<view>.tsv`, samples in rows (first column `sample`), log2(CPM + 1) features
+        named `<view>_<gene>`; and `meta.tsv` with columns `sample`, `label` and `replicate`. Run
+        MOFA2 (mofapy2) on the views `b`, `nk`: every view Gaussian, 4 factors, views scaled to
+        unit variance, convergence mode `fast`, seed 2, no factor dropped during training (`dropR2=None`),
+        on CPU. Sort views, samples and features before building the model. Number the factors in
+        the order of the saved model (mofapy2 sorts them by variance explained when saving), so
+        Factor1 explains the most. A factor is active when its variance explained (R², in %) is
+        >= 15 in at least one view. Colour and test factors by `label`. Save the result tables and
+        figures in the working directory. Report only `<view in which Factor1 has the largest R²>/<number
+        of active factors>`, for example `cd8t/3`. Genome reference: GRCh37 (hg19), 10x Cell Ranger
+        hg19 annotation.'
+      answer: b/2
+  # skill: pseudobulk-de (python engine); corpus B-an-11 (sum per sample), B-an-14 (10%-style detection filter), B-an-13 (DESeq2 per cell type)
+  - id: pbde
+    data:
+    - kang2018_pb.h5ad
+    train:
+      prompt: '`kang2018_pb.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `sample` (one id per patient x condition), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Pseudobulk the FCGR3A+ Monocytes:
+        sum raw counts per `sample` over that cell type''s cells; drop samples with fewer than 20
+        cells; keep genes detected (count > 0) in at least 0.2 of the cells of the kept samples.
+        Then test stim vs ctrl with PyDESeq2: design `~ replicate + label`, no fold-change shrinkage,
+        independent-filtering alpha 0.01. A gene is significant when padj < 0.01 and |log2 fold
+        change| > 1.5; a missing padj is not significant. Save the result tables and figures in
+        the working directory. Report only `<significant genes up in stim>/<significant genes down
+        in stim>`, for example `120/45`. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: 134/19
+    valid:
+      prompt: '`kang2018_pb.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `sample` (one id per patient x condition), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Pseudobulk the CD4 T cells:
+        sum raw counts per `sample` over that cell type''s cells; drop samples with fewer than 100
+        cells; keep genes detected (count > 0) in at least 0.15 of the cells of the kept samples.
+        Then test stim vs ctrl with PyDESeq2: design `~ replicate + label`, no fold-change shrinkage,
+        independent-filtering alpha 0.05. A gene is significant when padj < 0.05 and |log2 fold
+        change| > 2; a missing padj is not significant. Save the result tables and figures in the
+        working directory. Report only `<significant genes up in stim>/<significant genes down in
+        stim>`, for example `120/45`. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: 43/0
+    test:
+      prompt: '`kang2018_pb.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `sample` (one id per patient x condition), `replicate` (patient),
+        `label` (`ctrl` or `stim`, interferon-beta) and `cell_type`. Pseudobulk the Dendritic cells:
+        sum raw counts per `sample` over that cell type''s cells; drop samples with fewer than 15
+        cells; keep genes detected (count > 0) in at least 0.25 of the cells of the kept samples.
+        Then test stim vs ctrl with PyDESeq2: design `~ replicate + label`, no fold-change shrinkage,
+        independent-filtering alpha 0.1. A gene is significant when padj < 0.1 and |log2 fold change|
+        > 1; a missing padj is not significant. Save the result tables and figures in the working
+        directory. Report only `<significant genes up in stim>/<significant genes down in stim>`,
+        for example `120/45`. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: 201/63
+  # skill: gene-programs; corpus C-an-29 (NMF gene programs), D-an-22 (seeded NMF fit), D-an-23 (one-vs-rest AUC of program usage)
+  - id: programs
+    data:
+    - kang2018.h5ad
+    train:
+      prompt: '`kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI counts
+        in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta), `replicate` (patient
+        id) and `cell_type`. Find gene programs by consensus NMF (cNMF-style) in the B cells of
+        patients patient_1015 and patient_1488 (`replicate`). (1) HVGs: among genes with non-zero
+        total counts in this subset, the top 500 by scanpy `highly_variable_genes(flavor=''seurat'')`
+        on a copy run through `normalize_total(target_sum=1e4)` and `log1p`. (2) NMF input: the
+        raw counts of those HVGs, each gene divided by its standard deviation over cells (population
+        sd, not centred). (3) Fit scikit-learn `NMF` 12 times with 3 components, `init=''random''`,
+        `solver=''cd''`, Frobenius loss, `max_iter=1000`; run i uses `random_state` equal to element
+        i of `numpy.random.default_rng(0).integers(1, 2**31 - 1, 12)`. (4) Consensus: L2-normalise
+        each of the 3 x 12 components and keep all of them (no density filter); cluster them with
+        `KMeans(n_clusters=3, n_init=10, random_state=0)`; the element-wise median of each cluster,
+        scaled to sum 1, is a consensus spectrum. (5) Usage: `non_negative_factorization` of the
+        NMF input with the consensus spectra fixed (`update_H=False`, `solver=''cd''`, `max_iter=1000`),
+        then scale each cell''s usage to sum 1. (6) Name the programs GP1 to GP3 by total usage
+        over cells, largest first. (7) Gene scores, for every gene expressed in the subset: z-score
+        each gene''s TPM (counts scaled to 1e6 per cell; population sd) over cells, then take the
+        least-squares coefficients `pinv(usage) @ Z`. The program most active in stim cells is the
+        one whose usage has the highest one-vs-rest ROC AUC for `label` stim. Save the result tables
+        and figures in the working directory. Report only `<program name>/<its highest-scoring gene>`,
+        for example `GP3/CD74`. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: GP1/ISG20
+    valid:
+      prompt: '`kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI counts
+        in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta), `replicate` (patient
+        id) and `cell_type`. Find gene programs by consensus NMF (cNMF-style) in the NK cells of
+        patients patient_1256 and patient_1488 (`replicate`). (1) HVGs: among genes with non-zero
+        total counts in this subset, the top 800 by scanpy `highly_variable_genes(flavor=''seurat'')`
+        on a copy run through `normalize_total(target_sum=1e4)` and `log1p`. (2) NMF input: the
+        raw counts of those HVGs, each gene divided by its standard deviation over cells (population
+        sd, not centred). (3) Fit scikit-learn `NMF` 12 times with 4 components, `init=''random''`,
+        `solver=''cd''`, Frobenius loss, `max_iter=1000`; run i uses `random_state` equal to element
+        i of `numpy.random.default_rng(0).integers(1, 2**31 - 1, 12)`. (4) Consensus: L2-normalise
+        each of the 4 x 12 components and keep all of them (no density filter); cluster them with
+        `KMeans(n_clusters=4, n_init=10, random_state=0)`; the element-wise median of each cluster,
+        scaled to sum 1, is a consensus spectrum. (5) Usage: `non_negative_factorization` of the
+        NMF input with the consensus spectra fixed (`update_H=False`, `solver=''cd''`, `max_iter=1000`),
+        then scale each cell''s usage to sum 1. (6) Name the programs GP1 to GP4 by total usage
+        over cells, largest first. (7) Gene scores, for every gene expressed in the subset: z-score
+        each gene''s TPM (counts scaled to 1e6 per cell; population sd) over cells, then take the
+        least-squares coefficients `pinv(usage) @ Z`. The program most active in stim cells is the
+        one whose usage has the highest one-vs-rest ROC AUC for `label` stim. Save the result tables
+        and figures in the working directory. Report only `<program name>/<its highest-scoring gene>`,
+        for example `GP3/CD74`. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: GP2/ISG20
+    test:
+      prompt: '`kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI counts
+        in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta), `replicate` (patient
+        id) and `cell_type`. Find gene programs by consensus NMF (cNMF-style) in the CD14+ Monocytes
+        of patients patient_1015 and patient_1244 (`replicate`). (1) HVGs: among genes with non-zero
+        total counts in this subset, the top 1000 by scanpy `highly_variable_genes(flavor=''seurat'')`
+        on a copy run through `normalize_total(target_sum=1e4)` and `log1p`. (2) NMF input: the
+        raw counts of those HVGs, each gene divided by its standard deviation over cells (population
+        sd, not centred). (3) Fit scikit-learn `NMF` 12 times with 5 components, `init=''random''`,
+        `solver=''cd''`, Frobenius loss, `max_iter=1000`; run i uses `random_state` equal to element
+        i of `numpy.random.default_rng(0).integers(1, 2**31 - 1, 12)`. (4) Consensus: L2-normalise
+        each of the 5 x 12 components and keep all of them (no density filter); cluster them with
+        `KMeans(n_clusters=5, n_init=10, random_state=0)`; the element-wise median of each cluster,
+        scaled to sum 1, is a consensus spectrum. (5) Usage: `non_negative_factorization` of the
+        NMF input with the consensus spectra fixed (`update_H=False`, `solver=''cd''`, `max_iter=1000`),
+        then scale each cell''s usage to sum 1. (6) Name the programs GP1 to GP5 by total usage
+        over cells, largest first. (7) Gene scores, for every gene expressed in the subset: z-score
+        each gene''s TPM (counts scaled to 1e6 per cell; population sd) over cells, then take the
+        least-squares coefficients `pinv(usage) @ Z`. The program most active in stim cells is the
+        one whose usage has the highest one-vs-rest ROC AUC for `label` stim. Save the result tables
+        and figures in the working directory. Report only `<program name>/<its highest-scoring gene>`,
+        for example `GP3/CD74`. Genome reference: GRCh37 (hg19), 10x Cell Ranger hg19 annotation.'
+      answer: GP2/ISG15
+  # skill: trajectory; corpus C-an-35 (sc.tl.paga on cluster groups), A-an-31 (fixed PAGA edge threshold), B-an-26 (seeded diffusion map)
+  - id: traj
+    data:
+    - struct_traj.h5ad
+    train:
+      prompt: '`struct_traj.h5ad` in the working directory holds an embedded single-cell dataset:
+        log-normalised values in `X`, a neighbour graph (`uns[''neighbors'']`, `obsp[''connectivities'']`),
+        a UMAP in `obsm[''X_umap'']`, and `obs` column `cluster` (groups `g1` to `g7`). Infer the
+        trajectory with scanpy, keeping the stored neighbour graph (do not recompute it). Run PAGA
+        on `cluster`. Run a diffusion map with 10 components and `random_state` 0. The root cell
+        is the first cell of group `g1` in obs order; run diffusion pseudotime (DPT) from it with
+        10 diffusion components and no branching. A pair of groups is a PAGA edge when its connectivity
+        is >= 0.2. Cells with infinite pseudotime are left out of the group medians. Save the pseudotime
+        table, the PAGA connectivity table and figures (PAGA graph, UMAP coloured by pseudotime,
+        pseudotime per group) in the working directory. Report only `<number of PAGA edges>/<group
+        with the highest median pseudotime>`, for example `3/g5`. Genome reference: none, synthetic
+        genes.'
+      answer: 7/g2
+    valid:
+      prompt: '`struct_traj.h5ad` in the working directory holds an embedded single-cell dataset:
+        log-normalised values in `X`, a neighbour graph (`uns[''neighbors'']`, `obsp[''connectivities'']`),
+        a UMAP in `obsm[''X_umap'']`, and `obs` column `cluster` (groups `g1` to `g7`). Infer the
+        trajectory with scanpy, keeping the stored neighbour graph (do not recompute it). Run PAGA
+        on `cluster`. Run a diffusion map with 8 components and `random_state` 1. The root cell
+        is the first cell of group `g2` in obs order; run diffusion pseudotime (DPT) from it with
+        8 diffusion components and no branching. A pair of groups is a PAGA edge when its connectivity
+        is >= 0.42. Cells with infinite pseudotime are left out of the group medians. Save the pseudotime
+        table, the PAGA connectivity table and figures (PAGA graph, UMAP coloured by pseudotime,
+        pseudotime per group) in the working directory. Report only `<number of PAGA edges>/<group
+        with the highest median pseudotime>`, for example `3/g5`. Genome reference: none, synthetic
+        genes.'
+      answer: 5/g4
+    test:
+      prompt: '`struct_traj.h5ad` in the working directory holds an embedded single-cell dataset:
+        log-normalised values in `X`, a neighbour graph (`uns[''neighbors'']`, `obsp[''connectivities'']`),
+        a UMAP in `obsm[''X_umap'']`, and `obs` column `cluster` (groups `g1` to `g7`). Infer the
+        trajectory with scanpy, keeping the stored neighbour graph (do not recompute it). Run PAGA
+        on `cluster`. Run a diffusion map with 12 components and `random_state` 2. The root cell
+        is the first cell of group `g4` in obs order; run diffusion pseudotime (DPT) from it with
+        12 diffusion components and no branching. A pair of groups is a PAGA edge when its connectivity
+        is >= 0.33. Cells with infinite pseudotime are left out of the group medians. Save the pseudotime
+        table, the PAGA connectivity table and figures (PAGA graph, UMAP coloured by pseudotime,
+        pseudotime per group) in the working directory. Report only `<number of PAGA edges>/<group
+        with the highest median pseudotime>`, for example `3/g5`. Genome reference: none, synthetic
+        genes.'
+      answer: 6/g2

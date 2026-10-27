@@ -1,0 +1,250 @@
+# Plot tasks for the lucid-coder plot/style skill; see ../README.md.
+# Each task mirrors a corpus figure procedure on Kang 2018 PBMCs. Corpus paths are relative to
+# /exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings.
+# Answers are exact-match tokens; ../score_style.py scores plot style separately.
+# Reproducers: tasks/<id>-<split>.py.
+
+tasks:
+  # corpus: repos/multiple-myeloma/analyses-rna/04-pseudobulk/l3-pseudobulk/13-plots-deseq2-volcano_fixed.ipynb:79-95
+  - id: volcano
+    data: [kang2018.h5ad]
+    train:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Make a volcano plot of pseudobulk
+        differential expression, stim vs ctrl, in B cells. Build one pseudobulk sample per
+        `replicate` x `label` by summing raw counts over its cells; drop genes with fewer
+        than 10 counts summed over all pseudobulk samples. Test with PyDESeq2, design `~
+        replicate + label`, contrast stim vs ctrl, no fold-change shrinkage,
+        independent-filtering alpha 0.1; drop genes with a missing padj. A gene is
+        significant when padj < 0.1 and |log2 fold change| > 0.5; highlight the significant
+        genes. Save the figure as files in the working directory. Report the number of
+        significant genes.
+      answer: "838"
+    valid:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Make a volcano plot of pseudobulk
+        differential expression, stim vs ctrl, in NK cells. Build one pseudobulk sample per
+        `replicate` x `label` by summing raw counts over its cells; drop genes with fewer
+        than 10 counts summed over all pseudobulk samples. Test with PyDESeq2, design `~
+        replicate + label`, contrast stim vs ctrl, no fold-change shrinkage,
+        independent-filtering alpha 0.05; drop genes with a missing padj. A gene is
+        significant when padj < 0.05 and |log2 fold change| > 1; highlight the significant
+        genes. Save the figure as files in the working directory. Report the number of
+        significant genes.
+      answer: "316"
+    test:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Make a volcano plot of pseudobulk
+        differential expression, stim vs ctrl, in CD8 T cells. Build one pseudobulk sample
+        per `replicate` x `label` by summing raw counts over its cells; drop genes with
+        fewer than 10 counts summed over all pseudobulk samples. Test with PyDESeq2, design
+        `~ replicate + label`, contrast stim vs ctrl, no fold-change shrinkage,
+        independent-filtering alpha 0.1; drop genes with a missing padj. A gene is
+        significant when padj < 0.1 and |log2 fold change| > 1; highlight the significant
+        genes. Save the figure as files in the working directory. Report the number of
+        significant genes.
+      answer: "178"
+  # corpus: repos_new/spatial_skin_atlas/figs/3_Fig3/3a_bar_plots.ipynb:217-252
+  - id: composition
+    data: [kang2018.h5ad]
+    train:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Draw a stacked bar chart of cell-type
+        composition: one bar per `replicate` x `label` sample, each segment the share of
+        that sample's cells in one `cell_type`. Save the figure as files in the working
+        directory. Report the cell type with the largest share in the sample patient_107
+        under ctrl, written exactly as its `cell_type` label.
+      answer: "CD14+ Monocytes"
+    valid:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Draw a stacked bar chart of cell-type
+        composition: one bar per `replicate` x `label` sample, each segment the share of
+        that sample's cells in one `cell_type`. Save the figure as files in the working
+        directory. Report the cell type with the largest share in the sample patient_1016
+        under stim, written exactly as its `cell_type` label.
+      answer: "CD8 T cells"
+    test:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Draw a stacked bar chart of cell-type
+        composition: one bar per `replicate` x `label` sample, each segment the share of
+        that sample's cells in one `cell_type`. Save the figure as files in the working
+        directory. Report the cell type with the largest share in the sample patient_101
+        under stim, written exactly as its `cell_type` label.
+      answer: "CD4 T cells"
+  # corpus: repos/aifi-healthy-pbmc-reference/visualizations/00-Python_b_cell_markers.ipynb:327-331
+  - id: dotplot
+    data: [kang2018.h5ad]
+    train:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Draw a marker dot plot of the genes MS4A1,
+        CD79A, CD79B, CD19, TCL1A across all cell types: dot size is the fraction of cells
+        with a raw count above 0, colour the mean expression. Save the figure as files in
+        the working directory. Report the gene from that list expressed (raw count above 0)
+        in the largest fraction of B cells, both labels pooled.
+      answer: "CD79A"
+    valid:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Draw a marker dot plot of the genes PRF1,
+        KLRD1, FCGR3A, CCL5 across all cell types: dot size is the fraction of cells with a
+        raw count above 0, colour the mean expression. Save the figure as files in the
+        working directory. Report the gene from that list expressed (raw count above 0) in
+        the largest fraction of NK cells, both labels pooled.
+      answer: "CCL5"
+    test:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Draw a marker dot plot of the genes CD14,
+        S100A8, LYZ, FCN1 across all cell types: dot size is the fraction of cells with a
+        raw count above 0, colour the mean expression. Save the figure as files in the
+        working directory. Report the gene from that list expressed (raw count above 0) in
+        the largest fraction of CD14+ Monocytes, both labels pooled.
+      answer: "LYZ"
+  # corpus: repos/ALTRA-manuscript/Figures/Figure1/Figure_1CD_S2DEF.ipynb:174
+  - id: box
+    data: [kang2018.h5ad]
+    train:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. In CD4 T cells, normalise each cell to
+        10,000 total counts and apply natural log1p. For each `replicate` x `label` sample,
+        take the mean CCR7 value over its cells. Draw a box plot of these per-sample means
+        by `label`, with each sample as a jittered point on top. Save the figure as files in
+        the working directory. Report the label (ctrl or stim) whose per-sample means have
+        the higher median.
+      answer: "stim"
+    valid:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. In B cells, normalise each cell to 10,000
+        total counts and apply natural log1p. For each `replicate` x `label` sample, take
+        the mean HLA-DRA value over its cells. Draw a box plot of these per-sample means by
+        `label`, with each sample as a jittered point on top. Save the figure as files in
+        the working directory. Report the label (ctrl or stim) whose per-sample means have
+        the higher median.
+      answer: "ctrl"
+    test:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. In NK cells, normalise each cell to 10,000
+        total counts and apply natural log1p. For each `replicate` x `label` sample, take
+        the mean CCL5 value over its cells. Draw a box plot of these per-sample means by
+        `label`, with each sample as a jittered point on top. Save the figure as files in
+        the working directory. Report the label (ctrl or stim) whose per-sample means have
+        the higher median.
+      answer: "stim"
+  # corpus: repos/immgenT-GP-analysis/code/R/cross_gp_helpers.R:16
+  - id: heatmap
+    data: [kang2018.h5ad]
+    train:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Keep the six cell types B cells, CD14+
+        Monocytes, CD4 T cells, CD8 T cells, FCGR3A+ Monocytes and NK cells. For each cell
+        type x `label`, sum raw counts over all its cells (patients pooled) and convert to
+        counts per million (CPM). Per gene and cell type, log2FC = log2(CPM_stim + 1) -
+        log2(CPM_ctrl + 1). Among genes with at least 100 counts in CD14+ Monocytes (stim
+        plus ctrl), take the 30 with the largest |log2FC| in CD14+ Monocytes. Centre each
+        gene by subtracting its mean log2FC across the six cell types. Draw a heatmap of the
+        centred values, genes by cell type, on a diverging colour scale capped at -2 and +2.
+        Save the figure as files in the working directory. Report how many heatmap cells are
+        saturated, that is have |centred value| > 2.
+      answer: "32"
+    valid:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Keep the six cell types B cells, CD14+
+        Monocytes, CD4 T cells, CD8 T cells, FCGR3A+ Monocytes and NK cells. For each cell
+        type x `label`, sum raw counts over all its cells (patients pooled) and convert to
+        counts per million (CPM). Per gene and cell type, log2FC = log2(CPM_stim + 1) -
+        log2(CPM_ctrl + 1). Among genes with at least 100 counts in NK cells (stim plus
+        ctrl), take the 40 with the largest |log2FC| in NK cells. Centre each gene by
+        subtracting its mean log2FC across the six cell types. Draw a heatmap of the centred
+        values, genes by cell type, on a diverging colour scale capped at -1.5 and +1.5.
+        Save the figure as files in the working directory. Report how many heatmap cells are
+        saturated, that is have |centred value| > 1.5.
+      answer: "14"
+    test:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Keep the six cell types B cells, CD14+
+        Monocytes, CD4 T cells, CD8 T cells, FCGR3A+ Monocytes and NK cells. For each cell
+        type x `label`, sum raw counts over all its cells (patients pooled) and convert to
+        counts per million (CPM). Per gene and cell type, log2FC = log2(CPM_stim + 1) -
+        log2(CPM_ctrl + 1). Among genes with at least 100 counts in CD4 T cells (stim plus
+        ctrl), take the 25 with the largest |log2FC| in CD4 T cells. Centre each gene by
+        subtracting its mean log2FC across the six cell types. Draw a heatmap of the centred
+        values, genes by cell type, on a diverging colour scale capped at -2 and +2. Save
+        the figure as files in the working directory. Report how many heatmap cells are
+        saturated, that is have |centred value| > 2.
+      answer: "8"
+  # corpus: repos/multiple-myeloma/analyses-rna/04-pseudobulk/l3-pseudobulk/13-plots-deseq2-volcano_fixed.ipynb:79-95 (R twin of volcano)
+  - id: volcano_r
+    data: [kang2018.h5ad]
+    train:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Make a volcano plot of pseudobulk
+        differential expression, stim vs ctrl, in CD4 T cells. Build one pseudobulk sample
+        per `replicate` x `label` by summing raw counts over its cells; drop genes with
+        fewer than 10 counts summed over all pseudobulk samples. Do the test and the plot in
+        R with DESeq2 and ggplot2, run through `Rscript`; you may build the pseudobulk count
+        table in Python first. Use design `~ replicate + label`, contrast stim vs ctrl, no
+        fold-change shrinkage, independent-filtering alpha 0.1; drop genes with a missing
+        padj. A gene is significant when padj < 0.1 and |log2 fold change| > 0.5; highlight
+        the significant genes. Save the figure as files in the working directory. Report the
+        number of significant genes.
+      answer: "997"
+    valid:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Make a volcano plot of pseudobulk
+        differential expression, stim vs ctrl, in FCGR3A+ Monocytes. Build one pseudobulk
+        sample per `replicate` x `label` by summing raw counts over its cells; drop genes
+        with fewer than 10 counts summed over all pseudobulk samples. Do the test and the
+        plot in R with DESeq2 and ggplot2, run through `Rscript`; you may build the
+        pseudobulk count table in Python first. Use design `~ replicate + label`, contrast
+        stim vs ctrl, no fold-change shrinkage, independent-filtering alpha 0.05; drop genes
+        with a missing padj. A gene is significant when padj < 0.05 and |log2 fold change| >
+        1; highlight the significant genes. Save the figure as files in the working
+        directory. Report the number of significant genes.
+      answer: "787"
+    test:
+      prompt: >-
+        `kang2018.h5ad` in the working directory holds Kang et al. 2018 PBMCs: raw UMI
+        counts in `X`; `obs` columns `label` (`ctrl` or `stim`, interferon-beta),
+        `replicate` (patient id) and `cell_type`. Make a volcano plot of pseudobulk
+        differential expression, stim vs ctrl, in CD14+ Monocytes. Build one pseudobulk
+        sample per `replicate` x `label` by summing raw counts over its cells; drop genes
+        with fewer than 10 counts summed over all pseudobulk samples. Do the test and the
+        plot in R with DESeq2 and ggplot2, run through `Rscript`; you may build the
+        pseudobulk count table in Python first. Use design `~ replicate + label`, contrast
+        stim vs ctrl, no fold-change shrinkage, independent-filtering alpha 0.05; drop genes
+        with a missing padj. A gene is significant when padj < 0.05 and |log2 fold change| >
+        2; highlight the significant genes. Save the figure as files in the working
+        directory. Report the number of significant genes.
+      answer: "824"

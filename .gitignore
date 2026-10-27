@@ -20,3 +20,10 @@ bench/*/check.log
 bench/*/fit.log
 bench/*/report.log
 eval/results/packet-*/packet/*-keyed.tsv
+# umbrella skill versions copy every pipeline skill (with demo data) from skills/;
+# keep only the router SKILL.md and meta.json that acumen writes, rebuild with build_skill.py
+bench/pipelines/skills/*/*/
+bench/method-free/skills/*/*/
+bench/*/*.log
+bench/*/interp_answers.tsv
+__pycache__/

@@ -1,0 +1,4 @@
+epoch,version,parent,train_success,valid_success,train_cost,valid_cost,n_train,n_valid,train_success__claude-sonnet-5,valid_success__claude-sonnet-5,train_cost__claude-sonnet-5,valid_cost__claude-sonnet-5
+1,v1,noskill,0.833333,0.833333,0.214441,0.232435,18,18,0.833333,0.833333,0.214441,0.232435
+2,v2,v1,0.722222,0.888889,0.259808,0.293742,18,18,0.722222,0.888889,0.259808,0.293742
+3,v3,v2,0.888889,0.888889,0.362792,0.390041,18,18,0.888889,0.888889,0.362792,0.390041
