@@ -6,7 +6,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`.
-Row ID from `mycelium-extra/plans/clawbio-determinism/parts/C_disease.md:40`.
+Row ID from `docs/clawbio-determinism/parts/C_disease.md:40`.
 
 | Row | Procedure | Source |
 |---|---|---|
@@ -27,7 +27,7 @@ passes `--seed` to `set_train_options(seed=)` the same way.
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|

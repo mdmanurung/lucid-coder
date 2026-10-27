@@ -10,7 +10,7 @@ Reference skills checked against (`docs/pipeline-skills.md`): `liana-ccc`
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
-row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`
+row IDs from `docs/clawbio-determinism/parts/*.md`
 (`CATALOGUE.md:47`).
 
 | ID | What | Source |
@@ -23,7 +23,7 @@ row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|

@@ -6,7 +6,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`.
-Row IDs from `mycelium-extra/plans/clawbio-determinism/CATALOGUE.md`.
+Row IDs from `docs/clawbio-determinism/CATALOGUE.md`.
 
 | Row | What it shows | Source |
 |---|---|---|
@@ -40,7 +40,7 @@ scale, where this skill runs per sample on `log1p` with upper-only mito) and
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|

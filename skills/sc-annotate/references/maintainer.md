@@ -6,7 +6,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`
-(row IDs from `mycelium-extra/plans/clawbio-determinism/CATALOGUE.md` and `parts/*.md`):
+(row IDs from `docs/clawbio-determinism/CATALOGUE.md` and `parts/*.md`):
 
 - B-an-03, C-an-07, D-an-01: CellTypist after `normalize_total(target_sum=1e4)`
   + `log1p`, `majority_voting=True` (AIFI) or off (reflex):
@@ -37,7 +37,7 @@ a CellTypist model); `S/azimuth-pbmc-markers` (Azimuth PBMC L1-L3 markers, for
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|

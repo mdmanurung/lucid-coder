@@ -66,7 +66,7 @@ of `templates/`; a test fails when they drift.
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
-row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`.
+row IDs from `docs/clawbio-determinism/parts/*.md`.
 
 - A-an-11, PAGA on annotation groups then PAGA-initialised UMAP:
   `repos_new/spatial_skin_atlas/processing_scripts/3_subcluster_coarse.py:44-51`.
@@ -91,7 +91,7 @@ cellrank's `PseudotimeKernel` on `dpt_pseudotime` for fate probabilities.
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|

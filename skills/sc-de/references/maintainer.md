@@ -6,7 +6,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`.
-Row IDs from `mycelium-extra/plans/clawbio-determinism/parts/{B_pbmc,C_disease}.md`.
+Row IDs from `docs/clawbio-determinism/parts/{B_pbmc,C_disease}.md`.
 
 | Row | Procedure | Source |
 |---|---|---|
@@ -23,7 +23,7 @@ effect. It has no MAST path; its mixed-model track agrees with this skill's
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|

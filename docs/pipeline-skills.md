@@ -2,7 +2,7 @@
 
 A pipeline skill turns one standard analysis into a tested script that the agent runs instead
 of writing its own code. It ports ClawBio's determinism framework
-(`mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`, F-01 to F-33).
+(`docs/clawbio-determinism/parts/F_clawbio_patterns.md`, F-01 to F-33).
 `skills/pseudobulk-de/` is the worked example: copy its shape.
 
 ## Layout
@@ -63,7 +63,7 @@ The folder is self-contained: acumen copies only this folder into the agent sand
 
 They moved out of SKILL.md on 2026-10-27: the acumen bench showed that a slimmer SKILL.md cut
 the cost per run by about 20%, with the same accuracy and speed
-(`mycelium-extra/plans/clawbio-determinism/BENCH.md`).
+(`docs/clawbio-determinism/BENCH.md`).
 
 ## Tests (pytest, CLI through subprocess)
 
@@ -80,7 +80,7 @@ Format with `ruff format --config ../../templates/ruff.toml`, lint with `ruff ch
 ## Required checks (adopted 2026-10-27)
 
 Adopted from the biology-skills v0.6.0 review
-(`mycelium-extra/plans/clawbio-determinism/biology-skills-review-{stats,viz}.md`) after
+(`docs/clawbio-determinism/biology-skills-review-{stats,viz}.md`) after
 the user approved each one. The `skillkit` helpers carry the fixed messages.
 
 - **Unique identifiers.** Every skill that reads an h5ad or a table runs

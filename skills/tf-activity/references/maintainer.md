@@ -9,7 +9,7 @@ Reference skills checked against (`docs/pipeline-skills.md`): `decoupler`
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
-row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`. The corpus
+row IDs from `docs/clawbio-determinism/parts/*.md`. The corpus
 uses decoupler 1.x names; the 2.x calls here are `dc.op.collectri`,
 `dc.op.progeny`, `dc.mt.ulm`, `dc.mt.mlm`, `dc.pp.get_obsm` and
 `dc.tl.rankby_group`.
@@ -25,7 +25,7 @@ uses decoupler 1.x names; the 2.x calls here are `dc.op.collectri`,
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|

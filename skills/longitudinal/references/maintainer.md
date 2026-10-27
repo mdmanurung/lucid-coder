@@ -19,7 +19,7 @@ singular fit and has no unconverged or failed fit. With `--time-type numeric
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`.
-Row IDs from `mycelium-extra/plans/clawbio-determinism/parts/C_disease.md` (lines
+Row IDs from `docs/clawbio-determinism/parts/C_disease.md` (lines
 24, 30, 73, 86); `CATALOGUE.md:62` groups C-pl-10 and C-pl-23 as line plots.
 
 | Row | Procedure | Source |
@@ -44,7 +44,7 @@ Satterthwaite df when no covariate interacts with time.
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|

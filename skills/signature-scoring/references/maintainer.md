@@ -9,7 +9,7 @@ Reference skills checked against (`docs/pipeline-skills.md`): `decoupler` and
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
-row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`.
+row IDs from `docs/clawbio-determinism/parts/*.md`.
 
 | ID | What | Source |
 |---|---|---|
@@ -23,11 +23,11 @@ row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`.
 | A-pl-10 | score by group (violin there; box with sample points here, house-style `fig.wilke`) | `repos_new/spatial_skin_atlas/figs/revision/supp24_GWAS_all_celltyprs.ipynb:1324-1335` (`parts/A_skin.md:59`) |
 | A-pl-11 | score dot-matrix by cell type | `repos_new/spatial_skin_atlas/figs/revision/supp24_GWAS_all_celltyprs.ipynb:1236-1242` (`parts/A_skin.md:60`) |
 | B-pl-02 | UMAP feature plot, continuous colour | `repos/IHA-Figure/Extended_Figure9/02_TEAseq_CD8_T_cells_traj/01_Cleaning.ipynb:408` (`parts/B_pbmc.md:71`) |
-| PIPELINES.md | "score vs random-gene-set control", the missing standard plot | `mycelium-extra/plans/clawbio-determinism/PIPELINES.md:119` |
+| PIPELINES.md | "score vs random-gene-set control", the missing standard plot | `docs/clawbio-determinism/PIPELINES.md:119` |
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|

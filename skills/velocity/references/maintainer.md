@@ -7,7 +7,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`
 (`FB` = `repos_new/skin_fibroblast_atlas`); row IDs from
-`mycelium-extra/plans/clawbio-determinism/parts/A_skin.md:37,38,68`.
+`docs/clawbio-determinism/parts/A_skin.md:37,38,68`.
 
 - A-an-29, scVelo merge, moments, velocity, velocity pseudotime:
   `FB/integration/prep_velocity_a.ipynb:922,1342,1429,1439`;
@@ -26,7 +26,7 @@ Checked against the installed reference skill `cellrank`
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|

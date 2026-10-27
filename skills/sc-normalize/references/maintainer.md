@@ -6,7 +6,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`.
-Row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`
+Row IDs from `docs/clawbio-determinism/parts/*.md`
 (`C_disease.md:12,42`, `E_methods.md:11,27,46`).
 
 | Row | Step | Source |
@@ -26,7 +26,7 @@ CITE GMM/DSB); `S/scvi-tools` for the later scVI engine, not offered yet.
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|
