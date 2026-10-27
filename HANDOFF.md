@@ -17,6 +17,9 @@ Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.
 2. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
 3. Decisions open for the user: allow `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form; the other session's uncommitted `templates/plots.*`, `bench/`, `skills/*` and house-style rows.
 
+## Branch note (2026-10-28)
+- The other session checked out `docs/clawbio-determinism` in the shared tree while this session was committing; commit `b315a9a` (persona core) landed there and was cherry-picked onto main as `5eb69dc`. Commits from this session now go through a worktree on main. The duplicate on their branch is harmless.
+
 ## Round 2 head-to-head results (2026-10-28)
 - Unblinded: D won 02 whole, 03 setup ("too many checks" in A), 03 load, 04 load ("concise"), 04 setup; A won 03 figure (plot frame computed before the ggplot call, "offload the wrangling outside the plotting"), 04 filter (6-line `colSums`/`rowSums` matrix filter beat a 45-line long-format pipeline), 04 write (four `write_table()` calls beat `iwalk`, which D used despite the new rule). Totals across both A-vs-D rounds: D 8, A 3, no preference 2.
 - Applied: `suppressPackageStartupMessages` (asked twice) to r.md; `r.matrix`, `fig.plot_frame` and `r.startup` rows in house-style; the matrix and plot-frame habits in the persona.
