@@ -1,0 +1,272 @@
+<title>MPL Refactor Examples</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Source+Serif+4:opsz,wght@8..60,600&family=Source+Sans+3:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column; each example is a row of code panes that stacks on phones. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --fg: #1d2430;
+  --muted: #5b6575;
+  --line: #d9dee6;
+  --accent: #1f6f8b;
+  --mark: #fff1c2;
+  --mark-edge: #d9a400;
+  --code-bg: #f1f3f6;
+  --a-tag: #7a5c3a;
+  --c-tag: #1f6f8b;
+  --font-display: "Source Serif 4", Georgia, serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161c; --surface: #1a2028; --fg: #e3e8ef; --muted: #9aa5b4; --line: #2c3540;
+    --accent: #6cc0dc; --mark: #3a3214; --mark-edge: #c79a1c; --code-bg: #161b22;
+    --a-tag: #d1a77a; --c-tag: #6cc0dc; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161c; --surface: #1a2028; --fg: #e3e8ef; --muted: #9aa5b4; --line: #2c3540;
+  --accent: #6cc0dc; --mark: #3a3214; --mark-edge: #c79a1c; --code-bg: #161b22;
+  --a-tag: #d1a77a; --c-tag: #6cc0dc; color-scheme: dark;
+}
+body {
+  background: var(--bg); color: var(--fg); font: 16px/1.55 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+}
+main { max-width: 1180px; margin: 0 auto; display: grid; gap: 40px; }
+h1, h2 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; }
+h1 { font-size: 2rem; line-height: 1.2; }
+h2 { font-size: 1.35rem; }
+p { margin: 0; max-width: 68ch; }
+.lede { color: var(--muted); }
+.intro, section { display: grid; gap: 14px; }
+.eyebrow { font: 600 0.75rem var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; font-size: 0.92rem; min-width: 560px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 14px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); }
+.panes { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.pane { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; display: grid; grid-template-rows: auto 1fr; }
+.pane header { display: flex; gap: 10px; align-items: baseline; padding: 8px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tag { font: 600 0.72rem var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; }
+.tag.a { color: var(--a-tag); }
+.tag.c { color: var(--c-tag); }
+.pane header span:last-child { color: var(--muted); font-size: 0.85rem; }
+pre { margin: 0; overflow-x: auto; background: var(--code-bg); padding: 10px 0; font: 0.8rem/1.5 var(--font-mono); border-radius: 0 0 6px 6px; }
+pre .ln { display: block; padding: 0 12px; white-space: pre; border-left: 3px solid transparent; }
+pre .ln.hl { background: var(--mark); border-left-color: var(--mark-edge); }
+.note { font-size: 0.95rem; }
+.note b { font-weight: 600; }
+ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 72ch; }
+code { font: 0.88em var(--font-mono); }
+.legend { display: inline-block; width: 0.9em; height: 0.9em; background: var(--mark); border-left: 3px solid var(--mark-edge); vertical-align: -0.1em; margin-right: 4px; }
+</style>
+
+<main>
+  <div class="intro">
+    <div class="eyebrow">lucid-coder · before and after</div>
+    <h1>MPL differential analysis, with and without the plugin</h1>
+    <p class="lede">One script from the Senegal urban-rural study, <code>src/_MPL_differential_analysis.R</code>: a robust limma trend test on MPL-stimulated subcluster frequencies. Opus 5.5 rewrote it under the same prompt with no plugin (A), with lucid-coder (C), and with lucid-coder plus three learned rules (D). No run had the data, so no script was executed.</p>
+    <p class="note"><span class="legend"></span>Highlighted lines are the ones the comparison is about.</p>
+  </div>
+
+  <section>
+    <h2>The five scripts</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Task</th><th>Arm</th><th>Lines</th><th>Cost</th><th>Checks</th><th>Pipe</th></tr></thead>
+        <tbody>
+          <tr><td>Refactor the original (100 lines)</td><td>A</td><td>144</td><td>$0.94</td><td>0, one comment</td><td><code>%&gt;%</code></td></tr>
+          <tr><td></td><td>C</td><td>146</td><td>$1.98</td><td>1</td><td><code>|&gt;</code></td></tr>
+          <tr><td>Write from a five-step spec</td><td>A</td><td>100</td><td>$0.57</td><td>3 <code>stopifnot()</code></td><td><code>%&gt;%</code></td></tr>
+          <tr><td></td><td>C</td><td>196</td><td>$0.85</td><td>5</td><td><code>|&gt;</code></td></tr>
+          <tr><td></td><td>D</td><td>171</td><td>$0.93</td><td>6</td><td><code>|&gt;</code></td></tr>
+          <tr><td></td><td>D, after the pipe rule</td><td>178</td><td>$0.25</td><td>6</td><td><code>|&gt;</code>, one step per line</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Refactor · example 1</div>
+    <h2>Design rows matched to matrix columns by position</h2>
+    <p><code>lmFit()</code> pairs the design rows with the matrix columns by position. If the two orders differ, every patient gets another patient's group, age and sex, and the script still runs.</p>
+    <div class="panes">
+      <div class="pane"><header><span class="tag">Original</span><span>lines 73 to 80</span></header>
+<script type="text/plain" class="code">
+matMeta <- counts %>%
+    select(patient_id, group3 = group2, groupCat = group3, age, sex, batch) %>%
+    distinct()
+
+contrasts(matMeta$group3) <- contr.poly.weighted(matMeta$group3)
+designTrend <- model.matrix(~ group3 + age + sex + batch, data = matMeta)
+
+fit <- lmFit(matCounts, designTrend, method = "robust", maxit = 100)
+»res.L <- topTable(efit, coef = 2, number = Inf) %>%
+</script></div>
+      <div class="pane"><header><span class="tag a">A · no plugin</span><span>warns in a comment</span></header>
+<script type="text/plain" class="code">
+»# NOTE: matCounts columns and matMeta rows are aligned by position only;
+»# do not reorder either one.
+matMeta <- counts %>%
+    select(patient_id, group3 = group2, groupCat = group3, age, sex, batch) %>%
+    distinct()
+
+contrasts(matMeta$group3) <- contr.poly.weighted(matMeta$group3)
+designTrend <- model.matrix(~ group3 + age + sex + batch, data = matMeta)
+fit <- lmFit(matCounts, designTrend, method = "robust", maxit = 100)
+»# coef 2 = linear trend, coef 3 = quadratic trend
+»res.L <- tidy_toptable(efit, coef = 2, "L")
+</script></div>
+      <div class="pane"><header><span class="tag c">C · lucid-coder</span><span>stops on a mismatch</span></header>
+<script type="text/plain" class="code">
+design_meta <- counts |>
+  select(patient_id, group = group2, age, sex, batch) |>
+  distinct()
+
+# Design rows are matched to matrix columns by position
+»if (!identical(as.character(design_meta$patient_id), colnames(freq_matrix))) {
+»  stop("design_meta: rows do not match freq_matrix columns; check metadata.", call. = FALSE)
+»}
+
+contrasts(design_meta$group) <- contr.poly.weighted(design_meta$group)
+design_trend <- model.matrix(~ group + age + sex + batch, data = design_meta)
+fit <- lmFit(freq_matrix, design_trend, method = "robust", maxit = ROBUST_MAXIT)
+»res_linear <- trend_table(efit, coef = "group.L", suffix = "L")
+</script></div>
+    </div>
+    <p class="note">A explains the risk; C makes it fail loudly. C also selects the coefficient by name, so adding a term to the formula cannot move <code>coef = 2</code> onto <code>age</code>. The name <code>group.L</code> is correct: <code>weightedcontrasts.R</code> names its columns <code>.L</code>, <code>.Q</code>, <code>.C</code>.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">Refactor · example 2</div>
+    <h2>The join chain and the silent drops</h2>
+    <div class="panes">
+      <div class="pane"><header><span class="tag">Original and A</span><span>A kept this block as written</span></header>
+<script type="text/plain" class="code">
+counts <- left_join(metaLineage, countsCluster, by = "subclusterPG_merged") %>%
+»    left_join(countsLineage, ., by = c("patient_id", "lineage")) %>%
+»    left_join(metaSample, ., by = "patient_id") %>%
+»    left_join(meta, ., by = "patient_id") %>%
+    as.data.table() %>%
+    mutate(freq_cluster_perLineage = n_cluster / n_lineage * 100) %>%
+    mutate(freq_cluster_perLineage_trans = asin(sqrt(freq_cluster_perLineage / 100))) %>%
+»    drop_na() %>%
+»    filter(patient_id != "LD413")
+</script></div>
+      <div class="pane"><header><span class="tag c">C · lucid-coder</span><span>reads top-down, logs the drop</span></header>
+<script type="text/plain" class="code">
+counts_joined <- patient_meta |>
+  left_join(sample_meta, by = "patient_id") |>
+  left_join(lineage_counts, by = "patient_id") |>
+  left_join(cluster_counts_lineage, by = c("patient_id", "lineage")) |>
+  mutate(freq_cluster_perLineage = n_cluster / n_lineage * 100) |>
+»  # Arcsine square-root transform stabilises the variance of proportions for the linear model
+  mutate(freq_cluster_perLineage_trans = asin(sqrt(freq_cluster_perLineage / 100)))
+
+counts_complete <- drop_na(counts_joined)
+»message(sprintf(
+»  "Dropped %d rows with missing values; %d -> %d patients.",
+»  nrow(counts_joined) - nrow(counts_complete),
+»  n_distinct(counts_joined$patient_id),
+»  n_distinct(counts_complete$patient_id)
+»))
+counts <- filter(counts_complete, patient_id != REFERENCE_SAMPLE)
+</script></div>
+    </div>
+    <p class="note">The original nests each join through the <code>.</code> placeholder, so the reader works backwards from the last line. C writes the same four joins in reading order, says why the transform is there, and prints how many patients <code>drop_na()</code> removed.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">From scratch · example 3</div>
+    <h2>Which patients were dropped</h2>
+    <p>Same analysis written from a five-step spec, with no source script to copy.</p>
+    <div class="panes">
+      <div class="pane"><header><span class="tag a">A · no plugin</span><span>silent</span></header>
+<script type="text/plain" class="code">
+  left_join(meta %>% select(patient_id, group2, age, sex), by = "patient_id") %>%
+»  drop_na() %>%
+»  filter(patient_id != "LD413")
+</script></div>
+      <div class="pane"><header><span class="tag c">C · lucid-coder</span><span>names the patients</span></header>
+<script type="text/plain" class="code">
+  left_join(select(metadata, patient_id, group2, age, sex),
+»    by = "patient_id", relationship = "many-to-one")
+
+incomplete_patients <- cluster_freq |>
+  filter(if_any(c(batch, group2, age, sex), is.na)) |>
+  distinct(patient_id) |>
+  pull(patient_id)
+»message("Removed ", length(incomplete_patients), " patient(s) with missing batch/group2/age/sex: ",
+»  paste(incomplete_patients, collapse = ", "))
+
+cluster_freq <- cluster_freq |>
+  drop_na() |>
+  filter(!patient_id %in% EXCLUDED_PATIENTS)
+</script></div>
+      <div class="pane"><header><span class="tag c">D · plus learned rules</span><span>same, shorter</span></header>
+<script type="text/plain" class="code">
+complete_freq <- drop_na(subcluster_freq)
+dropped_na <- setdiff(subcluster_freq$patient_id, complete_freq$patient_id)
+»message("Removed ", nrow(subcluster_freq) - nrow(complete_freq), " rows with missing values; ",
+»  "patients lost entirely: ", length(dropped_na), " (", toString(dropped_na), ").")
+
+analysis_freq <- complete_freq |> filter(!patient_id %in% EXCLUDED_PATIENTS)
+</script></div>
+    </div>
+    <p class="note"><code>relationship = "many-to-one"</code> turns a duplicated metadata row into an error instead of a silent doubling of that patient's cells. Both A and the plugin arms named the coefficients and aligned the design with <code>match()</code> here, so those are model defaults, not plugin effects.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">Rule change · example 4</div>
+    <h2>A new line after every pipe</h2>
+    <p>D still packed short chains onto one line. A new rule in <code>rules/r.md</code> now asks for one step per line, even for two steps. The rerun of D has no line with a step after <code>|&gt;</code>.</p>
+    <div class="panes">
+      <div class="pane"><header><span class="tag c">D · before the rule</span></header>
+<script type="text/plain" class="code">
+»batches_per_patient <- mpl_cells |> distinct(patient_id, batch) |> count(patient_id)
+
+»analysis_freq <- complete_freq |> filter(!patient_id %in% EXCLUDED_PATIENTS)
+</script></div>
+      <div class="pane"><header><span class="tag c">D · after the rule</span></header>
+<script type="text/plain" class="code">
+patients_with_na <- cluster_freq |>
+»  filter(if_any(c(group2, age, sex, batch), is.na)) |>
+»  distinct(patient_id) |>
+»  pull(patient_id)
+
+cluster_freq <- cluster_freq |>
+»  drop_na(group2, age, sex, batch) |>
+»  filter(!patient_id %in% EXCLUDED_PATIENTS)
+</script></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Check before trusting the plugin versions</h2>
+    <ul>
+      <li><b>LD413.</b> The refactor calls it a "reference (control) sample". That is a guess; the other scripts only drop it. The from-scratch versions say the reason is not recorded.</li>
+      <li><b>Spare checks.</b> D after the pipe rule adds a row-count check after a join that already has <code>relationship = "many-to-one"</code>, which cannot fail on its own. The house style counts that as outside the budget.</li>
+      <li><b>Length.</b> C from scratch is twice as long as A. Part of that is a Notes block explaining why <code>clean_names()</code> was not used.</li>
+      <li><b>Formatting.</b> No version passes <code>air format --check</code>; all differ from air in call layout.</li>
+    </ul>
+  </section>
+</main>
+
+<script>
+document.querySelectorAll("script.code").forEach((s) => {
+  const pre = document.createElement("pre");
+  s.textContent.replace(/^\n|\n$/g, "").split("\n").forEach((line) => {
+    const span = document.createElement("span");
+    span.className = line.startsWith("»") ? "ln hl" : "ln";
+    span.textContent = (line.startsWith("»") ? line.slice(1) : line) || " ";
+    pre.appendChild(span);
+  });
+  s.replaceWith(pre);
+});
+</script>
