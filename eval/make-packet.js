@@ -10,6 +10,17 @@ const fs = require('fs');
 const path = require('path');
 const { findScript } = require('./score');
 
+// Rating fields written at the top of each script with --inline; the reader
+// types after each colon and adds own #$ comments anywhere. collect-comments.js reads both.
+const INLINE_HEADER = [
+  "#$ ===== Reviewer: type after each colon, then add #$ comments anywhere below =====",
+  "#$ q1 one read (1-5; can you say what this script does after one read?): ",
+  "#$ q2 find decisions (1-5; can you find each threshold, filter, model choice and path?): ",
+  "#$ q3 change checks (yes/no; would you add, remove or change a check?): ",
+  "#$ q3 which (one sentence): ",
+  "#$ ---- your #$ comments: on their own line above the code, or after the code on its line ----",
+].join("\n") + "\n";
+
 const SHEET_COLUMNS = ['neutral_id', 'q1_one_read', 'q2_find_decisions', 'q3_change_checks', 'q3_which', 'notes'];
 
 function shuffle(items) {
@@ -21,7 +32,7 @@ function shuffle(items) {
   return a;
 }
 
-function makePacket(tsDir, name = 'packet') {
+function makePacket(tsDir, name = 'packet', { inline = false } = {}) {
   const ts = path.resolve(tsDir);
   const outDir = path.join(ts, name);
   if (fs.existsSync(outDir)) throw new Error(`${outDir} exists; a new shuffle would orphan filled sheets`);
@@ -36,7 +47,8 @@ function makePacket(tsDir, name = 'packet') {
   const sheet = [SHEET_COLUMNS.join('\t')];
   shuffle(runs).forEach((r, i) => {
     const id = prefix + String(i + 1).padStart(2, '0');
-    fs.copyFileSync(path.join(r.runDir, 'repo', r.script), path.join(outDir, id + path.extname(r.script)));
+    const text = fs.readFileSync(path.join(r.runDir, 'repo', r.script), 'utf8');
+    fs.writeFileSync(path.join(outDir, id + path.extname(r.script)), (inline ? INLINE_HEADER : '') + text);
     key.push(`${id}\t${r.runId}`);
     sheet.push(id + '\t'.repeat(SHEET_COLUMNS.length - 1));
   });
@@ -46,17 +58,19 @@ function makePacket(tsDir, name = 'packet') {
 }
 
 if (require.main === module) {
-  const [tsDir, name = 'packet'] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const inline = args.includes('--inline');
+  const [tsDir, name = 'packet'] = args.filter(a => a !== '--inline');
   if (!tsDir || !/^[a-z]+$/.test(name)) {
-    console.error('usage: node eval/make-packet.js eval/results/<timestamp> [packet|judge]');
+    console.error('usage: node eval/make-packet.js eval/results/<timestamp> [packet|judge] [--inline]');
     process.exit(1);
   }
   try {
-    console.log(`make-packet.js: ${makePacket(tsDir, name)} scripts blinded into ${path.join(tsDir, name)}`);
+    console.log(`make-packet.js: ${makePacket(tsDir, name, { inline })} scripts blinded into ${path.join(tsDir, name)}`);
   } catch (e) {
     console.error(`make-packet.js: ${e.message}`);
     process.exit(1);
   }
 }
 
-module.exports = { makePacket, SHEET_COLUMNS };
+module.exports = { makePacket, SHEET_COLUMNS, INLINE_HEADER };
