@@ -1,0 +1,5 @@
+neutral_id	line	comment	code
+P02	28	not necessary	stopifnot(
+P02	35	not necessary	if (length(missing_meta) > 0 || length(missing_counts) > 0) {
+P02	53	ok for sanity check	stopifnot(nrow(sample_summary) == length(count_ids))
+P03	48	procedurally correct, but i would not do this analysis, i would use specific DE analaysis package such as limma/edgeR and the like	de <- pseudobulk |>

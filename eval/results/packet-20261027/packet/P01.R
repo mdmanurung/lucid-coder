@@ -1,8 +1,8 @@
 #$ ===== Reviewer: type after each colon, then add #$ comments anywhere below =====
-#$ q1 one read (1-5; can you say what this script does after one read?): 
-#$ q2 find decisions (1-5; can you find each threshold, filter, model choice and path?): 
-#$ q3 change checks (yes/no; would you add, remove or change a check?): 
-#$ q3 which (one sentence): 
+#$ q1 one read (1-5; can you say what this script does after one read?): 2
+#$ q2 find decisions (1-5; can you find each threshold, filter, model choice and path?): 1
+#$ q3 change checks (yes/no; would you add, remove or change a check?): yes
+#$ q3 which (one sentence): see comment below about checks
 #$ ---- your #$ comments: on their own line above the code, or after the code on its line ----
 # Plot cell-type proportions by condition, one point per donor, in lab colours.
 #
@@ -46,7 +46,7 @@ palette <- read_tsv(
 # ---- Checks -----------------------------------------------------------------
 
 conditions <- c("healthy", "disease")
-stopifnot(
+stopifnot( #$ these are a bit too much. i would already know that these should be the group labels, i would not check them all the time, but useful for first run
   !anyNA(proportions),
   all(proportions$condition %in% conditions),
   !anyDuplicated(proportions[c("donor_id", "cell_type")]),
@@ -56,7 +56,7 @@ stopifnot(
 
 # Colours are looked up by label, not by row order in palette.tsv
 missing_labels <- setdiff(conditions, palette$label)
-if (length(missing_labels) > 0) {
+if (length(missing_labels) > 0) { #$ a bit too much, once you know the palette is correct, but useful for first run, but i will not do it all the time
   stop("palette.tsv has no colour for: ", paste(missing_labels, collapse = ", "))
 }
 condition_colours <- setNames(palette$hex, palette$label)[conditions]
@@ -64,7 +64,7 @@ condition_colours <- setNames(palette$hex, palette$label)[conditions]
 donor_sums <- proportions |>
   group_by(donor_id) |>
   summarise(total = sum(proportion), .groups = "drop")
-if (any(abs(donor_sums$total - 1) > 0.01)) {
+if (any(abs(donor_sums$total - 1) > 0.01)) { #$ unnecessary
   warning("Some donors' proportions do not sum to 1 (tolerance 0.01).")
 }
 

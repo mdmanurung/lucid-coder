@@ -1,7 +1,7 @@
 #$ ===== Reviewer: type after each colon, then add #$ comments anywhere below =====
-#$ q1 one read (1-5; can you say what this script does after one read?): 
-#$ q2 find decisions (1-5; can you find each threshold, filter, model choice and path?): 
-#$ q3 change checks (yes/no; would you add, remove or change a check?): 
+#$ q1 one read (1-5; can you say what this script does after one read?):  4
+#$ q2 find decisions (1-5; can you find each threshold, filter, model choice and path?): 2
+#$ q3 change checks (yes/no; would you add, remove or change a check?): no
 #$ q3 which (one sentence): 
 #$ ---- your #$ comments: on their own line above the code, or after the code on its line ----
 # Purpose: Test each gene for differential expression, disease vs healthy, with donor as the unit.
@@ -51,6 +51,7 @@ pseudobulk <- donor_mat |>
 write_tsv(pseudobulk, file.path(run_dir, "pseudobulk_counts.tsv"))
 
 # Test per gene ----
+#$ procedurally correct, but i would not do this analysis, i would use specific DE analaysis package such as limma/edgeR and the like
 de <- pseudobulk |>
   split(~gene) |>
   map(\(gene_data) {

@@ -1,7 +1,7 @@
 #$ ===== Reviewer: type after each colon, then add #$ comments anywhere below =====
-#$ q1 one read (1-5; can you say what this script does after one read?): 
-#$ q2 find decisions (1-5; can you find each threshold, filter, model choice and path?): 
-#$ q3 change checks (yes/no; would you add, remove or change a check?): 
+#$ q1 one read (1-5; can you say what this script does after one read?): 4
+#$ q2 find decisions (1-5; can you find each threshold, filter, model choice and path?): 4
+#$ q3 change checks (yes/no; would you add, remove or change a check?): no
 #$ q3 which (one sentence): 
 #$ ---- your #$ comments: on their own line above the code, or after the code on its line ----
 # Purpose: Plot cell-type proportion by condition, one point per donor.

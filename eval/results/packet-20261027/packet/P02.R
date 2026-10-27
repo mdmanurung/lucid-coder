@@ -1,8 +1,8 @@
 #$ ===== Reviewer: type after each colon, then add #$ comments anywhere below =====
-#$ q1 one read (1-5; can you say what this script does after one read?): 
-#$ q2 find decisions (1-5; can you find each threshold, filter, model choice and path?): 
-#$ q3 change checks (yes/no; would you add, remove or change a check?): 
-#$ q3 which (one sentence): 
+#$ q1 one read (1-5; can you say what this script does after one read?): 3
+#$ q2 find decisions (1-5; can you find each threshold, filter, model choice and path?): 2
+#$ q3 change checks (yes/no; would you add, remove or change a check?): yes
+#$ q3 which (one sentence): see comment below about checks
 #$ ---- your #$ comments: on their own line above the code, or after the code on its line ----
 # Attach condition and batch to each sample and compute library sizes.
 #
@@ -31,14 +31,14 @@ metadata <- read_tsv(here("data", "metadata.tsv"), col_types = cols(.default = c
 
 # Samples are matched by ID: the count columns and metadata rows are in different orders.
 count_ids <- setdiff(names(counts), "gene")
-stopifnot(
+stopifnot( #$ not necessary
   !anyDuplicated(count_ids),
   !anyDuplicated(metadata$sample_id),
   !anyNA(counts)
 )
 missing_meta <- setdiff(count_ids, metadata$sample_id)
 missing_counts <- setdiff(metadata$sample_id, count_ids)
-if (length(missing_meta) > 0 || length(missing_counts) > 0) {
+if (length(missing_meta) > 0 || length(missing_counts) > 0) { #$ not necessary
   stop(
     "Sample IDs differ between counts and metadata. ",
     "No metadata: ", toString(missing_meta), "; no counts: ", toString(missing_counts),
@@ -56,6 +56,6 @@ sample_summary <- metadata |>
   inner_join(library_sizes, by = "sample_id", relationship = "one-to-one") |>
   arrange(sample_id)
 
-stopifnot(nrow(sample_summary) == length(count_ids))
+stopifnot(nrow(sample_summary) == length(count_ids)) #$ ok for sanity check
 
 write_tsv(sample_summary, file.path(run_dir, "sample_summary.tsv"))

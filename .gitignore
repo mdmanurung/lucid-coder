@@ -10,3 +10,13 @@ eval/results/*
 eval/results/packet-*/*
 !eval/results/packet-*/judges.tsv
 !eval/results/packet-*/packet/
+
+# acumen bench: run trees, data caches, logs and wikis are local; skills/vN stay tracked.
+bench/*/runs/
+bench/*/cache/
+bench/*/logs/
+bench/*/wiki/
+bench/*/check.log
+bench/*/fit.log
+bench/*/report.log
+eval/results/packet-*/packet/*-keyed.tsv
