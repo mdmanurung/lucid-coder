@@ -1,6 +1,6 @@
 # Handoff — lucid-coder
 
-**Date:** 2026-10-27 · **Branch:** main, not pushed · **Status:** Phases 0-3 committed: harness, 32-run pilot, 16-run C/D rerun; house style revised after a corpus audit
+**Date:** 2026-10-27 · **Branch:** main, not pushed · **Status:** Phases 0-3 committed. On 2026-10-27 the rules were rewritten from the corpus code, R4DS/R Cookbook and Wilke. A review then aligned the skill doc, house-style table, templates, scorer and hooks with them. 80 tests pass. All grid numbers below predate the new rules.
 
 ## Goal
 Build a ponytail-like Claude Code plugin with three properties:
@@ -12,7 +12,19 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-Finish the grilled design (below): two-tier injection, two R trap tasks, the Python scoring path and three Python twins. Then run C/D at 3 reps, the traps at 4 arms × 3 reps, and the Python grid at 4 arms × 2 reps. Score checks by classification (default five / allowed extra / OUT); success is OUT median 0. Then the 16-script human packet; Phase 4 only if the human sheets show an effect.
+1. The user scores the human packet: `eval/results/packet-20261026/packet/sheet.tsv`. Its scripts come from the old rules (pilot A/B, rerun-4 C/D).
+2. Rerun the R grid under the current rules: tasks 01-04, all four arms, 2 reps, about $30. The task prompts and tool list changed (`52f5d2b`), so arm A reruns too and old rows are not a baseline.
+3. Decisions open for the user: allow `verify_*.R` cross-artefact scripts (see `corpus-patterns.md`); fold in or drop the other session's uncommitted `templates/plots.*`, `bench/`, `skills/pseudobulk-de/` and `fig.text` row.
+
+## Review and alignment (2026-10-27, late)
+- A review found the injected rules (`rules/`) were current but everything around them was stale. Fixes, one commit each:
+  - `2ce4e5c`: SKILL.md defers to `rules/` (347 to 186 lines); house-style rows for checks, exclusions, notebooks, automation, constants, width, errors, joins, recode and Python args revised.
+  - `015b7ec`: template examples rewritten to the new style, outputs byte-identical.
+  - `52f5d2b`: `header_complete` no longer needs Notes; new `join_guard_count` column; agents may run `air`/`ruff` with the template configs; R prompts allow stringr and forcats. Rescoring rerun 4 changed no stored value.
+  - `b954475`: `/lucid-coder lang` is per repo (JSON map keyed by repo id); language-scoped learned rules follow the languages in use; on/off/lang replies say they apply from the next session start or `/clear`.
+- Host fact: the R 4.5.2 module has no tidyverse meta-package, `qs`, `limma`, `janitor` or `broom`. So no MPL demo script could run here; all were judged by reading.
+- Caps: core 3,332/3,350 and `r.md` 1,490/1,500 leave no room; a new rule needs a cut.
+- Another session works in this repo concurrently (`bench/`, `skills/pseudobulk-de/`, `templates/plots.*`, a `fig.text` row). Commits from this session stage named files only.
 
 ## Before/after demo on a user script (2026-10-27)
 - Live A-vs-C refactor of `Senegal_phipseq/.../src/_MPL_differential_analysis.R` (100 lines, limma trend test on MPL-stimulated subcluster frequencies). Same prompt, Opus, `--safe-mode`, no data; C got `arm-prompt.js C r` (4,580 chars). Files in `eval/demo/mpl-refactor/`: `original.R`, `prompt.md`, `A_refactored.R` (144 lines, $0.94, 9 turns), `C_refactored.R` (146 lines, $1.98, 14 turns).
