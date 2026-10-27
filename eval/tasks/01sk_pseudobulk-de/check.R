@@ -1,7 +1,7 @@
 # Purpose: gate for task 01sk. Task 01's science gate on de.tsv, plus the skill's outputs
 #          and a ClawBio-shaped SKILL.md.
-# Inputs:  <run_repo>/results/run1/{de.tsv,report.md,result.json,reproducibility/commands.sh},
-#          <run_repo>/skills/pseudobulk-de/SKILL.md, <task_dir>/truth/genes.tsv,
+# Inputs:  <run_repo>/results/run1/{de.tsv,report.md,report.ipynb,result.json,reproducibility/commands.sh},
+#          <run_repo>/skills/pseudobulk-de/{SKILL.md,report.ipynb}, <task_dir>/truth/genes.tsv,
 #          <task_dir>/inputs/data/counts.tsv (gene count)
 # Outputs: one JSON line on stdout: {"gate": "pass" | "fail", "detail": "..."}
 # Run:     Rscript check.R <run_repo> <task_dir>
@@ -77,7 +77,7 @@ de_problems <- local({
 })
 
 # ---- Check the other outputs ----
-output_files <- c("report.md", "result.json", "reproducibility/commands.sh")
+output_files <- c("report.md", "report.ipynb", "result.json", "reproducibility/commands.sh")
 output_paths <- file.path(out_dir, output_files)
 is_present <- file.exists(output_paths) & file.size(output_paths) > 0
 output_problems <- if (any(!is_present)) {
@@ -91,6 +91,16 @@ json_ok <- !file.exists(json_path) ||
   !inherits(tryCatch(jsonlite::fromJSON(json_path), error = identity), "error")
 if (!json_ok) {
   output_problems <- c(output_problems, "result.json is not valid JSON")
+}
+
+# ---- Check the notebook ----
+# The report comes from skills/pseudobulk-de/report.ipynb, run by papermill with out_dir.
+notebook_path <- file.path(run_repo, "skills", "pseudobulk-de", "report.ipynb")
+notebook <- tryCatch(jsonlite::fromJSON(notebook_path, simplifyVector = FALSE), error = \(e) NULL)
+has_parameters <- !is.null(notebook) &&
+  any(vapply(notebook$cells, \(cell) "parameters" %in% unlist(cell$metadata$tags), logical(1)))
+notebook_problems <- if (!has_parameters) {
+  "skills/pseudobulk-de/report.ipynb is missing, not JSON, or has no cell tagged parameters"
 }
 
 # ---- Check SKILL.md ----
@@ -127,7 +137,7 @@ skill_problems <- if (!file.exists(skill_path)) {
 }
 
 # ---- Verdict ----
-problems <- c(de_problems, output_problems, skill_problems)
+problems <- c(de_problems, output_problems, notebook_problems, skill_problems)
 verdict <- list(
   gate = if (length(problems) == 0) "pass" else "fail",
   detail = paste(c(problems, q_summary), collapse = "; ")

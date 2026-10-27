@@ -16,10 +16,10 @@ TASKS_DIR="${EVAL_TASKS_DIR:-$EVAL_DIR/tasks}"
 RESULTS_DIR="${EVAL_RESULTS_DIR:-$EVAL_DIR/results}"
 MODEL="${MODEL:-claude-opus-5-5}"
 BUDGET="${BUDGET:-2}"
-# Both paths come from `module show statistical/R/4.5.2/gcc.8.5.0`.
-R_ROOT="/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2"
+# R4_51 conda env (R 4.5.1): tidyverse, limma, edgeR, IRkernel, papermill, pandoc. Override with R_ROOT.
+R_ROOT="${R_ROOT:-/exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51}"
 ALLOWED_TOOLS=(Read Write Edit "Bash(Rscript:*)" "Bash(uv:*)" "Bash(ls:*)" "Bash(mkdir:*)" "Bash(cat:*)" "Bash(head:*)"
-  "Bash(air:*)" "Bash(ruff:*)")
+  "Bash(air:*)" "Bash(ruff:*)" "Bash(papermill:*)" "Bash(jupyter:*)")
 
 die() {
   echo "run.sh: $*" >&2
@@ -83,7 +83,8 @@ done
 [[ -z "$out_name" || "$out_name" =~ ^[A-Za-z0-9_-]+$ ]] || die "--out takes a plain folder name, not a path"
 out="$RESULTS_DIR/${out_name:-$(date -u +%Y%m%dT%H%M%SZ)}"
 if ((!dry_run)); then
-  command -v claude >/dev/null || die "claude is not on PATH"
+  # Resolve claude before PATH changes: R4_51 ships an old Claude Code (2.0.73) in its bin.
+  CLAUDE_BIN="$(command -v claude)" || die "claude is not on PATH"
   mkdir -p "$RESULTS_DIR"
   # A shared --out folder may already exist; each run dir inside is still refused if taken.
   if [[ -n "$out_name" ]]; then
@@ -147,7 +148,7 @@ for task_id in "${task_ids[@]}"; do
         env -u ANTHROPIC_API_KEY \
           PATH="$R_ROOT/bin:$PATH:$HOME/.local/bin" \
           LD_LIBRARY_PATH="$R_ROOT/lib64/R/lib:${LD_LIBRARY_PATH:-}" \
-          claude --safe-mode --no-session-persistence -p "$(<"$prompt_file")" "${claude_tail[@]}" \
+          "$CLAUDE_BIN" --safe-mode --no-session-persistence -p "$(<"$prompt_file")" "${claude_tail[@]}" \
           </dev/null >"$run_dir/claude.json" 2>"$run_dir/claude.stderr"
       ) || rc=$?
       write_meta "$run_dir/meta.json" "$task" "$arm" "$rep" "$MODEL" "$BUDGET" \

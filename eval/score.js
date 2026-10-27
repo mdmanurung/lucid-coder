@@ -23,8 +23,8 @@ const COLUMNS = ['run_id', 'task', 'arm', 'rep', 'exit_code', 'cost_usd', 'durat
   'functions_under3'];
 const EVAL_DIR = __dirname;
 const TEMPLATES = path.join(EVAL_DIR, '..', 'templates');
-// Both paths come from `module show statistical/R/4.5.2/gcc.8.5.0`.
-const R_ROOT = '/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2';
+// R4_51 conda env (R 4.5.1): tidyverse, limma, edgeR, IRkernel, papermill, pandoc. Override with R_ROOT.
+const R_ROOT = process.env.R_ROOT || '/exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51';
 const RERUN_MS = 120000;
 const PY_RERUN_MS = 600000;
 const GATE_MS = 600000;

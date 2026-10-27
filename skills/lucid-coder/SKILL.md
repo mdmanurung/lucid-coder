@@ -166,6 +166,11 @@ commit.
   name. Build each plot once and pass it: `ggsave(plot = p_fig2c, ...)`,
   never `last_plot()`. One named vector, `panels <- c(fig2c = "umap-donor")`,
   drives the plot object, file and source-data names.
+- Notebooks: the script writes tables; `report.ipynb` (R kernel `ir`) reads
+  them and holds every figure and line of report prose. Its first cell is
+  tagged `parameters` and sets `out_dir`. Render it with
+  `papermill report.ipynb <out_dir>/report.ipynb -p out_dir <out_dir>`, then
+  `jupyter nbconvert --to markdown --no-input <out_dir>/report.ipynb`.
 
 ## Learning from the user
 

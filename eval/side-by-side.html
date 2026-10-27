@@ -1,0 +1,221 @@
+<title>Four-Way Code Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: one decision on screen at a time; four equal code columns, stacked on phones. */
+  :root {
+    --bg: #f6f7f5;
+    --panel: #ffffff;
+    --fg: #1d2422;
+    --muted: #5d6965;
+    --rule: #d9dfdc;
+    --accent: #0f6b5c;
+    --accent-ink: #ffffff;
+    --pick: #e3f1ed;
+    --code-bg: #fbfcfb;
+    --kw: #8a3b9e; --str: #1d6f2f; --num: #a1501a; --com: #77817d; --fn: #1d4f91;
+    --sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151a19; --panel: #1c2321; --fg: #e3e9e6; --muted: #9aa7a2; --rule: #2e3835;
+      --accent: #5cc4ae; --accent-ink: #0d1514; --pick: #20352f; --code-bg: #181e1d;
+      --kw: #d39be0; --str: #8fd19b; --num: #e9a46b; --com: #7f8b87; --fn: #8db6ef;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151a19; --panel: #1c2321; --fg: #e3e9e6; --muted: #9aa7a2; --rule: #2e3835;
+    --accent: #5cc4ae; --accent-ink: #0d1514; --pick: #20352f; --code-bg: #181e1d;
+    --kw: #d39be0; --str: #8fd19b; --num: #e9a46b; --com: #7f8b87; --fn: #8db6ef;
+    color-scheme: dark;
+  }
+  body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+  .wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 48px; max-width: 1800px; margin: 0 auto; display: grid; gap: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0; text-wrap: balance; }
+  .lede { color: var(--muted); margin: 4px 0 0; max-width: 70ch; }
+  .progress { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+  .progress b { color: var(--fg); }
+  nav { display: grid; gap: 8px; }
+  .group-label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font: inherit; font-size: 12.5px; border: 1px solid var(--rule); background: var(--panel); color: var(--fg); border-radius: 999px; padding: 3px 11px; cursor: pointer; }
+  .chip[aria-current="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .chip.done::before { content: "✓ "; color: var(--accent); }
+  .chip:focus-visible, button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .step-title { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+  h2 { font-size: 17px; font-weight: 600; margin: 0; }
+  .step-kind { color: var(--muted); font-size: 12.5px; }
+  .cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 1100px) { .cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 640px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+  .col { min-width: 0; display: grid; grid-template-rows: auto 1fr auto; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; }
+  .col.picked { border-color: var(--accent); background: var(--pick); }
+  .col-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--rule); }
+  .col-label { font-family: var(--mono); font-weight: 500; font-size: 15px; }
+  .lines { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  pre { margin: 0; overflow: auto; max-height: 70vh; background: var(--code-bg); }
+  code { font-family: var(--mono); font-size: 11.5px; line-height: 1.45; display: block; padding: 8px 10px; white-space: pre; tab-size: 2; }
+  .source { padding: 6px 10px; border-top: 1px solid var(--rule); font-family: var(--mono); font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+  .hljs-keyword, .hljs-built_in, .hljs-literal { color: var(--kw); }
+  .hljs-string { color: var(--str); }
+  .hljs-number { color: var(--num); }
+  .hljs-comment, .hljs-meta { color: var(--com); font-style: italic; }
+  .hljs-title, .hljs-section { color: var(--fn); }
+  form { display: grid; gap: 10px; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; }
+  fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  legend { font-weight: 600; margin-bottom: 6px; }
+  .opt { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); border-radius: 4px; padding: 4px 12px; cursor: pointer; font-family: var(--mono); }
+  .opt:has(input:checked) { border-color: var(--accent); background: var(--pick); }
+  label[for="why"] { font-weight: 600; }
+  textarea { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--rule); border-radius: 4px; padding: 8px; min-height: 64px; resize: vertical; width: 100%; box-sizing: border-box; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .primary { font: inherit; font-weight: 600; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 4px; padding: 7px 16px; cursor: pointer; }
+  .secondary { font: inherit; background: none; color: var(--fg); border: 1px solid var(--rule); border-radius: 4px; padding: 6px 12px; cursor: pointer; }
+  .status { color: var(--muted); font-size: 12.5px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Four-Way Code Review</h1>
+      <p class="lede">Each step shows four versions side by side. Pick the one you would rather keep and say why in a sentence. Columns are shuffled for every step. Agent versions stay blinded; human repos are named after you save.</p>
+    </div>
+    <div class="progress" id="progress"></div>
+  </header>
+  <nav id="nav"></nav>
+  <section id="step" aria-live="polite"></section>
+  <form id="answer">
+    <fieldset id="choices"><legend>Which version do you prefer?</legend></fieldset>
+    <label for="why">Why? One sentence is enough.</label>
+    <textarea id="why" placeholder="e.g. Y reads top to bottom with no helper functions; W hides the filter in a wrapper."></textarea>
+    <div class="actions">
+      <button class="primary" type="submit">Save and next</button>
+      <button class="secondary" type="button" id="copy">Copy all answers</button>
+      <span class="status" id="status"></span>
+    </div>
+  </form>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+const DATA = /*DATA*/null;
+const panels = DATA.panels;
+const answers = {};
+let current = 0;
+let db = null;
+const docId = p => `${DATA.source}__${p.id}`.replace(/[^A-Za-z0-9_-]/g, '-');
+const $ = id => document.getElementById(id);
+
+function store(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+}
+try { Object.assign(answers, JSON.parse(localStorage.getItem('answers:' + DATA.source) || '{}')); } catch (e) {}
+
+function renderNav() {
+  const groups = [['arms', 'Agent versions (blinded)'], ['human', 'Human repos']];
+  $('nav').replaceChildren(...groups.filter(([g]) => panels.some(p => p.group === g)).map(([g, label]) => {
+    const box = document.createElement('div');
+    const head = Object.assign(document.createElement('div'), { className: 'group-label', textContent: label });
+    const chips = Object.assign(document.createElement('div'), { className: 'chips' });
+    panels.forEach((p, i) => {
+      if (p.group !== g) return;
+      const b = Object.assign(document.createElement('button'), { type: 'button', className: 'chip' + (answers[p.id] ? ' done' : ''), textContent: p.title });
+      b.setAttribute('aria-current', i === current);
+      b.onclick = () => show(i);
+      chips.append(b);
+    });
+    box.append(head, chips);
+    return box;
+  }));
+  const n = panels.filter(p => answers[p.id]).length;
+  $('progress').innerHTML = `<b>${n}</b> of ${panels.length} steps answered`;
+}
+
+function show(i) {
+  current = i;
+  const p = panels[i];
+  const saved = answers[p.id];
+  const title = document.createElement('div');
+  title.className = 'step-title';
+  title.innerHTML = `<h2></h2><span class="step-kind"></span>`;
+  title.querySelector('h2').textContent = p.title;
+  title.querySelector('.step-kind').textContent = p.group === 'arms' ? 'Same task, four agent runs' : 'Same step, four repos';
+  const cols = document.createElement('div');
+  cols.className = 'cols';
+  for (const c of p.columns) {
+    const col = document.createElement('article');
+    col.className = 'col' + (saved?.choice === c.label ? ' picked' : '');
+    const head = document.createElement('div');
+    head.className = 'col-head';
+    head.innerHTML = `<span class="col-label"></span><span class="lines"></span>`;
+    head.querySelector('.col-label').textContent = c.label;
+    head.querySelector('.lines').textContent = `${c.code.split('\n').length} lines`;
+    const pre = document.createElement('pre');
+    const code = document.createElement('code');
+    code.className = 'language-' + (p.language === 'python' ? 'python' : p.language === 'markdown' ? 'markdown' : 'r');
+    code.textContent = c.code;
+    pre.append(code);
+    if (window.hljs) hljs.highlightElement(code);
+    col.append(head, pre);
+    if (c.source && saved) col.append(Object.assign(document.createElement('div'), { className: 'source', textContent: c.source }));
+    cols.append(col);
+  }
+  $('step').replaceChildren(title, cols);
+  const choices = $('choices');
+  choices.querySelectorAll('.opt').forEach(o => o.remove());
+  for (const label of [...p.columns.map(c => c.label), 'none']) {
+    const opt = document.createElement('label');
+    opt.className = 'opt';
+    opt.innerHTML = `<input type="radio" name="choice" id="choice-${label}" value="${label}"> <span></span>`;
+    opt.querySelector('span').textContent = label === 'none' ? 'No preference' : label;
+    opt.querySelector('input').checked = saved?.choice === label;
+    choices.append(opt);
+  }
+  $('why').value = saved?.why || '';
+  $('status').textContent = saved ? 'Saved. Change it and save again to update.' : '';
+  renderNav();
+}
+
+$('answer').addEventListener('submit', async e => {
+  e.preventDefault();
+  const p = panels[current];
+  const choice = new FormData(e.target).get('choice');
+  if (!choice) { $('status').textContent = 'Pick a version first, or No preference.'; return; }
+  const picked = p.columns.find(c => c.label === choice);
+  const row = { panel: p.id, source: DATA.source, group: p.group, choice, why: $('why').value.trim(), picked_source: picked?.source || '', saved_at: new Date().toISOString() };
+  answers[p.id] = row;
+  store('answers:' + DATA.source, answers);
+  $('status').textContent = 'Saving…';
+  try {
+    if (db) await db.doc('picks/' + docId(p)).set(row);
+    $('status').textContent = db ? 'Saved.' : 'Saved in this browser. Use Copy all answers to send them.';
+  } catch (err) {
+    $('status').textContent = 'Saved in this browser only (' + (err.code || 'error') + '). Use Copy all answers to send them.';
+  }
+  const next = panels.findIndex((q, i) => i > current && !answers[q.id]);
+  show(next === -1 ? current : next);
+});
+
+$('copy').addEventListener('click', async () => {
+  const text = JSON.stringify(Object.values(answers), null, 1);
+  try { await navigator.clipboard.writeText(text); $('status').textContent = 'Copied. Paste them into the chat.'; }
+  catch (e) { $('why').value = text; $('why').select(); $('status').textContent = 'Clipboard blocked: the answers are selected in the box, copy them by hand.'; }
+});
+
+show(Math.max(0, panels.findIndex(p => !answers[p.id])));
+
+(async () => {
+  db = await window.claude?.use?.('db');
+  if (!db) return;
+  db.collection('picks').onSnapshot(snap => {
+    for (const d of snap.docs) {
+      const row = d.data();
+      if (row?.source === DATA.source && !answers[row.panel]) answers[row.panel] = row;
+    }
+    renderNav();
+  }, () => {});
+})();
+</script>

@@ -10,13 +10,15 @@ const { spawnSync } = require('child_process');
 
 const root = path.join(__dirname, '..', '..');
 const tasksDir = path.join(root, 'eval', 'tasks');
-const R_MODULE = 'module load statistical/R/4.5.2/gcc.8.5.0';
+// The R that run.sh and score.js use: R4_51 holds R, papermill and the ir kernel.
+const R_BIN = path.join(process.env.R_ROOT || '/exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51', 'bin');
 const TIMEOUT = 180000;
 const SKILL_SCRIPT = 'skills/pseudobulk-de/pseudobulk_de.R';
 
-function rscript(args, cwd) {
-  return spawnSync('bash', ['-lc', `${R_MODULE} && Rscript ${args}`], { cwd, encoding: 'utf8' });
+function shell(command, cwd) {
+  return spawnSync('bash', ['-c', command], { cwd, encoding: 'utf8', env: { ...process.env, PATH: `${R_BIN}:${process.env.PATH}` } });
 }
+const rscript = (args, cwd) => shell(`Rscript ${args}`, cwd);
 
 const hasR = rscript('-e "invisible(1)"', root).status === 0;
 
@@ -32,7 +34,7 @@ function fileHashes(dir) {
 }
 
 test('make-fixtures.R rewrites identical files', { timeout: TIMEOUT }, (t) => {
-  if (!hasR) return t.skip('R module not available');
+  if (!hasR) return t.skip('R4_51 R not available');
   const before = fileHashes(tasksDir);
   const run = rscript('eval/fixtures/make-fixtures.R', root);
   assert.strictEqual(run.status, 0, run.stderr);
@@ -64,6 +66,11 @@ function gate(taskId, scriptPath, expectExit = 0) {
   spawnSync('git', ['init', '-q'], { cwd: repo });
   const run = rscript(command, repo);
   assert.strictEqual(run.status, expectExit, `${scriptPath} exited ${run.status}:\n${run.stderr}`);
+  // A skill renders report.md from its notebook, as the 01sk prompt runs it.
+  if (fs.existsSync(path.join(repo, 'skills/pseudobulk-de/report.ipynb'))) {
+    const render = shell('papermill skills/pseudobulk-de/report.ipynb results/run1/report.ipynb -p out_dir results/run1 && jupyter nbconvert --to markdown --no-input results/run1/report.ipynb', repo);
+    assert.strictEqual(render.status, 0, render.stderr);
+  }
   const check = rscript(`${path.join(taskDir, 'check.R')} ${repo} ${taskDir}`, repo);
   assert.strictEqual(check.status, 0, check.stderr);
   fs.rmSync(repo, { recursive: true, force: true });
@@ -88,14 +95,14 @@ for (const [taskId, script, naiveDetail] of cases) {
   const [referenceExit, referenceStderr] = referenceStops[taskId] || [0, null];
 
   test(`${taskId}: reference passes the gate`, { timeout: TIMEOUT }, (t) => {
-    if (!hasR) return t.skip('R module not available');
+    if (!hasR) return t.skip('R4_51 R not available');
     const verdict = gate(taskId, path.join(referenceDir, script), referenceExit);
     assert.strictEqual(verdict.gate, 'pass', verdict.detail);
     if (referenceStderr) assert.match(verdict.stderr, referenceStderr);
   });
 
   test(`${taskId}: naive answer fails the gate`, { timeout: TIMEOUT }, (t) => {
-    if (!hasR) return t.skip('R module not available');
+    if (!hasR) return t.skip('R4_51 R not available');
     const verdict = gate(taskId, path.join(referenceDir, 'naive', script));
     assert.strictEqual(verdict.gate, 'fail');
     assert.match(verdict.detail, naiveDetail);

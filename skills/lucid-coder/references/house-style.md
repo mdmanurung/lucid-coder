@@ -81,7 +81,7 @@ Sources are abbreviated:
 | `files.versions` | version through git and run folders; never `_v2`, `_final`, `-Copy1` | obs failures (`SYNTHESIS.md:111`) |
 | `files.outputs` | `<run_dir>/` passed as an argument; files named by content or panel | rec (`C:211`); 8 repos had names that drift from panels (`S:120`) |
 | `files.helpers` | a helper file only when 2 or more scripts call it; helpers live in `R/<topic>.R` (immgenT, MM) or one function per file | rec (`cc_learnings/02_coding_R_python.md:72`); obs GTestimate (`C:136`) |
-| `files.notebooks` | batch jobs are scripts; judgement steps (QC review, annotation, figures) may be notebooks, with markdown headings instead of banner comments; runs top to bottom from a fresh kernel; strip `.ipynb` outputs before commit; no `.ipynb_checkpoints` committed | rec (`phase_A/CONVENTIONS.md`); ext: Tang; revised 2026-10-27 to match rules/core.md (corpus rules) |
+| `files.notebooks` | scripts prep data, fit models and write tables; figures and reports go in a notebook (`.ipynb`, R kernel `ir`, or `.qmd`) that reads those tables, never report text pasted together with `writeLines()`/`sprintf()` in a script; QC review and annotation are notebooks too, with markdown headings instead of banner comments; a notebook takes its run dir from a `parameters` cell (papermill); runs top to bottom from a fresh kernel; strip `.ipynb` outputs before commit; no `.ipynb_checkpoints` committed | rec (`phase_A/CONVENTIONS.md`); ext: Tang; revised 2026-10-27 to match rules/core.md (corpus rules) |
 
 ## Reproducibility and data
 

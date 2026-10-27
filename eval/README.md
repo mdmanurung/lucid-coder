@@ -123,4 +123,14 @@ node --test eval/tests/*.test.js
 
 ## ClawBio-style task (01sk)
 
-`tasks/01sk_pseudobulk-de/` asks for the task 01 analysis packaged as a ClawBio skill. The agent writes `skills/pseudobulk-de/SKILL.md`, with frontmatter and the 11 required sections, and one script, run as `Rscript skills/pseudobulk-de/pseudobulk_de.R --input data --output <dir>`. The script writes `de.tsv`, `report.md`, `result.json` and `reproducibility/commands.sh`. The gate checks the science and that these files exist; `score.js` finds the script under `skills/` and reruns it with these flags. `make-packet.js --inline` copies the `SKILL.md` and `report.md` next to each blinded script and adds procedure fields (q4). Reviewers mark code comments with `#$` and procedure comments with `#$P`; `collect-comments.js` records both, with the file each came from.
+`tasks/01sk_pseudobulk-de/` asks for the task 01 analysis packaged as a ClawBio skill. The agent writes `skills/pseudobulk-de/SKILL.md`, with frontmatter and the 11 required sections, an R script for data prep and model fitting, and `report.ipynb` (R kernel `ir`) for figures and the report. The script runs as `Rscript skills/pseudobulk-de/pseudobulk_de.R --input data --output <dir>` and writes `de.tsv`, `result.json` and `reproducibility/commands.sh`. Papermill runs the notebook with `-p out_dir <dir>`, and `jupyter nbconvert --to markdown --no-input` turns it into `report.md`. The gate checks the science, these files, and a `parameters` cell in the notebook. `score.js` reruns only the script.
+
+All R runs use the R4_51 conda env (R 4.5.1 with tidyverse, limma, edgeR, IRkernel, papermill and pandoc); set `R_ROOT` to override. That env ships an old Claude Code, so `run.sh` resolves `claude` before it changes PATH.
+
+## Side-by-side review
+
+```bash
+node eval/side-by-side.js eval/results/<run-dir> eval/results/<run-dir>/review --rep 1 --human <panels.json>
+```
+
+This writes one page with a panel per analysis step: setup, load, filter and aggregate, fit, write, the report notebook and the SKILL.md Workflow section. Each panel shows the four arms as columns, shuffled per panel, so the reader compares one step at a time instead of scoring whole files in sequence. The reader picks a column, or no preference, and gives a reason. `side-by-side-key.tsv` maps each panel column to its run and stays out of git. Optional human panels show one step from four corpus repos; the repo names appear after a pick is saved.
