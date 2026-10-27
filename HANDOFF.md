@@ -12,9 +12,13 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-1. The user reviews the final head-to-head: https://claude.ai/artifact/9oiNwhE7KmzGQPhrpVp3kp. Tasks 02-04, arm A vs arm D, rep 1, 11 two-column panels; key in `eval/results/sbs-0204-20261027/review/side-by-side-key.tsv`.
+1. The user reviews the corrected head-to-head for tasks 02 and 04 as whole scripts: https://claude.ai/artifact/8HVXTy94AY5LWNt1uUuSoz (key in `eval/results/sbs-0204-20261027/review-whole/side-by-side-key.tsv`).
 2. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
 3. Decisions open for the user: allow `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form; the other session's uncommitted `templates/plots.*`, `bench/`, `skills/*` and house-style rows.
+
+## Head-to-head results (2026-10-27, night)
+- First page, unblinded: D won 9 panels, A 1, no preference 1. But arm A wrote tasks 02 and 04 without section banners, so its whole script sat in setup and its other columns were empty: 6 panels compared D against nothing, and 02/04 setup compared a full script against a header. Only the three task-03 panels were like for like: D won setup and load, the figure was a tie. The user flagged the 02 setup panel.
+- Fix: side-by-side.js now shows a task as one whole-script panel when any version has no banner; `--tasks` filters tasks. Tasks 02 and 04 went out again as whole scripts.
 
 ## Tasks 02-04 for the head-to-head (2026-10-27, night)
 - `eval/results/sbs-0204-20261027`: tasks 02-04 × A-D × 1 rep at BUDGET=3, gates 12/12. Script lines: 02 A 57, B 33, C 22, D 28; 03 A 153, B 35, C 71, D 81; 04 A 94, B 58, C 88, D 79. The page compares A and D only, at the user's request for two options at a time.

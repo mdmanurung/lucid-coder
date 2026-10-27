@@ -60,3 +60,19 @@ test('--arms A,D builds two-column panels per task from scripts/', () => {
   assert.deepStrictEqual(data.panels.map(p => p.id), ['02_load', '03_load']);
   assert.ok(data.panels.every(p => p.columns.length === 2 && p.columns.every(c => /# [AD]$/.test(c.code))));
 });
+
+test('a script without banners turns that task into one whole-script panel', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sbs-whole-'));
+  for (const arm of ['A', 'D']) {
+    const dir = path.join(root, `02_join_${arm}_r1`, 'repo', 'scripts');
+    fs.mkdirSync(dir, { recursive: true });
+    const code = arm === 'A' ? 'library(dplyr)\nx <- read()\n' : '# Load data ----\nx <- read()\n# Write outputs ----\nwrite(x)\n';
+    fs.writeFileSync(path.join(dir, '02_join.R'), code);
+  }
+  const out = path.join(root, 'out');
+  const r = spawnSync('node', [path.join(__dirname, '..', 'side-by-side.js'), root, out, '--arms', 'A,D'], { encoding: 'utf8' });
+  assert.strictEqual(r.status, 0, r.stderr);
+  const data = JSON.parse(fs.readFileSync(path.join(out, 'side-by-side.html'), 'utf8').match(/const DATA = (.*);\n/)[1]);
+  assert.deepStrictEqual(data.panels.map(p => p.id), ['arm_whole']);
+  assert.ok(data.panels[0].columns.some(c => c.code.includes('# Write outputs ----')));
+});
