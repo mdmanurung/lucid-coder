@@ -12,9 +12,13 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-1. The user reviews round 2: https://claude.ai/artifact/CMz9xq2XZkCH7syopZ2gcs (7 agent panels from `eval/results/skill-nb2-20261027`, rep 1; key in its `review/side-by-side-key.tsv`). Round 1 picks stay in https://claude.ai/artifact/L8bViWW4Zhz5Hx9K1Juqq1.
+1. Done: round 2 review (below). Next: more tasks under the side-by-side format, or more reps, before claiming an effect.
 2. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
 3. Decisions open for the user: allow `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form; the other session's uncommitted `templates/plots.*`, `bench/`, `skills/*` and house-style rows.
+
+## Round 2 review results (2026-10-27, night)
+- Picks, unblinded: D won setup, load, fit and the notebook; C won filter-and-aggregate and write; A won the SKILL.md Workflow; B none. Plugin arms 6/7 (round 1: 4/7). One rep, one reader.
+- Reasons: informative header and parameters up front; key checkpoints, concise; package functions instead of new ones; white space and sectioning with adequate comments; notebook with parameters, settings and libraries first. All match current rules; no rule change.
 
 ## 01sk rerun under the step-comment rules (2026-10-27, night)
 - `eval/results/skill-nb2-20261027`: gates 8/8 at BUDGET=5, $2.88-5.22 per run (C r2 hit the cap but passed). Script lines A 399/302, B 152/142, C 175/149, D 144/161. UPPER_SNAKE parameters in rep 1: C 4, D 3, A and B 0.
