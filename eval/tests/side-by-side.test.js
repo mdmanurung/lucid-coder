@@ -43,3 +43,20 @@ test('page embeds code with $ sequences intact and writes a per-panel key', () =
   const key = fs.readFileSync(path.join(out, 'side-by-side-key.tsv'), 'utf8').trim().split('\n');
   assert.strictEqual(key.length, 1 + 4 * data.panels.length);
 });
+
+test('--arms A,D builds two-column panels per task from scripts/', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sbs-pair-'));
+  for (const task of ['02_join', '03_plot']) {
+    for (const arm of ['A', 'B', 'C', 'D']) {
+      const dir = path.join(root, `${task}_${arm}_r1`, 'repo', 'scripts');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, `${task}.R`), `# Load data ----\nx <- 1 # ${arm}\n`);
+    }
+  }
+  const out = path.join(root, 'out');
+  const r = spawnSync('node', [path.join(__dirname, '..', 'side-by-side.js'), root, out, '--arms', 'A,D'], { encoding: 'utf8' });
+  assert.strictEqual(r.status, 0, r.stderr);
+  const data = JSON.parse(fs.readFileSync(path.join(out, 'side-by-side.html'), 'utf8').match(/const DATA = (.*);\n/)[1]);
+  assert.deepStrictEqual(data.panels.map(p => p.id), ['02_load', '03_load']);
+  assert.ok(data.panels.every(p => p.columns.length === 2 && p.columns.every(c => /# [AD]$/.test(c.code))));
+});

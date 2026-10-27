@@ -50,7 +50,8 @@
   .step-kind { color: var(--muted); font-size: 12.5px; }
   .cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
   @media (max-width: 1100px) { .cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 640px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+  .cols.pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 640px) { .cols, .cols.pair { grid-template-columns: minmax(0, 1fr); } }
   .col { min-width: 0; display: grid; grid-template-rows: auto 1fr auto; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; }
   .col.picked { border-color: var(--accent); background: var(--pick); }
   .col-head { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--rule); }
@@ -81,7 +82,7 @@
   <header>
     <div>
       <h1>Four-Way Code Review</h1>
-      <p class="lede">Each step shows four versions side by side. Pick the one you would rather keep and say why in a sentence. Columns are shuffled for every step. Agent versions stay blinded; human repos are named after you save.</p>
+      <p class="lede">Each step shows the versions side by side. Pick the one you would rather keep and say why in a sentence. Columns are shuffled for every step. Agent versions stay blinded; human repos are named after you save.</p>
     </div>
     <div class="progress" id="progress"></div>
   </header>
@@ -142,9 +143,9 @@ function show(i) {
   title.className = 'step-title';
   title.innerHTML = `<h2></h2><span class="step-kind"></span>`;
   title.querySelector('h2').textContent = p.title;
-  title.querySelector('.step-kind').textContent = p.group === 'arms' ? 'Same task, four agent runs' : 'Same step, four repos';
+  title.querySelector('.step-kind').textContent = p.group === 'arms' ? `Same task, ${p.columns.length} agent runs` : 'Same step, four repos';
   const cols = document.createElement('div');
-  cols.className = 'cols';
+  cols.className = p.columns.length === 2 ? 'cols pair' : 'cols';
   for (const c of p.columns) {
     const col = document.createElement('article');
     col.className = 'col' + (saved?.choice === c.label ? ' picked' : '');

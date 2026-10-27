@@ -3,10 +3,11 @@
 // columns, shuffled per panel so position never names an arm. Optional human-corpus
 // panels (four repos per step) follow. The reader picks a column and says why.
 // The arm key goes to <out>/side-by-side-key.tsv; eval/results/ is gitignored.
-// Usage: node eval/side-by-side.js <results-dir> <out-dir> [--rep 1] [--human panels.json]
+// Usage: node eval/side-by-side.js <results-dir> <out-dir> [--rep 1] [--arms A,D] [--human panels.json]
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { findScript } = require('./score');
 
 // Banner text -> section; the first match wins, so "filter, normalise, fit" is fit.
 const SECTIONS = [
@@ -51,36 +52,44 @@ function markdownSection(file, heading) {
 const shuffle = xs => xs.map(x => [crypto.randomInt(1e9), x]).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
 const LABELS = ['W', 'X', 'Y', 'Z'];
 
-function armPanels(resultsDir, rep) {
-  const runs = fs.readdirSync(resultsDir).filter(d => new RegExp(`_[A-D]_r${rep}$`).test(d)).sort();
-  if (runs.length !== 4) throw new Error(`expected 4 arms at rep ${rep} in ${resultsDir}, found ${runs.length}`);
-  const skill = run => path.join(resultsDir, run, 'repo', 'skills', 'pseudobulk-de');
-  const pieces = Object.fromEntries(runs.map(run => {
-    const dir = skill(run);
-    const script = fs.readdirSync(dir).find(f => /\.(R|py)$/.test(f));
-    const nb = path.join(dir, 'report.ipynb');
-    return [run, {
-      ...splitScript(fs.readFileSync(path.join(dir, script), 'utf8')),
-      notebook: fs.existsSync(nb) ? notebookText(nb) : '',
-      workflow: markdownSection(path.join(dir, 'SKILL.md'), 'Workflow'),
-    }];
-  }));
-  const steps = [
-    // Script order, not the keyword priority of SECTIONS.
-    ...['setup', 'load', 'prep', 'fit', 'figure', 'write', 'report'].map(id => [id, SECTIONS.find(s => s[0] === id)[1], 'r']),
-    ['notebook', 'Report notebook (report.ipynb)', 'r'],
-    ['workflow', 'SKILL.md: Workflow section', 'markdown'],
-  ];
+// One task's runs, one per arm, as panels. Several tasks in one folder get task-prefixed ids.
+function armPanels(resultsDir, rep, arms) {
+  const runs = fs.readdirSync(resultsDir).filter(d => new RegExp(`_[${arms.join('')}]_r${rep}$`).test(d)).sort();
+  const tasks = [...new Set(runs.map(run => run.replace(/_[A-D]_r\d+$/, '')))];
   const key = [];
-  const panels = steps
-    .filter(([id]) => runs.some(run => pieces[run][id]))
-    .map(([id, title, language]) => {
-      const columns = shuffle(runs).map((run, i) => {
-        key.push([`arm_${id}`, LABELS[i], run, run.match(/_([A-D])_r\d+$/)[1]]);
+  const panels = [];
+  for (const task of tasks) {
+    const taskRuns = runs.filter(run => run.startsWith(task + '_'));
+    if (taskRuns.length !== arms.length) throw new Error(`${task}: expected arms ${arms} at rep ${rep}, found ${taskRuns.length}`);
+    const pieces = Object.fromEntries(taskRuns.map(run => {
+      const repo = path.join(resultsDir, run, 'repo');
+      const script = path.join(repo, findScript(repo));
+      const dir = path.dirname(script);
+      const nb = fs.readdirSync(dir).find(f => f.endsWith('.ipynb'));
+      const skillMd = path.join(dir, 'SKILL.md');
+      return [run, {
+        ...splitScript(fs.readFileSync(script, 'utf8')),
+        notebook: nb ? notebookText(path.join(dir, nb)) : '',
+        workflow: fs.existsSync(skillMd) ? markdownSection(skillMd, 'Workflow') : '',
+      }];
+    }));
+    const steps = [
+      // Script order, not the keyword priority of SECTIONS.
+      ...['setup', 'load', 'prep', 'fit', 'figure', 'write', 'report'].map(id => [id, SECTIONS.find(s => s[0] === id)[1], 'r']),
+      ['notebook', 'Report notebook', 'r'],
+      ['workflow', 'SKILL.md: Workflow section', 'markdown'],
+    ];
+    const prefix = tasks.length > 1 ? task.replace(/_.*/, '') : 'arm';
+    const language = taskRuns.some(run => /py_/.test(run)) ? 'python' : 'r';
+    for (const [id, title, lang] of steps.filter(([id]) => taskRuns.some(run => pieces[run][id]))) {
+      const columns = shuffle(taskRuns).map((run, i) => {
+        key.push([`${prefix}_${id}`, LABELS[i], run, run.match(/_([A-D])_r\d+$/)[1]]);
         return { label: LABELS[i], code: pieces[run][id] || '(nothing in this step)' };
       });
-      return { id: `arm_${id}`, group: 'arms', title, language, columns };
-    });
+      const taskTitle = tasks.length > 1 ? `${task.replace(/_/, ' ').replace(/-/g, ' ')}: ` : '';
+      panels.push({ id: `${prefix}_${id}`, group: 'arms', title: taskTitle + title, language: lang === 'r' ? language : lang, columns });
+    }
+  }
   return { panels, key };
 }
 
@@ -104,10 +113,11 @@ function main() {
   const opt = name => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : null);
   const [resultsDir, outDir] = argv;
   if (!resultsDir || !outDir) {
-    console.error('usage: node eval/side-by-side.js <results-dir> <out-dir> [--rep 1] [--human panels.json]');
+    console.error('usage: node eval/side-by-side.js <results-dir> <out-dir> [--rep 1] [--arms A,D] [--human panels.json]');
     process.exit(1);
   }
-  const { panels, key } = armPanels(resultsDir, opt('--rep') || '1');
+  // --arms A,D gives a two-column head-to-head; columns are still shuffled per panel.
+  const { panels, key } = armPanels(resultsDir, opt('--rep') || '1', (opt('--arms') || 'A,B,C,D').split(','));
   const human = opt('--human') ? humanPanels(opt('--human')) : [];
   fs.mkdirSync(outDir, { recursive: true });
   const template = fs.readFileSync(path.join(__dirname, 'side-by-side.html'), 'utf8');
