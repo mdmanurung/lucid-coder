@@ -18,7 +18,9 @@ const INLINE_HEADER = [
   "#$ q2 find decisions (1-5; can you find each threshold, filter, model choice and path?): ",
   "#$ q3 change checks (yes/no; would you add, remove or change a check?): ",
   "#$ q3 which (one sentence): ",
-  "#$ ---- your #$ comments: on their own line above the code, or after the code on its line ----",
+  "#$ q4 procedure sound (yes/no; design, replication unit, method, filters, contrast): ",
+  "#$ q4 which (one sentence): ",
+  "#$ ---- your comments: #$ for code, #$P for procedure; own line above the code, or after it ----",
 ].join("\n") + "\n";
 
 const SHEET_COLUMNS = ['neutral_id', 'q1_one_read', 'q2_find_decisions', 'q3_change_checks', 'q3_which', 'notes'];
@@ -49,6 +51,16 @@ function makePacket(tsDir, name = 'packet', { inline = false } = {}) {
     const id = prefix + String(i + 1).padStart(2, '0');
     const text = fs.readFileSync(path.join(r.runDir, 'repo', r.script), 'utf8');
     fs.writeFileSync(path.join(outDir, id + path.extname(r.script)), (inline ? INLINE_HEADER : '') + text);
+    // A ClawBio-style skill also ships its SKILL.md and the report its run wrote,
+    // so the reader can judge the procedure; comments go in them as #$ / #$P too.
+    const skillDir = path.dirname(r.script);
+    if (skillDir.split(path.sep)[0] === 'skills') {
+      const extra = { 'SKILL.md': path.join(r.runDir, 'repo', skillDir, 'SKILL.md'),
+        'report.md': path.join(r.runDir, 'repo', 'results', 'run1', 'report.md') };
+      for (const [suffix, src] of Object.entries(extra)) {
+        if (fs.existsSync(src)) fs.copyFileSync(src, path.join(outDir, `${id}.${suffix}`));
+      }
+    }
     key.push(`${id}\t${r.runId}`);
     sheet.push(id + '\t'.repeat(SHEET_COLUMNS.length - 1));
   });

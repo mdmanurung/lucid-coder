@@ -59,8 +59,20 @@ function findScript(repo) {
   let files = [];
   try { files = fs.readdirSync(path.join(repo, 'scripts')); } catch (e) {}
   const found = files.filter(f => /\.(R|py)$/i.test(f) && !/^00_legacy\./.test(f)).sort()[0];
-  return found ? path.join('scripts', found) : null;
+  if (found) return path.join('scripts', found);
+  // ClawBio-style tasks (01sk): the script lives in skills/<name>/.
+  let skills = [];
+  try { skills = fs.readdirSync(path.join(repo, 'skills')).sort(); } catch (e) {}
+  for (const skill of skills) {
+    let inSkill = [];
+    try { inSkill = fs.readdirSync(path.join(repo, 'skills', skill)); } catch (e) {}
+    const script = inSkill.filter(f => /\.(R|py)$/i.test(f)).sort()[0];
+    if (script) return path.join('skills', skill, script);
+  }
+  return null;
 }
+
+const isSkill = script => script.split(path.sep)[0] === 'skills';
 
 const isPython = script => /\.py$/i.test(script);
 // uv may have to fetch the interpreter and packages on its first call.
@@ -84,7 +96,10 @@ function rerun(repo, script) {
   try {
     fs.cpSync(repo, tmp, { recursive: true, filter: src => src !== path.join(repo, 'results') });
     const [cmd, args, timeout] = isPython(script) ? [...PY_CMD, PY_RERUN_MS] : ['Rscript', [], RERUN_MS];
-    const r = run(cmd, [...args, script, path.join('results', 'rerun')], { cwd: tmp, timeout });
+    // A skill takes the ClawBio contract flags; a task script takes the run dir only.
+    const out = path.join('results', 'rerun');
+    const scriptArgs = isSkill(script) ? [script, '--input', 'data', '--output', out] : [script, out];
+    const r = run(cmd, [...args, ...scriptArgs], { cwd: tmp, timeout });
     return r.status === 0;
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });

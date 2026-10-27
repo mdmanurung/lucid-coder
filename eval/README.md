@@ -120,3 +120,7 @@ node --test eval/tests/*.test.js
 ## Rubric
 
 `rubric.md` defines how to judge a script objectively. Every item is a count or a yes/no with a decision rule, evidence by line number, two blinded readers and no total score. Part 1 is quality; Part 2 is lucid-coder conformance and is reported separately. Each item says whether it comes from `score.js`, a regex or a reader.
+
+## ClawBio-style task (01sk)
+
+`tasks/01sk_pseudobulk-de/` asks for the task 01 analysis packaged as a ClawBio skill. The agent writes `skills/pseudobulk-de/SKILL.md`, with frontmatter and the 11 required sections, and one script, run as `Rscript skills/pseudobulk-de/pseudobulk_de.R --input data --output <dir>`. The script writes `de.tsv`, `report.md`, `result.json` and `reproducibility/commands.sh`. The gate checks the science and that these files exist; `score.js` finds the script under `skills/` and reruns it with these flags. `make-packet.js --inline` copies the `SKILL.md` and `report.md` next to each blinded script and adds procedure fields (q4). Reviewers mark code comments with `#$` and procedure comments with `#$P`; `collect-comments.js` records both, with the file each came from.

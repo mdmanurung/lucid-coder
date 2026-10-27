@@ -42,3 +42,20 @@ test('make-packet --inline header round-trips through the collector', () => {
   assert.deepStrictEqual(scores.P01, { q1: '5', q3: 'no' });
   assert.deepStrictEqual(rows.map(r => [r.line, r.text, r.code]), [[1, 'fine', 'a <- 1']]);
 });
+
+test('skill packets: report and SKILL.md comments, #$P procedure tags and q4 fields', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lucid-skill-'));
+  fs.writeFileSync(path.join(dir, 'P01.R'), [
+    '#$ q4 procedure sound (yes/no; design, replication unit, method, filters, contrast): no',
+    '#$ q4 which (one sentence): tests cells, not donors',
+    'fit <- lm(y ~ g) #$P cell-level model',
+  ].join('\n'));
+  fs.writeFileSync(path.join(dir, 'P01.report.md'), '# Report\n#$P why drop genes below 10 counts?\nFiltered 12 genes.\n');
+  fs.writeFileSync(path.join(dir, 'P01.SKILL.md'), '---\nname: x\n---\n');
+  const { rows, scores } = collect(dir);
+  assert.deepStrictEqual(scores.P01, { q4: 'no', q4_which: 'tests cells, not donors' });
+  assert.deepStrictEqual(rows.map(r => [r.part, r.kind, r.line, r.text, r.code]), [
+    ['R', 'procedure', 1, 'cell-level model', 'fit <- lm(y ~ g)'],
+    ['report.md', 'procedure', 2, 'why drop genes below 10 counts?', 'Filtered 12 genes.'],
+  ]);
+});

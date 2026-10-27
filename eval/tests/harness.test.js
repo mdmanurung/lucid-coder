@@ -378,3 +378,15 @@ test('report.js renders without and with human sheets, never a combined score', 
   // q1 pairs (2,3) and (5,5) on 1-5, quadratic: 1 - (1/32) / (7/32) = 6/7.
   assert.match(withHuman, /q1 0\.86 \(n = 2\)/);
 });
+
+test('findScript falls back to a ClawBio skill script under skills/<name>/', () => {
+  const { findScript } = require('../score');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'lucid-skillfind-'));
+  fs.mkdirSync(path.join(repo, 'skills', 'pseudobulk-de'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'skills', 'pseudobulk-de', 'SKILL.md'), '---\n');
+  fs.writeFileSync(path.join(repo, 'skills', 'pseudobulk-de', 'pseudobulk_de.R'), '');
+  assert.strictEqual(findScript(repo), path.join('skills', 'pseudobulk-de', 'pseudobulk_de.R'));
+  fs.mkdirSync(path.join(repo, 'scripts'));
+  fs.writeFileSync(path.join(repo, 'scripts', '01_x.R'), '');
+  assert.strictEqual(findScript(repo), path.join('scripts', '01_x.R'), 'scripts/ still wins');
+});

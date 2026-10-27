@@ -12,6 +12,7 @@ const root = path.join(__dirname, '..', '..');
 const tasksDir = path.join(root, 'eval', 'tasks');
 const R_MODULE = 'module load statistical/R/4.5.2/gcc.8.5.0';
 const TIMEOUT = 180000;
+const SKILL_SCRIPT = 'skills/pseudobulk-de/pseudobulk_de.R';
 
 function rscript(args, cwd) {
   return spawnSync('bash', ['-lc', `${R_MODULE} && Rscript ${args}`], { cwd, encoding: 'utf8' });
@@ -45,15 +46,23 @@ test('make-fixtures.R rewrites identical files', { timeout: TIMEOUT }, (t) => {
 
 // Mirror run.sh: inputs copied into a fresh git repo, the script in scripts/, run once.
 // expectExit: the script's exit status; the task 05 reference refuses the inputs by design.
+// A skill task (scriptPath is a dir holding skills/) copies that tree and runs the skill contract.
 function gate(taskId, scriptPath, expectExit = 0) {
   const taskDir = path.join(tasksDir, taskId);
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), `gate-${taskId}-`));
   fs.cpSync(path.join(taskDir, 'inputs'), repo, { recursive: true });
-  fs.mkdirSync(path.join(repo, 'scripts'), { recursive: true });
-  const script = path.join('scripts', path.basename(scriptPath));
-  fs.copyFileSync(scriptPath, path.join(repo, script));
+  let command;
+  if (fs.statSync(scriptPath).isDirectory()) {
+    fs.cpSync(path.join(scriptPath, 'skills'), path.join(repo, 'skills'), { recursive: true });
+    command = `${SKILL_SCRIPT} --input data --output results/run1`;
+  } else {
+    fs.mkdirSync(path.join(repo, 'scripts'), { recursive: true });
+    const script = path.join('scripts', path.basename(scriptPath));
+    fs.copyFileSync(scriptPath, path.join(repo, script));
+    command = `${script} results/run1`;
+  }
   spawnSync('git', ['init', '-q'], { cwd: repo });
-  const run = rscript(`${script} results/run1`, repo);
+  const run = rscript(command, repo);
   assert.strictEqual(run.status, expectExit, `${scriptPath} exited ${run.status}:\n${run.stderr}`);
   const check = rscript(`${path.join(taskDir, 'check.R')} ${repo} ${taskDir}`, repo);
   assert.strictEqual(check.status, 0, check.stderr);
@@ -68,6 +77,8 @@ const cases = [
   ['04_refactor-legacy', '04_group-means.R', /values differ|rows, expected/],
   ['05_recode-trap', '05_summarise-cohorts.R', /wrong age group:.*S07 \(BR1 -> older\)/],
   ['06_grep-trap', '06_filter-controls.R', /has 0 rows, expected 280/],
+  // '.': the skill tree under reference/ (and reference/naive/), not one script.
+  ['01sk_pseudobulk-de', '.', /GENE17 called.*SKILL\.md lacks trigger_keywords, Why This Exists/],
 ];
 // Reference scripts that stop on purpose: exit status and the stderr the stop() must carry.
 const referenceStops = { '05_recode-trap': [1, /unmapped labels BR 1 \(S07\), br2 \(S19\)/] };

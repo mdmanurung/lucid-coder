@@ -9,22 +9,24 @@
 const fs = require('fs');
 const path = require('path');
 
-const MARK = /#\$\s?(.*)$/;
+const MARK = /#\$(P?)\s?(.*)$/;
 const SCORE = /\b(q[123])\s*=\s*(\d|yes|no)\b/gi;
 // The rating fields make-packet.js --inline writes at the top of each script.
-const FIELD = /^\s*#\$\s*(q1|q2|q3 which|q3)\b[^:]*:\s*(.*)$/i;
-const FIELD_KEYS = { q1: "q1", q2: "q2", q3: "q3", "q3 which": "q3_which" };
+const FIELD = /^\s*#\$\s*(q1|q2|q3 which|q3|q4 which|q4)\b[^:]*:\s*(.*)$/i;
+const FIELD_KEYS = { q1: "q1", q2: "q2", q3: "q3", "q3 which": "q3_which", q4: "q4", "q4 which": "q4_which" };
 const RULER = /^\s*#\$\s*(-{3,}|={3,})/;
 
 function collect(packetDir) {
   const rows = [];
   const scores = {};
-  for (const file of fs.readdirSync(packetDir).filter(f => /^[A-Z]\d+\.(R|py)$/i.test(f)).sort()) {
-    const id = path.parse(file).name;
+  // P01.R, plus P01.SKILL.md and P01.report.md for a skill task.
+  for (const file of fs.readdirSync(packetDir).filter(f => /^[A-Z]\d+\.(R|py|SKILL\.md|report\.md)$/i.test(f)).sort()) {
+    const id = file.split(".")[0];
+    const part = file.slice(id.length + 1);
     const lines = fs.readFileSync(path.join(packetDir, file), 'utf8').split('\n');
     let original = 0; // line number in the script as delivered, before the reader's own lines
     const pending = [];
-    scores[id] = {};
+    scores[id] ??= {};
     lines.forEach(line => {
       const field = line.match(FIELD);
       if (field) {
@@ -35,15 +37,15 @@ function collect(packetDir) {
       const m = line.match(MARK);
       const own = m && /^\s*#\$/.test(line);
       if (own) {
-        pending.push(m[1].trim());
+        pending.push([m[1] ? "procedure" : "code", m[2].trim()]);
         return;
       }
       original++;
       const code = line.replace(MARK, '').trimEnd();
-      for (const text of pending.splice(0)) rows.push({ id, line: original, text, code: code.trim() });
-      if (m) rows.push({ id, line: original, text: m[1].trim(), code: code.trim() });
+      for (const [kind, text] of pending.splice(0)) rows.push({ id, part, kind, line: original, text, code: code.trim() });
+      if (m) rows.push({ id, part, kind: m[1] ? "procedure" : "code", line: original, text: m[2].trim(), code: code.trim() });
     });
-    for (const text of pending) rows.push({ id, line: original, text, code: '' });
+    for (const [kind, text] of pending) rows.push({ id, part, kind, line: original, text, code: '' });
   }
   // Inline q1=4 style scores fill any field left blank in the header.
   for (const r of rows) {
@@ -77,9 +79,10 @@ function main() {
   const suffix = key ? '-keyed' : '';
   const write = (name, cols, lines) =>
     fs.writeFileSync(path.join(packetDir, name + suffix + '.tsv'), [cols.join('\t'), ...lines.map(l => l.map(oneLine).join('\t'))].join('\n') + '\n');
-  write('comments', ['neutral_id', 'line', 'comment', 'code', ...keyCols], rows.map(r => [r.id, r.line, r.text, r.code, ...extra(r.id)]));
-  write('scores', ['neutral_id', 'q1', 'q2', 'q3', 'q3_which', ...keyCols],
-    Object.entries(scores).map(([id, s]) => [id, s.q1, s.q2, s.q3, s.q3_which, ...extra(id)]));
+  write('comments', ['neutral_id', 'file', 'kind', 'line', 'comment', 'code', ...keyCols],
+    rows.map(r => [r.id, r.part, r.kind, r.line, r.text, r.code, ...extra(r.id)]));
+  write('scores', ['neutral_id', 'q1', 'q2', 'q3', 'q3_which', 'q4', 'q4_which', ...keyCols],
+    Object.entries(scores).map(([id, s]) => [id, s.q1, s.q2, s.q3, s.q3_which, s.q4, s.q4_which, ...extra(id)]));
   const file = path.join(packetDir, 'comments' + suffix + '.tsv');
   console.log(`collect-comments.js: ${rows.length} comments from ${new Set(rows.map(r => r.id)).size} scripts -> ${file}`);
 }
