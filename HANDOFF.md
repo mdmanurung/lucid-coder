@@ -13,9 +13,13 @@ Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.
 
 ## Next action
 1. The user reviews round 2 of the head-to-head: https://claude.ai/artifact/MFh7vhoZZcRBYD7Be4s5AS (tasks 02-04 under the header/divider/write rules, A vs D, 8 like-for-like panels; key in `eval/results/sbs2-0204-20261027/review/side-by-side-key.tsv`). These runs used the rule-list core (`4b14e3b`), not the persona draft.
-2. Persona synthesis in progress: four Opus reviewers extract the persona from the corpus, the picks, the rules and persona-skill craft (ub-mode, ponytail); Fable synthesises into a new `rules/core.md` within the 3,350-byte cap. Draft at scratchpad `persona-core.md`. Then test persona-D against rules-D blind.
+2. Persona core is live (`rules/core.md`, 3,343 bytes): identity, five failure facts, eight habits, authority. The rule-list core it replaced is in git history (`4b14e3b`). Reviewer reports in `skills/lucid-coder/references/persona-panel-20261028/`. Dropped from core in the swap, kept in r.md/python.md or house-style only: no globals, comment toggles, dead code, `_v2`, denominators, distinct seed per replicate, root-relative path wording, "let the package loop", `check_*.R` ban text, separate layers, legend order. Next: blind persona-D against rules-D on 02-04.
 2. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
 3. Decisions open for the user: allow `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form; the other session's uncommitted `templates/plots.*`, `bench/`, `skills/*` and house-style rows.
+
+## Round 2 head-to-head results (2026-10-28)
+- Unblinded: D won 02 whole, 03 setup ("too many checks" in A), 03 load, 04 load ("concise"), 04 setup; A won 03 figure (plot frame computed before the ggplot call, "offload the wrangling outside the plotting"), 04 filter (6-line `colSums`/`rowSums` matrix filter beat a 45-line long-format pipeline), 04 write (four `write_table()` calls beat `iwalk`, which D used despite the new rule). Totals across both A-vs-D rounds: D 8, A 3, no preference 2.
+- Applied: `suppressPackageStartupMessages` (asked twice) to r.md; `r.matrix`, `fig.plot_frame` and `r.startup` rows in house-style; the matrix and plot-frame habits in the persona.
 
 ## Tasks 02-04 round 2 (2026-10-28)
 - `eval/results/sbs2-0204-20261027`: 4 arms × 1 rep under the header, divider and write rules; gates 12/12. Script lines: 02 A 50, B 28, C 32, D 23; 03 A 120, B 35, C 93, D 97; 04 A 90, B 49, C 91, D 85. side-by-side.js now skips a step that only some versions have (two panels had an empty side).

@@ -46,7 +46,7 @@ test('activate emits core when no flag and no store', () => {
   const r = run('activate.js', setup());
   assert.strictEqual(r.status, 0);
   assert.match(r.stdout, /^LUCID-CODER ACTIVE/);
-  assert.match(r.stdout, /## Readability ladder/);
+  assert.match(r.stdout, /## Habits/);
   assert.ok(r.stdout.length < 10000);
 });
 
@@ -55,7 +55,7 @@ test('corrupt store still emits core', () => {
   writeStore(home, '{garbage');
   const r = run('activate.js', home);
   assert.strictEqual(r.status, 0);
-  assert.match(r.stdout, /## Readability ladder/);
+  assert.match(r.stdout, /## Habits/);
 });
 
 test('oversized store stays under the cap and says what it hid', () => {
