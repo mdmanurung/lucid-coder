@@ -19,7 +19,8 @@ BUDGET="${BUDGET:-2}"
 # R4_51 conda env (R 4.5.1): tidyverse, limma, edgeR, IRkernel, papermill, pandoc. Override with R_ROOT.
 R_ROOT="${R_ROOT:-/exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51}"
 ALLOWED_TOOLS=(Read Write Edit "Bash(Rscript:*)" "Bash(uv:*)" "Bash(ls:*)" "Bash(mkdir:*)" "Bash(cat:*)" "Bash(head:*)"
-  "Bash(air:*)" "Bash(ruff:*)" "Bash(papermill:*)" "Bash(jupyter:*)")
+  "Bash(air:*)" "Bash(ruff:*)" "Bash(papermill:*)" "Bash(jupyter:*)"
+  "Bash(python:*)" "Bash(python3:*)")
 
 die() {
   echo "run.sh: $*" >&2
