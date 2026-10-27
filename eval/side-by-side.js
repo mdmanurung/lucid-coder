@@ -89,7 +89,8 @@ function armPanels(resultsDir, rep, arms, onlyTasks) {
     ];
     const prefix = tasks.length > 1 ? task.replace(/_.*/, '') : 'arm';
     const language = taskRuns.some(run => /py_/.test(run)) ? 'python' : 'r';
-    for (const [id, title, lang] of steps.filter(([id]) => taskRuns.some(run => pieces[run][id]))) {
+    // A step only some versions have would compare code against an empty column; skip it.
+    for (const [id, title, lang] of steps.filter(([id]) => taskRuns.every(run => pieces[run][id]))) {
       const columns = shuffle(taskRuns).map((run, i) => {
         key.push([`${prefix}_${id}`, LABELS[i], run, run.match(/_([A-D])_r\d+$/)[1]]);
         return { label: LABELS[i], code: pieces[run][id] || '(nothing in this step)' };
