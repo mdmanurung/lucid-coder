@@ -1,9 +1,13 @@
 """Purpose: fit the disease-vs-healthy contrast per gene on donor-level expression.
-Inputs:  data/donor_expression.tsv   [gap: toy data built inline until it exists]
-Outputs: <run_dir>/contrasts.tsv, <run_dir>/top-gene_by-condition.{pdf,png,csv},
-         <run_dir>/session_info.txt
 Run:     python scripts/01_fit-contrasts.py results/2026-10-26_contrasts
-Notes:   [Stochastic] none. Inference unit: donor. One row per donor x gene.
+Inputs:
+  data/donor_expression.tsv  log2 expression, one row per donor x gene
+                             [gap: toy data built inline until it exists]
+Outputs (in <run_dir>):
+  contrasts.tsv              per gene: log2_fc (disease - healthy), p_value, q_value
+  top-gene_by-condition.*    donor points for the top gene (pdf, png, source csv)
+  session_info.txt           Python and package versions
+Notes:   [Stochastic] none. Inference unit: donor.
 """
 
 # %% Setup

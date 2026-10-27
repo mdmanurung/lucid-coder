@@ -115,10 +115,21 @@ adata_ad = adata[adata.obs["disease"] == "AD"].copy()
 
 ```r
 # Purpose: fit the planned contrasts on donor-level pseudobulk counts.
-# Inputs:  data/pseudobulk_counts.rds [02_make-pseudobulk.R], data/donor_metadata.tsv [gap]
-# Outputs: <run_dir>/contrasts.tsv, <run_dir>/session_info.txt
 # Run:     Rscript scripts/03_fit-contrasts.R results/2026-10-26_contrasts
+# Inputs:
+#   data/pseudobulk_counts.rds  genes x donors raw sums [02_make-pseudobulk.R]
+#   data/donor_metadata.tsv     one row per donor: condition, batch [gap]
+# Outputs (in <run_dir>):
+#   contrasts.tsv               per gene and contrast: log2_fc, p_value, q_value
+#   session_info.txt            R and package versions
+
+# Parameters -------------------------------------------------------------------
+Q_CUTOFF <- 0.05
 ```
+
+Every block opens with a divider padded to column 80. Write each output with
+its own call, or a helper called once per file; never a list walked with
+`iwalk()`.
 
 Python uses a module docstring with the same fields.
 

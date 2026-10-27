@@ -1,11 +1,15 @@
 # Purpose: fit the planned disease-vs-healthy contrast per gene on donor-level expression.
-# Inputs:  data/donor_expression.tsv   [gap: toy data built inline until the producer exists]
-# Outputs: <run_dir>/contrasts.tsv, <run_dir>/top-gene_by-condition.{pdf,png,csv},
-#          <run_dir>/session_info.txt
 # Run:     Rscript scripts/01_fit-contrasts.R results/2026-10-26_contrasts
-# Notes:   [Stochastic] none. Inference unit: donor. One row per donor x gene.
+# Inputs:
+#   data/donor_expression.tsv  log2 expression, one row per donor x gene
+#                              [gap: toy data built inline until the producer exists]
+# Outputs (in <run_dir>):
+#   contrasts.tsv              per gene: log2_fc (disease - healthy), p_value, q_value
+#   top-gene_by-condition.*    donor points for the top gene (pdf, png, source csv)
+#   session_info.txt           R and package versions
+# Notes:   [Stochastic] none. Inference unit: donor.
 
-# Setup ----
+# Setup ------------------------------------------------------------------------
 library(dplyr)
 library(forcats)
 library(ggplot2)
@@ -15,18 +19,20 @@ library(tidyr)
 source(here::here("palettes.R"))
 source(here::here("theme.R"))
 
+# Parameters -------------------------------------------------------------------
 # Reference = healthy, so log2_fc reads as disease minus healthy.
 CONDITION_LEVELS <- c("healthy", "disease")
 # Multiple-testing family: every gene tested in this script, adjusted together.
 P_ADJUST_METHOD <- "BH"
 
+# Parse arguments --------------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
 stopifnot("usage: Rscript scripts/01_fit-contrasts.R <run_dir>" = length(args) == 1)
 run_dir <- args[[1]]
 stopifnot("run_dir already exists; pick a new name" = !dir.exists(run_dir))
 dir.create(run_dir, recursive = TRUE)
 
-# Load inputs ----
+# Load inputs ------------------------------------------------------------------
 # Toy data stands in for data/donor_expression.tsv; replace with the read call.
 # Per gene: four healthy donors, then four disease donors.
 expression <- expand_grid(gene = c("IFI27", "ACTB", "CD3E"), donor_id = sprintf("D%02d", 1:8)) |>
@@ -40,7 +46,7 @@ expression <- expand_grid(gene = c("IFI27", "ACTB", "CD3E"), donor_id = sprintf(
     )
   )
 
-# Fit contrasts ----
+# Fit contrasts ----------------------------------------------------------------
 de_results <- expression |>
   split(~gene) |>
   map(\(gene_expression) {
@@ -52,7 +58,7 @@ de_results <- expression |>
   mutate(q_value = p.adjust(p_value, method = P_ADJUST_METHOD)) |>
   arrange(q_value)
 
-# Plot the top gene ----
+# Plot the top gene ------------------------------------------------------------
 # Donor points, because the inference unit is the donor.
 top_gene <- de_results$gene[[1]]
 top_gene_expression <- filter(expression, gene == top_gene)
@@ -62,7 +68,7 @@ p_top_gene <- ggplot(top_gene_expression, aes(condition, log2_expr, colour = con
   labs(title = top_gene, y = "log2 expression (one point per donor)") +
   theme(legend.position = "none")
 
-# Write outputs ----
+# Write outputs ----------------------------------------------------------------
 write.table(
   de_results,
   file.path(run_dir, "contrasts.tsv"),
@@ -72,5 +78,5 @@ write.table(
 )
 save_panel(p_top_gene, top_gene_expression, run_dir, "top-gene_by-condition", 45, 45)
 
-# Session info ----
+# Session info -----------------------------------------------------------------
 writeLines(capture.output(sessionInfo()), file.path(run_dir, "session_info.txt"))

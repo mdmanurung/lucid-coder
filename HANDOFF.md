@@ -12,9 +12,14 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-1. The user reviews the corrected head-to-head for tasks 02 and 04 as whole scripts: https://claude.ai/artifact/8HVXTy94AY5LWNt1uUuSoz (key in `eval/results/sbs-0204-20261027/review-whole/side-by-side-key.tsv`).
+1. Done: the corrected head-to-head (below). Next: rerun 02-04 under the header, divider and write rules, or stop the eval here.
 2. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
 3. Decisions open for the user: allow `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form; the other session's uncommitted `templates/plots.*`, `bench/`, `skills/*` and house-style rows.
+
+## Whole-script head-to-head (2026-10-27, night)
+- Task 02: D won. Task 04: no preference, "need a mix": A for its descriptive header, full-width dividers and one write call per table; D for UPPER_SNAKE parameters, inline `case_when` without helpers, and comments that explain the next block.
+- Like-for-like totals for A vs D: D 3 (02 whole, 03 setup, 03 load), A 0, no preference 2 (03 figure, 04 whole).
+- Applied: header lists Inputs and Outputs one file per line with what it holds (core, `comments.header`); every block, parameters too, opens with a divider padded to column 80 (r.md, `code.sections`); one write call per output, never a list walked with `iwalk()` (core ladder 4, `code.writes`). Both templates follow. To fit the caps, core dropped "legend order matches plot order" and the copied-notebooks clause, and r.md shortened the sessionInfo line.
 
 ## Head-to-head results (2026-10-27, night)
 - First page, unblinded: D won 9 panels, A 1, no preference 1. But arm A wrote tasks 02 and 04 without section banners, so its whole script sat in setup and its other columns were empty: 6 panels compared D against nothing, and 02/04 setup compared a full script against a header. Only the three task-03 panels were like for like: D won setup and load, the figure was a tie. The user flagged the 02 setup panel.
