@@ -23,15 +23,12 @@ from theme import save_panel
 
 # Reference = healthy, so log2_fc reads as disease minus healthy.
 CONDITION_LEVELS = ["healthy", "disease"]
-REQUIRED_COLS = ["donor_id", "condition", "gene", "log2_expr"]
 
 parser = argparse.ArgumentParser()
 parser.add_argument("run_dir", type=Path, help="new directory under results/")
 run_dir = parser.parse_args().run_dir
 if run_dir.exists():
-    raise FileExistsError(
-        f"run_dir {run_dir} already exists; pick a new name so nothing is overwritten."
-    )
+    raise FileExistsError(f"run_dir {run_dir} already exists; pick a new name")
 run_dir.mkdir(parents=True)
 
 # %% Load inputs
@@ -48,18 +45,12 @@ expression = pd.DataFrame(
         ],
     }
 )
-missing_cols = set(REQUIRED_COLS) - set(expression.columns)
-if missing_cols:
-    raise KeyError(
-        f"expression lacks columns {sorted(missing_cols)}; check the producer script."
-    )
 expression["condition"] = pd.Categorical(
     expression["condition"], categories=CONDITION_LEVELS
 )
+# pd.Categorical turns an unknown label into NaN silently, so check it.
 if expression["condition"].isna().any():
-    raise ValueError(
-        "expression condition has labels outside CONDITION_LEVELS; recode them at load."
-    )
+    raise ValueError("condition has labels outside CONDITION_LEVELS")
 
 
 # %% Fit contrasts
@@ -81,8 +72,6 @@ de_results = pd.DataFrame(
 # Multiple-testing family: every gene tested in this script, adjusted together.
 de_results["q_value"] = false_discovery_control(de_results["p_value"], method="bh")
 de_results = de_results.sort_values("q_value")
-if de_results.empty:
-    raise ValueError("de_results is empty; check that expression has rows per gene.")
 
 # %% Plot the top gene
 # Donor points, because the inference unit is the donor.
@@ -101,6 +90,7 @@ ax.set_ylabel("log2 expression (one point per donor)")
 # %% Write outputs
 de_results.to_csv(run_dir / "contrasts.tsv", sep="\t", index=False)
 save_panel(fig, top_gene_expression, run_dir, "top-gene_by-condition", 45, 45)
+plt.close(fig)
 
 # %% Session info
 session_info = [f"python {sys.version}"] + [
