@@ -16,8 +16,8 @@ with no argument, do both.
 
 Templates:
 
-- R: `air.toml`, `.lintr`, `palettes.R`, `theme.R`
-- Python: `ruff.toml`, `palettes.py`, `theme.py`
+- R: `air.toml`, `.lintr`, `palettes.R`, `theme.R`, `plots.R`
+- Python: `ruff.toml`, `palettes.py`, `theme.py`, `plots.py`
 
 ## Steps
 

@@ -64,6 +64,7 @@ Expert files leave out:
 | Corpus habit | Plugin rule | Why |
 |---|---|---|
 | `%>%` in 16 of 17 repos | `\|>` | base R 4.1+, no dependency; user rule |
+| `data.table` (MOCHA `[, .N, by = ]`), `reshape2::dcast()` (MM), base `expand.grid()`, `setNames()`, `table() > n` | dplyr/tidyr/purrr: `count()`, `pivot_wider()`, `expand_grid()`, `set_names()`, `count() \|> filter(n > 1000)` | user rule: tidyverse first; base R stays for matrices |
 | Positional coefficients and columns (`coefficients[2:4, ]`, `dat[, 2]`) | select by name | IHA, MOCHA and MM all relabel by position |
 | `$` partial matching (`resList[[CT]]$d` reads `dispObj`) | `[[ ]]` with the full name | works only by accident |
 | `x[-grep()]` | `!grepl()` | empty result when nothing matches |

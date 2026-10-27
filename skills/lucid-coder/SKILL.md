@@ -313,7 +313,7 @@ Make the choice explicit and say why.
 Concise idioms, project shape, notebook use and where the plugin overrides corpus habits (`%>%`, positional indexing, pasted per-level blocks): `references/corpus-patterns.md`.
 
 - R: `<-`, two-space indent, double quotes, `TRUE`/`FALSE`, snake_case,
-  UPPER_SNAKE constants, `|>` always and never `%>%`, a new line after every `|>` (one step per line, even for two steps), layout by `air` (run `air format <file>` after every edit, 100 columns), messages built with `sprintf()`, one argument per line for long
+  UPPER_SNAKE constants, tidyverse first for data frames (never `data.table` or base loops; base R only for matrices), `|>` always and never `%>%`, a new line after every `|>` (one step per line, even for two steps), layout by `air` (run `air format <file>` after every edit, 100 columns), messages built with `sprintf()`, one argument per line for long
   calls, `library()` at the top for what the script uses, `pkg::fn()` for
   one-off calls. Helper files use `pkg::fn()` only and never call
   `library()` or `require()` inside a function. A `source()` line ends with
