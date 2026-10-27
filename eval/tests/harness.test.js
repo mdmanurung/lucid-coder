@@ -6,9 +6,9 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const evalDir = path.join(__dirname, '..');
-const { COLUMNS, scoreRun } = require('../score');
+const { COLUMNS, scoreRun, textMeasures } = require('../score');
 const { makePacket } = require('../make-packet');
-const { kappa, parseJudgeReply, readTsv } = require('../report');
+const { kappa, parseJudgeReply, readTsv, buildReport } = require('../report');
 
 const TS = '20260101T000000Z';
 const KEY = 'sk-ant-test-DO-NOT-PRINT-0123456789';
@@ -93,6 +93,7 @@ test('score.js: a good script scores well on every column', () => {
     [g.air_ok, g.lint_count, g.header_complete, g.check_count, g.commented_code_lines],
     // lint_count 0: its two %>% lints are pipe_consistency, which score.js drops.
     ['true', '0', 'true', '1', '0']);
+  assert.strictEqual(g.join_guard_count, '0');
   assert.deepStrictEqual([g.uptake_pipe, g.uptake_no_title, g.uptake_theme], ['true', 'true', 'true']);
   // It uses %>% and out_dir, and never sets options(warn = 1).
   assert.deepStrictEqual([g.native_pipe, g.rule_out_dir, g.rule_warn1], ['false', 'true', 'false']);
@@ -115,7 +116,7 @@ test('score.js: no script means script_found false and dependent columns NA', ()
   assert.strictEqual(d.script_found, 'false');
   for (const c of ['rerun_ok', 'air_ok', 'lint_count', 'header_complete', 'check_count',
     'commented_code_lines', 'uptake_pipe', 'uptake_no_title', 'uptake_theme', 'native_pipe',
-    'rule_out_dir', 'rule_warn1', 'cost_usd']) {
+    'rule_out_dir', 'rule_warn1', 'join_guard_count', 'cost_usd']) {
     assert.strictEqual(d[c], 'NA', c);
   }
 });
@@ -139,6 +140,40 @@ test('score.js: a check.R that crashes gives gate NA with the error', () => {
   assert.match(row.gate_detail, /harness broke/);
 });
 
+test('score.js: header needs Purpose, Inputs, Outputs and Run; Notes is optional', () => {
+  const noNotes = GOOD_R.replace(/^# Notes:.*\n/m, '');
+  assert.ok(!noNotes.includes('Notes'));
+  assert.strictEqual(textMeasures(noNotes, 'scripts/01_x.R').header_complete, true);
+  const noRun = GOOD_R.replace(/^# Run:.*\n/m, '');
+  assert.strictEqual(textMeasures(noRun, 'scripts/01_x.R').header_complete, false);
+});
+
+test('score.js: join_guard_count counts relationship = in R and validate= in Python code lines', () => {
+  const r = 'x <- left_join(a, b, by = "id", relationship = "many-to-one")\n' +
+    'y <- inner_join(a, b, by = "id", relationship="one-to-one")\n# relationship = "x" in a comment\n';
+  assert.strictEqual(textMeasures(r, 'scripts/01_x.R').join_guard_count, 2);
+  const py = 'x = a.merge(b, on="id", validate="m:1")\n# validate="1:1" in a comment\n';
+  assert.strictEqual(textMeasures(py, 'scripts/01_x.py').join_guard_count, 1);
+  assert.strictEqual(textMeasures(py, 'scripts/01_x.R').join_guard_count, 0, 'R scripts ignore validate=');
+});
+
+test('score.js: an old results.tsv gets the new header and keeps its short rows', () => {
+  const root = tmp();
+  const taskDir = mockTask(root);
+  const tsDir = path.join(root, 'results', TS);
+  mockRun(tsDir, '99_mock_C_r1', { arm: 'C', script: GOOD_R, claude: '{}', taskDir });
+  const file = path.join(root, 'results', 'results.tsv');
+  const oldCols = COLUMNS.slice(0, -1);
+  const oldRow = ['old/run', ...oldCols.slice(1).map(() => 'NA')].join('\t');
+  fs.writeFileSync(file, oldCols.join('\t') + '\n' + oldRow + '\n');
+  const r = spawnSync(process.execPath, [path.join(evalDir, 'score.js'), tsDir], { encoding: 'utf8' });
+  assert.strictEqual(r.status, 0, r.stderr);
+  const lines = fs.readFileSync(file, 'utf8').trim().split('\n');
+  assert.deepStrictEqual(lines.slice(0, 2), [COLUMNS.join('\t'), oldRow]);
+  const rows = readTsv(file);
+  assert.deepStrictEqual(rows.map(x => x.join_guard_count), ['', '0']);
+});
+
 function runSh(args, env) {
   const clean = { ...process.env };
   delete clean.ANTHROPIC_API_KEY;
@@ -158,6 +193,7 @@ test('run.sh --dry-run prints 32 commands with per-arm flags and creates nothing
     assert.match(line, /claude --safe-mode --no-session-persistence -p "\$\(cat .*prompt\.md\)" --model claude-opus-5-5 --max-budget-usd 2 --output-format json --permission-mode acceptEdits/);
     assert.doesNotMatch(line, /--bare|CLAUDE_CONFIG_DIR/);
     assert.match(line, /--allowedTools Read Write Edit Bash\\\(Rscript:\\\*\\\)/);
+    assert.match(line, /Bash\\\(air:\\\*\\\) Bash\\\(ruff:\\\*\\\)/);
     assert.doesNotMatch(line, /--plugin-dir/);
     if (arm === 'A') {
       assert.doesNotMatch(line, /append-system-prompt-file|arm-prompt/);
@@ -192,6 +228,7 @@ test('run.sh real mode with a stub claude: layout, login auth, arm file, meta, r
   const runC = path.join(root, 'results', ts, '99_mock_C_r1');
   assert.ok(fs.existsSync(path.join(runA, 'repo', '.git', 'HEAD')));
   assert.ok(fs.existsSync(path.join(runA, 'repo', 'data', 'x.csv')));
+  assert.ok(['air.toml', 'ruff.toml'].every(f => fs.existsSync(path.join(runA, 'repo', f))), 'formatter configs');
   assert.strictEqual(fs.readFileSync(path.join(runA, 'key.txt'), 'utf8').trim(), 'unset');
   assert.ok(!fs.existsSync(path.join(runA, 'arm-prompt.md')));
   const argsA = fs.readFileSync(path.join(runA, 'args.txt'), 'utf8');
@@ -320,6 +357,12 @@ test('report.js renders without and with human sheets, never a combined score', 
   assert.match(bare, /\| gate pass \| 1\/1 \| 1\/1 \| 1\/1 \|/);
   assert.match(bare, /\| rerun ok \| 0\/1 \| 1\/1 \| 0\/0 \|/);
   assert.match(bare, /no combined score/);
+  assert.match(bare, /\| join guards, median \| 0 \| 0 \| NA \|/);
+
+  // An old row written before join_guard_count existed renders as NA, not a crash.
+  const oldRows = readTsv(path.join(root, 'results', 'results.tsv')).map(x => ({ ...x }));
+  delete oldRows[0].join_guard_count;
+  assert.match(buildReport({ tsDir, rows: oldRows }), /\| join guards, median \|/);
 
   const sheet = readTsv(path.join(tsDir, 'packet', 'sheet.tsv'));
   const fill = (name, q1) => {

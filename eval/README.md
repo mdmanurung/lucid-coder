@@ -7,6 +7,8 @@ Every measure is reported on its own; nothing is averaged into one score.
 ## Arms
 
 All arms run `claude --safe-mode --no-session-persistence` with the same model, budget and tools, from a fresh git repo.
+The tools are `Read`, `Write`, `Edit` and `Bash` limited to `Rscript`, `uv`, `ls`, `mkdir`, `cat`, `head`, `air` and `ruff`.
+The rules ask for `air format` or `ruff format` after every edit, so run.sh copies `templates/air.toml` and `templates/ruff.toml` into every repo before the run.
 
 | arm | what the model gets |
 |---|---|
@@ -71,6 +73,9 @@ The script is the first `scripts/*.R` or `scripts/*.py` (never `00_legacy.*`); t
 It reruns each script on a clean copy of the repo and calls the task's `check.R` for the gate: `Rscript` with a 120 s limit for `.R`, `uv run --python 3.12 --with pandas,scipy,matplotlib python` with a 600 s limit for `.py` (uv may fetch packages on its first call).
 For `.R` it then copies `templates/air.toml` and `templates/.lintr` into the repo and runs `air format --check` and lintr.
 For `.py` it copies `templates/ruff.toml` and runs `ruff format --check` (column `air_ok`, reported as "format check pass"), `ruff check` (`lint_count`) and `ruff check --select ERA001` (`commented_code_lines`).
+`header_complete` needs Purpose, Inputs, Outputs and Run in the first 20 lines; Notes is optional, as in `rules/core.md`.
+`join_guard_count` counts `relationship =` (R) or `validate=` (Python) outside comment lines.
+It is the last column, so rows scored before it existed are one cell short; report.js reads the missing cell as NA, and score.js rewrites an old header when it appends.
 The R-only columns `uptake_pipe`, `uptake_theme`, `native_pipe` and `rule_warn1` are NA for `.py`; `check_count` counts `raise`, `sys.exit(` and `assert` there.
 
 ## LLM judges (proxy)

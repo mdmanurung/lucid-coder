@@ -18,7 +18,8 @@ MODEL="${MODEL:-claude-opus-5-5}"
 BUDGET="${BUDGET:-2}"
 # Both paths come from `module show statistical/R/4.5.2/gcc.8.5.0`.
 R_ROOT="/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2"
-ALLOWED_TOOLS=(Read Write Edit "Bash(Rscript:*)" "Bash(uv:*)" "Bash(ls:*)" "Bash(mkdir:*)" "Bash(cat:*)" "Bash(head:*)")
+ALLOWED_TOOLS=(Read Write Edit "Bash(Rscript:*)" "Bash(uv:*)" "Bash(ls:*)" "Bash(mkdir:*)" "Bash(cat:*)" "Bash(head:*)"
+  "Bash(air:*)" "Bash(ruff:*)")
 
 die() {
   echo "run.sh: $*" >&2
@@ -128,6 +129,10 @@ for task_id in "${task_ids[@]}"; do
       mkdir "$run_dir" 2>/dev/null || die "$run_dir already exists"
       mkdir "$run_dir/repo"
       cp -R "$task_dir/inputs/." "$run_dir/repo/"
+      # The rules say to run air/ruff format after every edit; without the configs the
+      # agent would format to tool defaults (80 columns) and fail score.js's check at
+      # the template widths. Every arm gets them; score.js copies them again before scoring.
+      cp "$EVAL_DIR/../templates/air.toml" "$EVAL_DIR/../templates/ruff.toml" "$run_dir/repo/"
       git -C "$run_dir/repo" init -q
       if [[ "$arm" != "A" ]]; then
         node "$EVAL_DIR/arm-prompt.js" "$arm" "$lang" >"$arm_file"

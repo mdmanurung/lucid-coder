@@ -121,6 +121,7 @@ const L3_MEASURES = [
   ['lint count, median', r => median(r.map(x => x.lint_count))],
   ['header complete', r => rate(r.map(x => x.header_complete))],
   ['check count, median', r => median(r.map(x => x.check_count))],
+  ['join guards, median', r => median(r.map(x => x.join_guard_count))],
   ['commented-code lines, median', r => median(r.map(x => x.commented_code_lines))],
   ['uptake: %>% only', r => rate(r.map(x => x.uptake_pipe))],
   ['uptake: no plot title', r => rate(r.map(x => x.uptake_no_title))],

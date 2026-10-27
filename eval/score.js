@@ -12,7 +12,9 @@ const COLUMNS = ['run_id', 'task', 'arm', 'rep', 'exit_code', 'cost_usd', 'durat
   'script_found', 'rerun_ok', 'gate', 'gate_detail', 'air_ok', 'lint_count', 'header_complete',
   'check_count', 'commented_code_lines', 'uptake_pipe', 'uptake_no_title', 'uptake_theme',
   // Added after the pilot (D1 revised, new arm D rules); pilot rows hold NA here.
-  'native_pipe', 'rule_out_dir', 'rule_warn1'];
+  'native_pipe', 'rule_out_dir', 'rule_warn1',
+  // Added after rerun4; older rows lack it and readers treat the missing cell as NA.
+  'join_guard_count'];
 const EVAL_DIR = __dirname;
 const TEMPLATES = path.join(EVAL_DIR, '..', 'templates');
 // Both paths come from `module show statistical/R/4.5.2/gcc.8.5.0`.
@@ -20,7 +22,8 @@ const R_ROOT = '/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2';
 const RERUN_MS = 120000;
 const PY_RERUN_MS = 600000;
 const GATE_MS = 600000;
-const HEADER_WORDS = ['Purpose', 'Inputs', 'Outputs', 'Run', 'Notes'];
+// rules/core.md asks for Notes only when a decision is invisible, so it is not required.
+const HEADER_WORDS = ['Purpose', 'Inputs', 'Outputs', 'Run'];
 // Two lints are dropped so no arm is penalised for following its own setup:
 // pipe_consistency_linter fires on every %>%, which arm D's r.pipe rule asks for;
 // commented_code_linter fires on header paths ("# Inputs: data/x.tsv"), which grow
@@ -103,7 +106,8 @@ function ruffCount(repo, args) {
   try { return JSON.parse(r.stdout).length; } catch (e) { return null; }
 }
 
-// Configs go in after the run, so the agent never saw them.
+// run.sh copies air.toml and ruff.toml in before the run, so the agent formats
+// to the same widths; copying again here keeps scoring on the template configs.
 function style(repo, script) {
   if (isPython(script)) {
     fs.copyFileSync(path.join(TEMPLATES, 'ruff.toml'), path.join(repo, 'ruff.toml'));
@@ -131,7 +135,11 @@ function textMeasures(code, script) {
   // The plot rules only apply to a script that plots; elsewhere they are NA, not a free pass.
   // `import matplotlib`, not bare `matplotlib`: the prompt's uv command names it in every header.
   const plots = /ggplot\(|(import|from)\s+matplotlib|pyplot/.test(code);
+  // Comment lines are dropped so a guard mentioned in a comment does not count.
+  const codeLines = code.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
+  const joinGuard = isPython(script) ? /\bvalidate\s*=(?!=)/g : /\brelationship\s*=(?!=)/g;
   const common = {
+    join_guard_count: (codeLines.match(joinGuard) || []).length,
     header_complete: HEADER_WORDS.every(w => new RegExp(`\\b${w}\\b`, 'i').test(head)),
     rule_out_dir: /\bout_dir\s*(<-|=)/.test(code),
   };
@@ -195,6 +203,11 @@ function main() {
   const done = new Set();
   if (fs.existsSync(out)) {
     for (const line of fs.readFileSync(out, 'utf8').split('\n').slice(1)) done.add(line.split('\t')[0]);
+    // A file from before a column was added gets the new header; old rows stay short.
+    const [head, ...rest] = fs.readFileSync(out, 'utf8').split('\n');
+    if (head !== COLUMNS.join('\t') && COLUMNS.join('\t').startsWith(head + '\t')) {
+      fs.writeFileSync(out, [COLUMNS.join('\t'), ...rest].join('\n'));
+    }
   } else {
     fs.writeFileSync(out, COLUMNS.join('\t') + '\n');
   }
@@ -212,4 +225,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { COLUMNS, findScript, scoreRun, toTsv, toolEnv };
+module.exports = { COLUMNS, findScript, scoreRun, textMeasures, toTsv, toolEnv };
