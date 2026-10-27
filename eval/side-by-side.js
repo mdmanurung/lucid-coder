@@ -3,7 +3,8 @@
 // columns, shuffled per panel so position never names an arm. Optional human-corpus
 // panels (four repos per step) follow. The reader picks a column and says why.
 // The arm key goes to <out>/side-by-side-key.tsv; eval/results/ is gitignored.
-// Usage: node eval/side-by-side.js <results-dir> <out-dir> [--rep 1] [--arms A,D] [--tasks 02,04] [--human panels.json]
+// Usage: node eval/side-by-side.js <results-dir> <out-dir> [--rep 1] [--arms A,D] [--tasks 02,04] [--whole] [--human panels.json]
+// --whole compares whole scripts instead of banner sections.
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -53,7 +54,7 @@ const shuffle = xs => xs.map(x => [crypto.randomInt(1e9), x]).sort((a, b) => a[0
 const LABELS = ['W', 'X', 'Y', 'Z'];
 
 // One task's runs, one per arm, as panels. Several tasks in one folder get task-prefixed ids.
-function armPanels(resultsDir, rep, arms, onlyTasks) {
+function armPanels(resultsDir, rep, arms, onlyTasks, whole) {
   const runs = fs.readdirSync(resultsDir)
     .filter(d => new RegExp(`_[${arms.join('')}]_r${rep}$`).test(d))
     .filter(d => !onlyTasks || onlyTasks.some(t => d.startsWith(t + '_')))
@@ -81,7 +82,7 @@ function armPanels(resultsDir, rep, arms, onlyTasks) {
     // A script without banners puts everything in setup, so its other columns would be empty:
     // compare that task as whole scripts instead.
     const bannerless = taskRuns.some(run => Object.keys(pieces[run]).filter(k => k !== 'setup' && SECTIONS.some(([id]) => id === k)).length === 0);
-    const steps = bannerless ? [['whole', 'Whole script', 'r']] : [
+    const steps = (whole || bannerless) ? [['whole', 'Whole script', 'r']] : [
       // Script order, not the keyword priority of SECTIONS.
       ...['setup', 'load', 'prep', 'fit', 'figure', 'write', 'report'].map(id => [id, SECTIONS.find(s => s[0] === id)[1], 'r']),
       ['notebook', 'Report notebook', 'r'],
@@ -122,11 +123,11 @@ function main() {
   const opt = name => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : null);
   const [resultsDir, outDir] = argv;
   if (!resultsDir || !outDir) {
-    console.error('usage: node eval/side-by-side.js <results-dir> <out-dir> [--rep 1] [--arms A,D] [--tasks 02,04] [--human panels.json]');
+    console.error('usage: node eval/side-by-side.js <results-dir> <out-dir> [--rep 1] [--arms A,D] [--tasks 02,04] [--whole] [--human panels.json]');
     process.exit(1);
   }
   // --arms A,D gives a two-column head-to-head; columns are still shuffled per panel.
-  const { panels, key } = armPanels(resultsDir, opt('--rep') || '1', (opt('--arms') || 'A,B,C,D').split(','), opt('--tasks')?.split(','));
+  const { panels, key } = armPanels(resultsDir, opt('--rep') || '1', (opt('--arms') || 'A,B,C,D').split(','), opt('--tasks')?.split(','), argv.includes('--whole'));
   const human = opt('--human') ? humanPanels(opt('--human')) : [];
   fs.mkdirSync(outDir, { recursive: true });
   const template = fs.readFileSync(path.join(__dirname, 'side-by-side.html'), 'utf8');
