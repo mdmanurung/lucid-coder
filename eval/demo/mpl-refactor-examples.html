@@ -68,222 +68,265 @@ li b { font-weight: 600; }
 code { font: 0.88em var(--font-mono); }
 .legend { display: inline-block; width: 0.9em; height: 0.9em; background: var(--mark); border-left: 3px solid var(--mark-edge); vertical-align: -0.1em; margin-right: 4px; }
 </style>
-
 <main>
   <div class="intro">
     <div class="eyebrow">lucid-coder · before and after</div>
     <h1>MPL differential analysis, with and without the plugin</h1>
-    <p class="lede">One script from the Senegal urban-rural study, <code>src/_MPL_differential_analysis.R</code>: a robust limma trend test on MPL-stimulated subcluster frequencies. Opus 5.5 refactored it and also wrote it fresh from a five-step spec, with no plugin (A), with lucid-coder (C), and with lucid-coder plus three learned rules (D). No run had the data, so no script was executed.</p>
-    <p class="lede">Every snippet below is <code>air</code>-formatted at 100 columns. In the from-scratch runs C and D ran <code>air</code> themselves and A happened to match it, so layout no longer separates the arms. What is left is how the code is written.</p>
+    <p class="lede">One script from the Senegal urban-rural study, <code>src/_MPL_differential_analysis.R</code>, is a robust limma trend test on MPL-stimulated subcluster frequencies. Opus 5.5 wrote the same analysis from a five-step spec in R and in Python. A is no plugin, C is lucid-coder, and D is lucid-coder plus three learned rules. No run had the data, so no script was executed.</p>
+    <p class="lede">The plugin's rules were rewritten after three agents read the code of 17 expert repos for concise idioms and project shape. The reference repos were immgenT for R, and sound-life and aifi for Python. This page compares the scripts before and after that rewrite. All R is <code>air</code>-formatted, so layout is not the difference.</p>
     <p class="note"><span class="legend"></span>Highlighted lines are the ones each comparison is about.</p>
   </div>
 
   <section>
-    <h2>How the code is written, from scratch</h2>
-    <p>Same spec, all three scripts pass <code>air format --check</code>. Lints use the plugin's <code>.lintr</code>.</p>
+    <h2>Script length, before and after the corpus rules</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Language</th><th>A · no plugin</th><th>C · old rules</th><th>C · corpus rules</th><th>D · old rules</th><th>D · corpus rules</th></tr></thead>
+        <tbody>
+          <tr><td>R, lines</td><td>112</td><td class="no">183</td><td>97</td><td class="no">189</td><td>102</td></tr>
+          <tr><td>R, code lines</td><td>75</td><td>n/a</td><td>69</td><td>n/a</td><td>69</td></tr>
+          <tr><td>Python, lines</td><td>162</td><td>n/a</td><td>116</td><td>n/a</td><td>98</td></tr>
+          <tr><td>Python, code lines</td><td>122</td><td>n/a</td><td>92</td><td>n/a</td><td>80</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Under the old rules the plugin doubled the script. Under the corpus rules both plugin arms are shorter than baseline in R and in Python. Python had no old-rules run.</p>
+  </section>
+
+  <section>
+    <h2>How the code is written now</h2>
     <div class="tablewrap">
       <table>
         <thead><tr><th></th><th>A · no plugin</th><th>C · lucid-coder</th><th>D · plus learned rules</th></tr></thead>
         <tbody>
-          <tr><td>Lines, cost</td><td>112, $0.58</td><td>183, $0.29</td><td>189, $1.30</td></tr>
-          <tr><td>lintr lints</td><td class="no">34: 27 <code>%&gt;%</code>, 5 path strings, 2 names</td><td>0</td><td>1 commented code</td></tr>
-          <tr><td>Checks</td><td>4 <code>stopifnot()</code>, no message</td><td>5 <code>stop()</code> saying what to fix</td><td>6 <code>stop()</code> saying what to fix</td></tr>
-          <tr><td>Join guards</td><td class="no">none</td><td><code>relationship =</code> on 3 joins</td><td><code>relationship =</code> on 4 joins</td></tr>
-          <tr><td>Dropped patients</td><td class="no">silent</td><td>logged by ID</td><td>logged by ID</td></tr>
-          <tr><td>Named constants</td><td class="no">none; <code>"LD413"</code> and <code>100</code> inline</td><td>5, with a reason</td><td>3, with a reason</td></tr>
-          <tr><td>Header</td><td>2-line purpose</td><td>Purpose, Inputs, Outputs, Run, Notes</td><td>Purpose, Inputs, Outputs, Run, Notes</td></tr>
-          <tr><td>Paths</td><td>relative strings</td><td><code>here::here()</code></td><td><code>here::here()</code></td></tr>
-          <tr><td>Session info</td><td class="no">none</td><td>written to outputs</td><td>written to outputs</td></tr>
+          <tr><td>R checks</td><td>4 bare <code>stopifnot()</code></td><td>2 named <code>stopifnot()</code>, one line each</td><td>none written; name indexing and join arguments fail on their own</td></tr>
+          <tr><td>R join guards</td><td class="no">none</td><td><code>relationship =</code> on 2 joins</td><td><code>relationship =</code> on 3 joins</td></tr>
+          <tr><td>R drop report</td><td class="no">silent</td><td>one <code>message()</code></td><td>one <code>message()</code></td></tr>
+          <tr><td>R lint (lintr)</td><td class="no">34, of which 27 are <code>%&gt;%</code></td><td>0</td><td>1</td></tr>
+          <tr><td>Python shape</td><td class="no">8 functions + <code>main()</code></td><td>flat script, 1 function</td><td>flat script, no functions</td></tr>
+          <tr><td>Python merge guards</td><td class="no">none</td><td><code>validate=</code> on 4 merges</td><td><code>validate=</code> on 3 merges</td></tr>
+          <tr><td>Python checks</td><td>2 <code>raise</code>, one a type check</td><td>1 <code>raise</code></td><td>none; <code>validate="1:1"</code> does the batch check</td></tr>
+          <tr><td>Python format</td><td class="no">fails <code>ruff format</code></td><td>passes</td><td>passes</td></tr>
         </tbody>
       </table>
     </div>
   </section>
 
   <section>
-    <div class="eyebrow">Refactor · positional alignment</div>
-    <h2>A comment versus a check</h2>
-    <p><code>lmFit()</code> pairs design rows with matrix columns by position. If the orders differ, each patient gets another patient's group, age and sex, and the script still runs.</p>
+    <div class="eyebrow">R · checks</div>
+    <h2>Six-line checks become one line</h2>
+    <p>The old rules asked for <code>stop()</code> with a message, so every check took a block. The corpus uses <code>stopifnot()</code>. R's named form keeps the message on one line.</p>
     <div class="panes">
-      <div class="pane"><header><span class="tag a">A · no plugin</span><span>explains the risk</span></header>
+      <div class="pane"><header><span class="tag c">C · old rules</span><span>block per check</span></header>
 <script type="text/plain" class="code">
-»# NOTE: matCounts columns (patients) and matMeta rows are aligned by position
-»# only: both follow the order in which patients first appear in `counts`.
-»# lmFit() does not match them by name, so do not reorder either one.
-matMeta <- counts %>%
-  select(patient_id, group3 = group2, groupCat = group3, age, sex, batch) %>%
-  distinct()
-
-fit <- lmFit(matCounts, designTrend, method = "robust", maxit = 100)
-efit <- eBayes(fit, robust = TRUE)
-
-»# coef 2 = group3.L (linear trend), coef 3 = group3.Q (quadratic trend)
-»res.L <- tidy_toptable(efit, coef = 2, suffix = "L")
-</script></div>
-      <div class="pane"><header><span class="tag c">C · lucid-coder</span><span>stops on a mismatch</span></header>
-<script type="text/plain" class="code">
-design_meta <- counts |>
-  select(patient_id, group = group2, age, sex, batch) |>
-  distinct()
-
-# Design rows are matched to matrix columns by position
-»if (!identical(as.character(design_meta$patient_id), colnames(freq_matrix))) {
-»  stop("design_meta: rows do not match freq_matrix columns; check metadata.", call. = FALSE)
-»}
-
-fit <- lmFit(freq_matrix, design_trend, method = "robust", maxit = ROBUST_MAXIT)
-efit <- eBayes(fit, robust = TRUE)
-
-»res_linear <- trend_table(efit, coef = "group.L", suffix = "L")
-</script></div>
-    </div>
-    <p class="note">C also picks the coefficient by name, so adding a term to the formula cannot shift <code>coef = 2</code> onto <code>age</code>. The name is valid: <code>weightedcontrasts.R</code> names its columns <code>.L</code>, <code>.Q</code>, <code>.C</code>.</p>
-  </section>
-
-  <section>
-    <div class="eyebrow">Refactor · data flow</div>
-    <h2>Joins in reading order</h2>
-    <div class="panes">
-      <div class="pane"><header><span class="tag">Original, kept by A</span><span>read bottom-up through <code>.</code></span></header>
-<script type="text/plain" class="code">
-counts <- left_join(metaLineage, countsCluster, by = "subclusterPG_merged") %>%
-»  left_join(countsLineage, ., by = c("patient_id", "lineage")) %>%
-»  left_join(metaSample, ., by = "patient_id") %>%
-»  left_join(meta, ., by = "patient_id") %>%
-  as.data.table() %>%
-  mutate(freq_cluster_perLineage = n_cluster / n_lineage * 100) %>%
-  mutate(freq_cluster_perLineage_trans = asin(sqrt(freq_cluster_perLineage / 100))) %>%
-»  drop_na() %>%
-»  filter(patient_id != "LD413")
-</script></div>
-      <div class="pane"><header><span class="tag c">C · lucid-coder</span><span>top-down, drop counted</span></header>
-<script type="text/plain" class="code">
-counts_joined <- patient_meta |>
-»  left_join(sample_meta, by = "patient_id") |>
-»  left_join(lineage_counts, by = "patient_id") |>
-»  left_join(cluster_counts_lineage, by = c("patient_id", "lineage")) |>
-  mutate(freq_cluster_perLineage = n_cluster / n_lineage * 100) |>
-  # Arcsine square-root transform stabilises the variance of proportions for the linear model
-  mutate(freq_cluster_perLineage_trans = asin(sqrt(freq_cluster_perLineage / 100)))
-
-counts_complete <- drop_na(counts_joined)
-»message(sprintf(
-»  "Dropped %d rows with missing values; %d -> %d patients.",
-»  nrow(counts_joined) - nrow(counts_complete),
-»  n_distinct(counts_joined$patient_id),
-»  n_distinct(counts_complete$patient_id)
-»))
-counts <- filter(counts_complete, patient_id != REFERENCE_SAMPLE)
-</script></div>
-    </div>
-  </section>
-
-  <section>
-    <div class="eyebrow">From scratch · checks</div>
-    <h2>A check that says what to fix</h2>
-    <p>Both arms check that each patient sits in one batch. A's version stops with R's generic message. D's names the input and the fix.</p>
-    <div class="panes">
-      <div class="pane"><header><span class="tag a">A · no plugin</span></header>
-<script type="text/plain" class="code">
-# Batch is recorded per cell; collapse to one value per patient.
-patient_batch <- cells %>%
-  distinct(patient_id, batch)
-
-»stopifnot(!anyDuplicated(patient_batch$patient_id))
-</script></div>
-      <div class="pane"><header><span class="tag c">D · lucid-coder plus rules</span></header>
-<script type="text/plain" class="code">
-# One batch per patient; a patient spread over batches would duplicate rows in the design.
-patient_batch <- cells |>
-  distinct(patient_id, batch)
-»if (anyDuplicated(patient_batch$patient_id) > 0) {
+missing_meta_cols <- setdiff(required_meta_cols, colnames(patient_metadata))
+»if (length(missing_meta_cols) > 0) {
 »  stop(
-»    "MPL_data.qs: some patients occur in more than one batch; resolve batch per patient.",
+»    sprintf("MPL_metadata.rds: missing columns %s; check the input.", toString(missing_meta_cols)),
+»    call. = FALSE
+»  )
+»}
+...
+»if (!identical(patient_design_data$patient_id, colnames(freq_matrix))) {
+»  stop(
+»    "patient_design_data: patient order differs from freq_matrix columns; check IDs.",
 »    call. = FALSE
 »  )
 »}
 </script></div>
+      <div class="pane"><header><span class="tag c">C · corpus rules</span><span>column checks gone, one line each</span></header>
+<script type="text/plain" class="code">
+patient_meta <- subcluster_freq |>
+  distinct(patient_id, batch, group2, age, sex) |>
+  mutate(across(c(batch, sex), factor))
+»stopifnot("one batch per patient" = !anyDuplicated(patient_meta$patient_id))
+patient_meta <- patient_meta[match(colnames(freq_mat), patient_meta$patient_id), ]
+»stopifnot("design rows match matrix columns" = identical(patient_meta$patient_id, colnames(freq_mat)))
+</script></div>
+      <div class="pane"><header><span class="tag c">D · corpus rules</span><span>align by name, no check needed</span></header>
+<script type="text/plain" class="code">
+patients <- patient_freq |>
+  distinct(patient_id, batch, group2, age, sex) |>
+»  column_to_rownames("patient_id")
+»patients <- patients[colnames(freq_mat), ]
+</script></div>
     </div>
+    <p class="note">D uses the immgenT idiom <code>meta[rownames(L), ]</code>. Indexing by name puts the rows in matrix order, and <code>column_to_rownames()</code> fails on a duplicated patient. So the alignment check has nothing left to catch.</p>
   </section>
 
   <section>
-    <div class="eyebrow">From scratch · joins and drops</div>
-    <h2>Guarded joins and logged removals</h2>
+    <div class="eyebrow">R · repeated analysis</div>
+    <h2>One map over the trend terms</h2>
     <div class="panes">
-      <div class="pane"><header><span class="tag a">A · no plugin</span><span>a duplicate metadata row doubles cells</span></header>
+      <div class="pane"><header><span class="tag a">A · no plugin</span><span>the block twice</span></header>
 <script type="text/plain" class="code">
-  left_join(patient_batch, by = "patient_id") %>%
-»  left_join(
-»    meta %>% select(patient_id, group2, age, sex),
-»    by = "patient_id"
-»  ) %>%
-»  drop_na() %>%
-»  filter(patient_id != "LD413")
-</script></div>
-      <div class="pane"><header><span class="tag c">C · lucid-coder</span><span>errors on a duplicate, names who left</span></header>
-<script type="text/plain" class="code">
-subcluster_freq <- subcluster_freq |>
-»  left_join(patient_batch, by = "patient_id", relationship = "many-to-one") |>
-  left_join(
-    select(patient_metadata, patient_id, group2, age, sex),
-    by = "patient_id",
-»    relationship = "many-to-one"
-  )
+»res_L <- topTable(fit, coef = "group2.L", number = Inf, sort.by = "none") %>%
+»  rownames_to_column("subcluster") %>%
+»  rename(pval_L = P.Value, fdr_L = adj.P.Val)
 
-incomplete_patients <- subcluster_freq |>
-  filter(!complete.cases(pick(everything()))) |>
-  distinct(patient_id) |>
-  pull(patient_id)
-»message(sprintf(
-»  "Removed %d patient(s) with missing values (incl. no metadata): %s",
-»  length(incomplete_patients),
-»  toString(incomplete_patients)
-»))
+»res_Q <- topTable(fit, coef = "group2.Q", number = Inf, sort.by = "none") %>%
+»  rownames_to_column("subcluster") %>%
+»  select(subcluster, pval_Q = P.Value, fdr_Q = adj.P.Val)
+</script></div>
+      <div class="pane"><header><span class="tag c">C · corpus rules</span><span>named vector, one map</span></header>
+<script type="text/plain" class="code">
+»TREND_TERMS <- c(L = "group2.L", Q = "group2.Q")
+...
+# BH FDR across all subclusters, separately for each trend term
+»trend_tables <- map(TREND_TERMS, \(term) {
+»  topTable(fit, coef = term, number = Inf, sort.by = "none") |>
+»    tibble::rownames_to_column("subclusterPG_merged")
+»})
 </script></div>
     </div>
+    <p class="note">The gain is small with two terms. It grows with each contrast. The corpus's longest files are pasted blocks like A's, seven in one MOCHA script and six in one aifi notebook.</p>
   </section>
 
   <section>
-    <div class="eyebrow">From scratch · constants</div>
-    <h2>Decisions named at the top</h2>
+    <div class="eyebrow">R · data flow</div>
+    <h2>Write the table straight from the pipe</h2>
     <div class="panes">
-      <div class="pane"><header><span class="tag a">A · no plugin</span><span>decisions inline</span></header>
+      <div class="pane"><header><span class="tag a">A · no plugin</span></header>
 <script type="text/plain" class="code">
-source("src/weightedcontrasts.R")
+»cluster_medians <- cells %>%
+  group_by(subclusterPG_merged) %>%
+  summarise(across(CD45:IL10, \(x) median(x, na.rm = TRUE)), .groups = "drop")
 
-dir.create("outputs", showWarnings = FALSE)
-
-»cells <- qread("data/MPL_data.qs")
-»meta <- readRDS("data/MPL_metadata.rds")
-...
-»  filter(patient_id != "LD413")
-...
-»fit <- lmFit(freq_mat, design, method = "robust", maxit = 100)
+»qsave(cluster_medians, "data/MPL_cluster_median_markers.qs")
 </script></div>
-      <div class="pane"><header><span class="tag c">D · lucid-coder plus rules</span><span>each with a reason</span></header>
+      <div class="pane"><header><span class="tag c">C · corpus rules</span></header>
 <script type="text/plain" class="code">
-source(here::here("src", "weightedcontrasts.R"))
+cells |>
+  group_by(subclusterPG_merged) |>
+  summarise(across(CD45:IL10, median)) |>
+»  qs::qsave(here::here("data/MPL_cluster_median_markers.qs"))
+</script></div>
+    </div>
+    <p class="note">The core rule now reads: name what a later step reuses, and pipe the rest. A's <code>na.rm = TRUE</code> would hide missing marker values, which the plugin does not allow.</p>
+  </section>
 
-»# Patient flagged for exclusion from the trend test.
-»EXCLUDED_PATIENTS <- c("LD413")
-»# Lineage is the subcluster prefix before the first underscore, e.g. "CD4T" in "CD4T_Th1".
-»LINEAGE_PATTERN <- "_.*$"
-»# rlm() defaults to 20 iterations; raised as specified so robust fits converge.
-»LMFIT_MAXIT <- 100
+  <section>
+    <div class="eyebrow">Python · shape</div>
+    <h2>A flat script instead of eight functions and main()</h2>
+    <p>Without the plugin, Opus wraps each step in a function and adds <code>main()</code>. None of the four Python exemplar repos has <code>argparse</code> or <code>__main__</code>. Their scripts run top to bottom.</p>
+    <div class="panes">
+      <div class="pane"><header><span class="tag a">A · no plugin</span><span>a function per step, checks inside</span></header>
+<script type="text/plain" class="code">
+»def patient_covariates(cells: pd.DataFrame, meta: pd.DataFrame) -> pd.DataFrame:
+    """One row per analysable patient: group2, age, sex, batch."""
+»    n_batches = cells.groupby("patient_id", observed=True)["batch"].nunique()
+»    mixed = n_batches[n_batches > 1]
+»    if not mixed.empty:
+»        raise ValueError(f"patients in multiple batches: {list(mixed.index)}")
+    batch = (
+        cells.groupby("patient_id", observed=True)["batch"].first().reset_index()
+    )
+    ...
+»    if not (isinstance(meta["group2"].dtype, pd.CategoricalDtype)
+»            and meta["group2"].cat.ordered):
+»        raise TypeError("group2 must be an ordered categorical (rural to urban)")
+    covars = batch.merge(meta, on="patient_id", how="inner").dropna()
+</script></div>
+      <div class="pane"><header><span class="tag c">D · corpus rules</span><span>the merge does the check</span></header>
+<script type="text/plain" class="code">
+# Batch is recorded per cell; validate="1:1" fails if a patient spans two batches.
+patient_batch = cells[["patient_id", "batch"]].drop_duplicates()
+patients = metadata[["patient_id", "group2", "age", "sex"]].merge(
+»    patient_batch, on="patient_id", validate="1:1"
+)
+n_before = len(patients)
+patients = patients.dropna()
+»print(f"Dropped {n_before - len(patients)} patients with missing group2/age/sex/batch")
+</script></div>
+    </div>
+    <p class="note">A's type check on <code>group2</code> is an input audit, which the plugin now drops. Its <code>how="inner"</code> merge also drops patients silently.</p>
+  </section>
 
-out_median_file <- here::here("data", "MPL_cluster_median_markers.qs")
-out_limma_file <- here::here("outputs", "MPL_limma_trend_test.rds")
+  <section>
+    <div class="eyebrow">Python · repeated analysis</div>
+    <h2>One model per subcluster</h2>
+    <div class="panes">
+      <div class="pane"><header><span class="tag a">A · no plugin</span><span>melt, loop, append</span></header>
+<script type="text/plain" class="code">
+»rows = []
+»for cluster, sub in long.groupby("cluster", sort=True):
+    fit = smf.ols(FORMULA, data=sub).fit(cov_type="HC3")
+»    rows.append(
+        {
+            "cluster": cluster,
+            "estimate_L": fit.params["L"],
+            "pval_L": fit.pvalues["L"],
+            "pval_Q": fit.pvalues["Q"],
+        }
+    )
+»res = pd.DataFrame(rows)
+</script></div>
+      <div class="pane"><header><span class="tag c">C · corpus rules</span><span>groupby-apply returns a row</span></header>
+<script type="text/plain" class="code">
+def fit_trend(cluster_data):
+    fit = smf.ols(FORMULA, data=cluster_data).fit(cov_type="HC3")
+»    return pd.Series(
+        {
+            "estimate_L": fit.params["L"],
+            "pval_L": fit.pvalues["L"],
+            "pval_Q": fit.pvalues["Q"],
+        }
+    )
+
+trend = (
+»    model_data.groupby("subclusterPG_merged")
+»    .apply(fit_trend, include_groups=False)
+    .rename_axis("cluster")
+    .reset_index()
+)
 </script></div>
     </div>
   </section>
 
   <section>
-    <h2>Where the plugin versions go wrong</h2>
+    <h2>How the expert repos use notebooks and scripts</h2>
     <ul>
-      <li><b>C changes an output column.</b> It strips the lineage prefix from <code>cluster</code>, so <code>CD4T_Th1</code> becomes <code>Th1</code>. Your original keeps the full name, so figure scripts that join on it would break.</li>
-      <li><b>A spare check.</b> C adds a row-count <code>stop()</code> after a join that already has <code>relationship = "many-to-one"</code>, so it cannot fail on its own.</li>
-      <li><b>D refuses to overwrite.</b> It stops if the two fixed output files exist, so every rerun needs a manual delete. The rule was written for run folders, not fixed paths.</li>
-      <li><b>Over-naming.</b> <code>LINEAGE_PATTERN</code> and <code>ANNOTATION_PATTERN</code> give a constant to a regex used twice.</li>
-      <li><b>LD413.</b> The refactor guessed it is a "reference (control) sample". The from-scratch versions say the reason is not recorded, which is accurate.</li>
+      <li><b>Where the repo was made decides the split.</b> The Allen Institute repos are nearly all notebooks: aifi 82, sound-life 82, IHA 286, ALTRA 163. MOCHA is 108 plain <code>.R</code> scripts. Hoffman's dreamlet and variancePartition repos are Rmd. immgenT computes in <code>.R</code> and uses Rmd only to show figures.</li>
+      <li><b>Where a split exists, it follows runtime.</b> Long or batch jobs are scripts run by <code>.sh</code> or SLURM wrappers. Judgement steps such as QC review, annotation and figures are numbered notebooks. MM keeps 17 <code>.py</code> files in jupytext format, so they also open as notebooks.</li>
+      <li><b>Notebooks never call notebooks.</b> No repo uses <code>%run</code>, papermill or Rmd <code>params</code>. Notebooks reach shared code with <code>source()</code>, or with <code>sys.path</code> plus an import. One driver, GTestimate's <code>run_analysis.R</code>, renders the Rmds in order.</li>
+      <li><b>Steps hand off through files named after the step.</b> The formats are CSV, <code>.rds</code>, h5ad, or <code>.obs</code> as parquet. aifi and sound-life go through a data platform by UUID.</li>
+      <li><b>Variants are copied notebooks</b> (<code>10a</code>-<code>10g</code>, <code>05a/b/c</code>), and the copies drift. In sound-life one copy lost a filter. The plugin asks for one parameter and one loop instead.</li>
+    </ul>
+    <p class="note">The new core rule says compute steps write files, and each figure or table has its own script or notebook that reads them. Batch jobs are scripts. Judgement steps may be notebooks, with markdown headings in place of banner comments.</p>
+  </section>
+
+  <section>
+    <h2>Corpus habits the plugin does not copy</h2>
+    <p>Expert code is evidence, not a template. These habits are common in the 17 repos and are superseded or unsafe.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Corpus habit</th><th>Plugin writes</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td><code>%&gt;%</code>, in 16 of 17 repos</td><td><code>|&gt;</code></td><td>base R since 4.1, no dependency</td></tr>
+          <tr><td><code>map_dfr()</code>, <code>map2_dfr()</code></td><td><code>map() |&gt; list_rbind()</code></td><td>superseded in purrr 1.0</td></tr>
+          <tr><td><code>group_by() ... ungroup()</code> for one step</td><td><code>mutate(..., .by = )</code></td><td>dplyr 1.1; D used it</td></tr>
+          <tr><td><code>reshape2::dcast()</code>, <code>melt()</code></td><td><code>pivot_wider()</code>, <code>pivot_longer()</code></td><td>reshape2 is retired</td></tr>
+          <tr><td>Positional coefficients, <code>coefficients[2:4, ]</code></td><td>by name, <code>coef = "group2.L"</code></td><td>IHA, MOCHA and MM relabel by position</td></tr>
+          <tr><td><code>res[[ct]]$d</code> reading <code>dispObj</code></td><td><code>[["dispObj"]]</code></td><td>works only by partial matching</td></tr>
+          <tr><td><code>x[-grep(p, x)]</code></td><td><code>x[!grepl(p, x)]</code></td><td>returns nothing when no match</td></tr>
+          <tr><td>Each plot pasted again inside <code>pdf()</code></td><td><code>p &lt;- ...; ggsave()</code></td><td>halves the file</td></tr>
+          <tr><td><code>warnings.filterwarnings("ignore")</code></td><td>ignore by category</td><td>hides real problems</td></tr>
+          <tr><td><code>[not x for x in mask]</code></td><td><code>~mask</code></td><td>vectorised</td></tr>
+          <tr><td>Helpers pasted into each notebook</td><td>one helper file once 2+ use it</td><td>cns redefines <code>save_obs</code> next to its import</td></tr>
+          <tr><td>Absolute and stale paths (<code>..._V1/</code>)</td><td>root-relative, <code>here::here()</code></td><td>every repo has them</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Check before trusting the plugin versions</h2>
+    <ul>
+      <li><b>R arm C changes an output column again.</b> It strips the lineage prefix from <code>cluster</code>, so <code>CD4T_Th1</code> becomes <code>Th1</code>. Your figure scripts join on the full name. D keeps it.</li>
+      <li><b>Python arm D departs from the spec.</b> A patient with no cells in a whole lineage gets a missing value for that lineage's subclusters, not 0. The script says so in a comment. It is arguably more correct, but it is not what was asked.</li>
+      <li><b>R arm C has one line over 100 columns.</b> It is a named <code>stopifnot()</code>, so <code>air format --check</code> fails on C. D passes.</li>
+      <li><b>Python arm C adds a <code>sys.path</code> line it does not need.</b> Python already puts the script's folder on the path.</li>
+      <li><b>One run per arm.</b> These are demos, not the eval grid, so a single run can be lucky or unlucky.</li>
     </ul>
   </section>
 </main>
