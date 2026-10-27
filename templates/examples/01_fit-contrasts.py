@@ -55,7 +55,8 @@ if expression["condition"].isna().any():
 
 # %% Fit contrasts
 # Pooled-variance t-test: the same model as lm(log2_expr ~ condition) in the R example.
-def fit_gene(gene_expression):
+fits = []
+for gene, gene_expression in expression.groupby("gene"):
     healthy = gene_expression.loc[
         gene_expression["condition"] == "healthy", "log2_expr"
     ]
@@ -63,12 +64,14 @@ def fit_gene(gene_expression):
         gene_expression["condition"] == "disease", "log2_expr"
     ]
     test = ttest_ind(disease, healthy, equal_var=True)
-    return {"log2_fc": disease.mean() - healthy.mean(), "p_value": test.pvalue}
-
-
-de_results = pd.DataFrame(
-    [{"gene": gene, **fit_gene(rows)} for gene, rows in expression.groupby("gene")]
-)
+    fits.append(
+        {
+            "gene": gene,
+            "log2_fc": disease.mean() - healthy.mean(),
+            "p_value": test.pvalue,
+        }
+    )
+de_results = pd.DataFrame(fits)
 # Multiple-testing family: every gene tested in this script, adjusted together.
 de_results["q_value"] = false_discovery_control(de_results["p_value"], method="bh")
 de_results = de_results.sort_values("q_value")

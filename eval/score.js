@@ -18,7 +18,9 @@ const COLUMNS = ['run_id', 'task', 'arm', 'rep', 'exit_code', 'cost_usd', 'durat
   'join_guard_count',
   // Rubric G items (eval/rubric.md, eval/measures.js); added after grid 5.
   'code_lines', 'joins_unkeyed', 'warning_suppress', 'longest_pipe', 'max_nesting',
-  'vague_names', 'wrappers_once', 'session_info', 'late_loads', 'base_df_calls', 'upper_constants'];
+  'vague_names', 'wrappers_once', 'session_info', 'late_loads', 'base_df_calls', 'upper_constants',
+  // Added with the 3+ uses function rule (2026-10-27).
+  'functions_under3'];
 const EVAL_DIR = __dirname;
 const TEMPLATES = path.join(EVAL_DIR, '..', 'templates');
 // Both paths come from `module show statistical/R/4.5.2/gcc.8.5.0`.

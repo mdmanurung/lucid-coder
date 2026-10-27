@@ -60,6 +60,7 @@ The budget is `rules/core.md` "## Checks", applied as in the grid 5 classificati
 | R8 | Header | Purpose, Inputs, Outputs and Run are all present in the first 20 lines | A `header_complete` |
 | R9 | Decisions explained | of the named cutoffs, reference levels and formulas, count those with no reason (a comment or a header line) | M |
 | R10 | Wrappers used once | count functions defined and called exactly once, outside an iterator or lambda (a function passed to `map()` or `group_modify(~ f(.x))` is reused) | A `wrappers_once` |
+| R11 | Named functions used fewer than 3 times | count functions defined in the script and referenced fewer than three times; the house rule writes such code inline (an inline `\(x)` inside `map()`), and a helper file shared by scripts is not counted | A `functions_under3` |
 
 ### Reproducibility
 

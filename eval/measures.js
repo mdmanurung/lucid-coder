@@ -134,6 +134,13 @@ function codeMeasures(code, python) {
     return !ITERATES.test(callLine || "");
   }).length;
 
+  // R11: named functions used fewer than three times in the script (user rule:
+  // name a function only at 3+ uses; a helper file shared by scripts is separate).
+  const underThree = defined.filter(n => {
+    const esc = n.replace(/\./g, "\\.");
+    return (text.match(new RegExp(`(?<![\\w.])${esc}(?![\\w.])`, "g")) || []).length - 1 < 3;
+  }).length;
+
   // P2: versions recorded.
   const sessionInfo = python
     ? /\bprint_versions\(|\bsession_info\.show\(/.test(text)
@@ -154,6 +161,7 @@ function codeMeasures(code, python) {
     max_nesting: deepest,
     vague_names: vague,
     wrappers_once: usedOnce,
+    functions_under3: underThree,
     session_info: sessionInfo,
     late_loads: lateLoads,
     // H5 and H6 are R house rules; Python gets NA.

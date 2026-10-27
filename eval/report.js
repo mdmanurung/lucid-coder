@@ -130,6 +130,7 @@ const L3_MEASURES = [
   ['deepest nesting, median (R3)', r => median(r.map(x => x.max_nesting))],
   ['uninformative names, median (R4)', r => median(r.map(x => x.vague_names))],
   ['wrappers used once, median (R10)', r => median(r.map(x => x.wrappers_once))],
+  ['named functions used < 3 times, median (R11)', r => median(r.map(x => x.functions_under3))],
   ['session info written (P2)', r => rate(r.map(x => x.session_info))],
   ['late library/import, median (P4)', r => median(r.map(x => x.late_loads))],
   ['base-R data-frame calls, median (H5)', r => median(r.map(x => x.base_df_calls))],

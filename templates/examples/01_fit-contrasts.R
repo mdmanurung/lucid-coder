@@ -41,14 +41,13 @@ expression <- expand_grid(gene = c("IFI27", "ACTB", "CD3E"), donor_id = sprintf(
   )
 
 # Fit contrasts ----
-fit_gene <- function(gene_expression) {
-  fit <- lm(log2_expr ~ condition, data = gene_expression)
-  disease_term <- coef(summary(fit))["conditiondisease", ]
-  tibble(log2_fc = disease_term[["Estimate"]], p_value = disease_term[["Pr(>|t|)"]])
-}
 de_results <- expression |>
   split(~gene) |>
-  map(fit_gene) |>
+  map(\(gene_expression) {
+    fit <- lm(log2_expr ~ condition, data = gene_expression)
+    disease_term <- coef(summary(fit))["conditiondisease", ]
+    tibble(log2_fc = disease_term[["Estimate"]], p_value = disease_term[["Pr(>|t|)"]])
+  }) |>
   list_rbind(names_to = "gene") |>
   mutate(q_value = p.adjust(p_value, method = p_adjust_method)) |>
   arrange(q_value)

@@ -52,6 +52,7 @@ test('R measures', () => {
   assert.strictEqual(m.max_nesting, 4, 'function > if > for > if');
   assert.strictEqual(m.vague_names, 3, 'df, x, res2; a named argument on its own line is not counted');
   assert.strictEqual(m.wrappers_once, 1, 'fit_one is called once; mapped is passed to lapply');
+  assert.strictEqual(m.functions_under3, 3, 'fit_one, mapped and per_group are each used fewer than 3 times');
   assert.strictEqual(m.session_info, true);
   assert.strictEqual(m.late_loads, 1, 'library(tidyr) below code; options() above library() is setup');
   assert.strictEqual(m.base_df_calls, 3, 'merge(), lapply() and a for loop over nrow()');
