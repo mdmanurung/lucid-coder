@@ -12,9 +12,12 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-1. Done: round 2 review (below). Next: more tasks under the side-by-side format, or more reps, before claiming an effect.
+1. The user reviews the final head-to-head: https://claude.ai/artifact/9oiNwhE7KmzGQPhrpVp3kp. Tasks 02-04, arm A vs arm D, rep 1, 11 two-column panels; key in `eval/results/sbs-0204-20261027/review/side-by-side-key.tsv`.
 2. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
 3. Decisions open for the user: allow `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form; the other session's uncommitted `templates/plots.*`, `bench/`, `skills/*` and house-style rows.
+
+## Tasks 02-04 for the head-to-head (2026-10-27, night)
+- `eval/results/sbs-0204-20261027`: tasks 02-04 × A-D × 1 rep at BUDGET=3, gates 12/12. Script lines: 02 A 57, B 33, C 22, D 28; 03 A 153, B 35, C 71, D 81; 04 A 94, B 58, C 88, D 79. The page compares A and D only, at the user's request for two options at a time.
 
 ## Round 2 review results (2026-10-27, night)
 - Picks, unblinded: D won setup, load, fit and the notebook; C won filter-and-aggregate and write; A won the SKILL.md Workflow; B none. Plugin arms 6/7 (round 1: 4/7). One rep, one reader.
