@@ -7,6 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { codeMeasures } = require('./measures');
 
 const COLUMNS = ['run_id', 'task', 'arm', 'rep', 'exit_code', 'cost_usd', 'duration_s', 'turns',
   'script_found', 'rerun_ok', 'gate', 'gate_detail', 'air_ok', 'lint_count', 'header_complete',
@@ -14,7 +15,10 @@ const COLUMNS = ['run_id', 'task', 'arm', 'rep', 'exit_code', 'cost_usd', 'durat
   // Added after the pilot (D1 revised, new arm D rules); pilot rows hold NA here.
   'native_pipe', 'rule_out_dir', 'rule_warn1',
   // Added after rerun4; older rows lack it and readers treat the missing cell as NA.
-  'join_guard_count'];
+  'join_guard_count',
+  // Rubric G items (eval/rubric.md, eval/measures.js); added after grid 5.
+  'code_lines', 'joins_unkeyed', 'warning_suppress', 'longest_pipe', 'max_nesting',
+  'vague_names', 'wrappers_once', 'session_info', 'late_loads', 'base_df_calls', 'upper_constants'];
 const EVAL_DIR = __dirname;
 const TEMPLATES = path.join(EVAL_DIR, '..', 'templates');
 // Both paths come from `module show statistical/R/4.5.2/gcc.8.5.0`.
@@ -139,6 +143,7 @@ function textMeasures(code, script) {
   const codeLines = code.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
   const joinGuard = isPython(script) ? /\bvalidate\s*=(?!=)/g : /\brelationship\s*=(?!=)/g;
   const common = {
+    ...codeMeasures(code, isPython(script)),
     join_guard_count: (codeLines.match(joinGuard) || []).length,
     header_complete: HEADER_WORDS.every(w => new RegExp(`\\b${w}\\b`, 'i').test(head)),
     rule_out_dir: /\bout_dir\s*(<-|=)/.test(code),

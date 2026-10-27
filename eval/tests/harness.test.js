@@ -163,7 +163,7 @@ test('score.js: an old results.tsv gets the new header and keeps its short rows'
   const tsDir = path.join(root, 'results', TS);
   mockRun(tsDir, '99_mock_C_r1', { arm: 'C', script: GOOD_R, claude: '{}', taskDir });
   const file = path.join(root, 'results', 'results.tsv');
-  const oldCols = COLUMNS.slice(0, -1);
+  const oldCols = COLUMNS.slice(0, COLUMNS.indexOf('join_guard_count'));
   const oldRow = ['old/run', ...oldCols.slice(1).map(() => 'NA')].join('\t');
   fs.writeFileSync(file, oldCols.join('\t') + '\n' + oldRow + '\n');
   const r = spawnSync(process.execPath, [path.join(evalDir, 'score.js'), tsDir], { encoding: 'utf8' });
@@ -172,6 +172,7 @@ test('score.js: an old results.tsv gets the new header and keeps its short rows'
   assert.deepStrictEqual(lines.slice(0, 2), [COLUMNS.join('\t'), oldRow]);
   const rows = readTsv(file);
   assert.deepStrictEqual(rows.map(x => x.join_guard_count), ['', '0']);
+  assert.strictEqual(rows[0].code_lines, '', 'old rows read the rubric columns as NA');
 });
 
 function runSh(args, env) {
