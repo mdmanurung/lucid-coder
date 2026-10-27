@@ -8,6 +8,6 @@ Data:
 Analysis:
 1. Median intensity of every marker per subcluster. Save to `data/MPL_cluster_median_markers.parquet`.
 2. Per patient: count cells per subcluster and per lineage. Frequency of a subcluster = its cells / cells in its lineage x 100. Transform with arcsin(sqrt(proportion)). Attach `group2`, `age`, `sex` from the metadata. Drop rows with missing values and exclude patient `LD413`.
-3. Subcluster x patient table of the transformed frequencies, 0 where a patient has no cells in a subcluster.
+3. Subcluster x patient table of the transformed frequencies, 0 where a patient has no cells in a subcluster, including when the patient has no cells in that whole lineage.
 4. For each subcluster, fit OLS of the transformed frequency on the weighted linear and quadratic `group2` contrasts (from `poly_weighted`, with counts = patients per level after filtering) plus `age`, `sex` and `batch`. Use robust (HC3) standard errors.
-5. One table with lineage, cluster, the linear-term estimate and p-value (`pval_L`) and the quadratic-term p-value (`pval_Q`), with Benjamini-Hochberg FDR across subclusters for each term (`fdr_L`, `fdr_Q`). Save to `outputs/MPL_trend_test.parquet`.
+5. One table with `lineage` and `cluster`, where `cluster` is the full subcluster name (e.g. `CD4T_Th1`, as downstream figure scripts join on it), plus the linear-term estimate and p-value (`pval_L`) and the quadratic-term p-value (`pval_Q`), with Benjamini-Hochberg FDR across subclusters for each term (`fdr_L`, `fdr_Q`). Save to `outputs/MPL_trend_test.parquet`; create `outputs/` if it does not exist.
