@@ -41,6 +41,7 @@ ANALYSIS_ARGS = [
     "se_col",
     "align",
     "covariances",
+    "null_corr",
     "strong_lfsr",
     "lfsr_max",
     "sharing_factor",
@@ -58,6 +59,7 @@ DEMO = {
     "se_col": "lfc_se",
     "align": "intersect",
     "covariances": "canonical+ed",
+    "null_corr": "identity",
     "strong_lfsr": 0.05,
     "lfsr_max": 0.05,
     "sharing_factor": 0.5,
@@ -100,6 +102,7 @@ def parse_args(argv):
     parser.add_argument("--se-col")
     parser.add_argument("--align", choices=["intersect", "union"])
     parser.add_argument("--covariances", choices=["canonical", "canonical+ed"])
+    parser.add_argument("--null-corr", choices=["identity", "em"])
     parser.add_argument("--strong-lfsr", type=float)
     parser.add_argument("--lfsr-max", type=float)
     parser.add_argument("--sharing-factor", type=float)
@@ -197,6 +200,7 @@ def run_mash(bhat, shat, p):
             str(tmp / "bhat.tsv"),
             str(tmp / "shat.tsv"),
             p["covariances"],
+            p["null_corr"],
             str(p["strong_lfsr"]),
             str(p["lfsr_max"]),
             str(p["sharing_factor"]),
@@ -225,7 +229,7 @@ def run_mash(bhat, shat, p):
             fail(ERRORS, "r_failed", code=proc.returncode, tail=tail)
         out = {
             name: pd.read_csv(tmp / f"{name}.tsv", sep="\t", index_col=0)
-            for name in ["pm", "psd", "lfsr", "sharing"]
+            for name in ["pm", "psd", "lfsr", "sharing", "null_corr"]
         }
     lines = proc.stdout.strip().splitlines()
     n_strong = lines[0].split()[-1]
@@ -354,6 +358,8 @@ def analyse(argv, full_argv):
     sharing.to_csv(tables_dir / "pairwise_sharing.tsv", sep="\t", index=False)
     spearman = raw_spearman(bhat)
     spearman.to_csv(tables_dir / "raw_spearman.tsv", sep="\t", index=False)
+    null_corr = pairs_table(mash["null_corr"].loc[names, names], "v")
+    null_corr.to_csv(tables_dir / "null_corr.tsv", sep="\t", index=False)
 
     # Scatter pair: highest sharing; a tie goes to the first pair in name order.
     top = sharing.sort_values(
@@ -400,6 +406,7 @@ def analyse(argv, full_argv):
         "cell_types": names,
         "genes_dropped_by_align": dropped,
         "n_strong": mash["n_strong"],
+        "null_corr": p["null_corr"],
         "n_significant_any": n_any,
         "n_shared_all": n_shared,
         "n_specific": n_specific,

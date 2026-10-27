@@ -117,6 +117,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--se-col` | Which column holds its standard error? | `lfc_se` |
 | `--align` | Keep only genes tested in every cell type (`intersect`), or every gene with the missing cells treated as unmeasured (`union`)? | `intersect` |
 | `--covariances` | Canonical covariances only (`canonical`, as dreamlet's `run_mash`), or canonical plus data-driven ED (`canonical+ed`)? | `canonical+ed` |
+| `--null-corr` | Do these DE tables come from the same donors? Then `em` (null correlation `V` by EM, as dreamlet's `run_mash`); `identity` only for independent cells and samples. | `identity` |
 | `--strong-lfsr` | Which lfsr in a one-by-one ash fit picks the strong signals that train the ED covariances? Used only with `canonical+ed`. | `0.05` |
 | `--lfsr-max` | Which lfsr marks a gene significant in a cell type (also the sharing threshold)? | `0.05` |
 | `--sharing-factor` | Within what factor must two posterior means agree to count as shared (mashr's `factor`)? | `0.5` |
@@ -147,8 +148,10 @@ python scripts/mashr_sharing.py --demo --outdir demo_out
    table; `union` keeps all, with NA where a table lacks the gene. Genes and cell
    types are sorted by name.
 3. **`mash_set_data(Bhat, Shat)`**. It sets a missing cell to `Bhat = 0`,
-   `Shat = 1e6`, so it carries no information. The residual correlation `V` stays
-   at identity (see "Null correlation V" below).
+   `Shat = 1e6`, so it carries no information. With `--null-corr em`, the null
+   correlation `V` is estimated by `mash_estimate_corr_em` over the canonical
+   covariances and set with `mash_update_data`, before any ED step; with
+   `identity` it stays at identity (see "Null correlation V" below).
 4. **Covariances:** `cov_canonical`. With `canonical+ed`, also: strong genes are
    those with lfsr < `--strong-lfsr` in any cell type in `mash_1by1`;
    `cov_pca(npc = K)` on them seeds `cov_ed`. K is the number of cell types, so
@@ -171,12 +174,13 @@ unmeasured cell. The pair tables are sorted by `cell_type_a`, `cell_type_b`.
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_genes, cell_types, genes_dropped_by_align, n_strong, n_significant_any, n_shared_all, n_specific, significant_per_cell_type, scatter_pair, params, seed, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # n_genes, cell_types, genes_dropped_by_align, n_strong, null_corr, n_significant_any, n_shared_all, n_specific, significant_per_cell_type, scatter_pair, params, seed, reference, chat_summary_lines, preferred_artifacts
 ├── tables/
 │   ├── posterior.tsv          # gene, cell_type, raw_effect, raw_se, pm, psd, lfsr, significant
 │   ├── significant_counts.tsv # n_cell_types (1..K), n_genes
 │   ├── pairwise_sharing.tsv   # cell_type_a, cell_type_b, sharing
-│   └── raw_spearman.tsv       # cell_type_a, cell_type_b, n_genes, rho, pvalue
+│   ├── raw_spearman.tsv       # cell_type_a, cell_type_b, n_genes, rho, pvalue
+│   └── null_corr.tsv          # cell_type_a, cell_type_b, v (0 everywhere with identity)
 ├── figures/
 │   ├── sharing_heatmap.pdf
 │   ├── sharing_heatmap.png
@@ -234,10 +238,10 @@ cells and samples, so their null errors do not correlate. dreamlet's `run_mash`
 instead estimates `V` with `mash_estimate_corr_em(data, U.c)` (checked in
 dreamlet 1.8.0 source); cell types measured in the
 same donors usually have correlated errors, and identity then overstates
-sharing evidence. **Candidate flag, pending the user's decision:** a required
-`--null-corr {identity,em}` that would select one or the other. Until the user
-decides, `V` stays at identity and the agent says so when the tables share
-donors.
+sharing evidence. `--null-corr` is required and has no default: `em` when the
+tables share donors (dreamlet's choice), `identity` only when they come from
+independent cells and samples. Its grill question: do these DE tables come from
+the same donors?
 
 ## Maintainer notes
 

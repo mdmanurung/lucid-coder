@@ -37,6 +37,7 @@ ARGS = {
     "--se-col": "lfc_se",
     "--align": "intersect",
     "--covariances": "canonical",
+    "--null-corr": "identity",
     "--strong-lfsr": "0.05",
     "--lfsr-max": "0.05",
     "--sharing-factor": "0.5",
@@ -139,7 +140,7 @@ def test_demo_golden_values(demo_out):
 
 def test_output_contract(demo_out):
     paths = contract_paths()
-    assert len(paths) == 18
+    assert len(paths) == 19
     for rel in paths:
         assert (demo_out / rel).stat().st_size > 0, rel
     check = subprocess.run(
@@ -179,6 +180,20 @@ def test_intersect_drops_per_cell_type(tmp_path):
         "CD8T": 50,
         "Mono": 50,
     }
+
+
+@needs_r
+def test_null_corr_em_estimates_v(tmp_path, demo_out):
+    """identity writes V = 0 off the diagonal; em writes an estimated correlation."""
+    identity = pd.read_csv(demo_out / "tables" / "null_corr.tsv", sep="\t")
+    assert (identity["v"] == 0).all()
+    completed = run_with(tmp_path, null_corr="em")
+    assert completed.returncode == 0, completed.stderr
+    em = pd.read_csv(tmp_path / "out" / "tables" / "null_corr.tsv", sep="\t")
+    assert len(em) == len(identity) and em["v"].between(-1, 1).all()
+    assert (em["v"] != 0).any()
+    result = json.loads((tmp_path / "out" / "result.json").read_text())
+    assert result["null_corr"] == "em"
 
 
 @needs_r

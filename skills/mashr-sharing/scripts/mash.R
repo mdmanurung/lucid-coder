@@ -1,9 +1,9 @@
 # Purpose: mashr engine for mashr_sharing.py; never run by hand.
 # Inputs:  bhat.tsv, shat.tsv (genes x cell types; NA = gene not measured there)
 # Outputs: <outdir>/{pm,psd,lfsr}.tsv (NA where the gene was not measured),
-#          <outdir>/sharing.tsv (cell type x cell type);
+#          <outdir>/sharing.tsv (cell type x cell type), <outdir>/null_corr.tsv (V);
 #          stdout: "n_strong <n>", then R, mashr and ashr versions.
-# Run:     Rscript mash.R bhat.tsv shat.tsv canonical+ed 0.05 0.05 0.5 0 outdir
+# Run:     Rscript mash.R bhat.tsv shat.tsv canonical+ed identity 0.05 0.05 0.5 0 outdir
 # Exit 3: mashr missing. Exit 4: fewer strong signals than cell types for ED.
 
 for (pkg in c("mashr", "ashr")) {
@@ -19,6 +19,7 @@ names(args) <- c(
   "bhat",
   "shat",
   "covariances",
+  "null_corr",
   "strong_lfsr",
   "lfsr_max",
   "factor",
@@ -36,9 +37,15 @@ shat <- read_matrix(args[["shat"]])
 measured <- !is.na(bhat)
 
 # mash_set_data turns NA into Bhat = 0, Shat = 1e6 (no information).
-# V stays at identity; dreamlet's run_mash estimates it by EM instead.
 data <- mash_set_data(bhat, shat)
 U <- cov_canonical(data)
+# em: as dreamlet's run_mash, V by EM over the canonical covariances, before ED.
+V <- diag(ncol(bhat))
+if (args[["null_corr"]] == "em") {
+  V <- mash_estimate_corr_em(data, U, details = TRUE)$V
+  data <- mash_update_data(data, V = V)
+}
+dimnames(V) <- list(colnames(bhat), colnames(bhat))
 n_strong <- NA
 if (args[["covariances"]] == "canonical+ed") {
   strong <- get_significant_results(
@@ -90,6 +97,7 @@ write_matrix(get_pm(m), "pm.tsv")
 write_matrix(get_psd(m), "psd.tsv")
 write_matrix(get_lfsr(m), "lfsr.tsv")
 write_matrix(sharing, "sharing.tsv")
+write_matrix(V, "null_corr.tsv")
 
 cat("n_strong ", n_strong, "\n", sep = "")
 cat(R.version.string, "\n", sep = "")
