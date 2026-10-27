@@ -12,9 +12,21 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-1. The user scores the human packet: `eval/results/packet-20261026/packet/sheet.tsv`. Its scripts come from the old rules (pilot A/B, rerun-4 C/D).
-2. Done: grid 5 (below). Next measurement: decide the `unmatched = "error"` question and the `here()` path form, then a human packet from grid 5 if the old-rules packet shows an effect.
-3. Decisions open for the user: allow `verify_*.R` cross-artefact scripts (see `corpus-patterns.md`); fold in or drop the other session's uncommitted `templates/plots.*`, `bench/`, `skills/pseudobulk-de/` and `fig.text` row.
+1. The user reviews https://claude.ai/artifact/L8bViWW4Zhz5Hx9K1Juqq1: 7 blinded arm panels (01sk notebook runs, rep 1) and 12 human-corpus panels, four columns each. Read picks with ArtifactData `list` on collection `picks`; unblind with `eval/results/skill-nb-20261027/review/side-by-side-key.tsv`. Human picks are preferences to learn, not rules yet.
+2. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
+3. Decisions open for the user: allow `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form; the other session's uncommitted `templates/plots.*`, `bench/`, `skills/*` and house-style rows.
+
+## Notebook split and 01sk rerun (2026-10-27, evening)
+- Core rule: scripts prep data, fit models and write tables; figures and reports go in a notebook that reads those tables. 01sk now asks for `report.ipynb` (R kernel `ir`), run by papermill and rendered to `report.md` by nbconvert.
+- The harness, scorer and gate tests use the R4_51 conda env (R 4.5.1, tidyverse, IRkernel, papermill, pandoc 3.4). Its bin holds Claude Code 2.0.73, so run.sh pins `claude` first. Gate tests 15/15 pass; fixtures regenerate identically.
+- `eval/results/skill-nb-20261027`: 4 arms × 2 reps at BUDGET=5 (at $2, two arms ran out). Gates 8/8. Cost $3.26-5.15 per run. Script lines (score.js) fell from 179-445 under the old contract to 106-280.
+
+| Arm | Script lines r1 / r2 |
+|---|---|
+| A | 228 / 280 |
+| B | 161 / 140 |
+| C | 155 / 106 |
+| D | 188 / 174 |
 
 ## Grid 5 under the current rules (2026-10-27, night)
 - `eval/results/grid5-20261027/`: tasks 01-04 × A-D × 2 reps, run after `52f5d2b`. All 32 runs succeeded, gates 32/32, reruns 32/32. Cost: A $2.88, B $2.27, C $1.67, D $2.12.
