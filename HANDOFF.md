@@ -12,9 +12,14 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-1. Done: the corrected head-to-head (below). Next: rerun 02-04 under the header, divider and write rules, or stop the eval here.
+1. The user reviews round 2 of the head-to-head: https://claude.ai/artifact/MFh7vhoZZcRBYD7Be4s5AS (tasks 02-04 under the header/divider/write rules, A vs D, 8 like-for-like panels; key in `eval/results/sbs2-0204-20261027/review/side-by-side-key.tsv`). These runs used the rule-list core (`4b14e3b`), not the persona draft.
+2. Persona synthesis in progress: four Opus reviewers extract the persona from the corpus, the picks, the rules and persona-skill craft (ub-mode, ponytail); Fable synthesises into a new `rules/core.md` within the 3,350-byte cap. Draft at scratchpad `persona-core.md`. Then test persona-D against rules-D blind.
 2. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
 3. Decisions open for the user: allow `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form; the other session's uncommitted `templates/plots.*`, `bench/`, `skills/*` and house-style rows.
+
+## Tasks 02-04 round 2 (2026-10-28)
+- `eval/results/sbs2-0204-20261027`: 4 arms × 1 rep under the header, divider and write rules; gates 12/12. Script lines: 02 A 50, B 28, C 32, D 23; 03 A 120, B 35, C 93, D 97; 04 A 90, B 49, C 91, D 85. side-by-side.js now skips a step that only some versions have (two panels had an empty side).
+- ub-mode (github.com/unclebob/ub-mode) read 2026-10-28: a 3,958-byte SKILL.md of ~40 bare imperatives in three phases (make it work, make it right, practice) paired with deterministic gates (crapper, dryer, mutator). Taken: "check the data where it enters, inside trust it" (our check policy), "if the test would still pass when every function returned nothing, throw it out" (checks able to fail), "pin what the code does, change the structure, prove the behaviour did not change" (task 04 gate). Not taken: its shape, a rule list with no voice or why, which is what the user is moving away from.
 
 ## Whole-script head-to-head (2026-10-27, night)
 - Task 02: D won. Task 04: no preference, "need a mix": A for its descriptive header, full-width dividers and one write call per table; D for UPPER_SNAKE parameters, inline `case_when` without helpers, and comments that explain the next block.
