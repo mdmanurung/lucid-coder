@@ -86,3 +86,9 @@ Relevant recipes: 3.2 (one RStudio project per nontrivial piece of work),
 3.3 and 3.16 (do not rely on the saved workspace), 3.14 (`Rscript` batch
 runs), 8.4 (`set.seed`), 12.20 (code sections), 15.10 (reusable functions in
 a sourced file; a package for larger work).
+
+## Wickham, Çetinkaya-Rundel and Grolemund, "R for Data Science", 2nd edition (2023)
+
+<https://r4ds.hadley.nz/workflow-style.html> is the R code-style authority (user rule, 2026-10-27).
+Taken into `rules/r.md`: lowercase snake_case names, constants included (its "Avoid" example is `SHORTFLIGHTS`); variants share a prefix, not a suffix; a space before `|>` and `|>` at the end of the line; named arguments one per line; pipelines over about 10-15 lines split into named sub-tasks, especially after reshaping or summarising; ggplot2 `+` follows the pipe rules; sectioning comments `# Load data ----`. Spacing rules are left to `air`.
+Also taken (R4DS idiom chapters and R Cookbook 2e, 2026-10-27): the `r.r4ds` row in `house-style.md`. R Cookbook predates `|>`, `join_by()` and `.default`; where the two books differ, R4DS wins. R Cookbook still supplies the modelling advice: fit with `data =`, then read results with accessors.
