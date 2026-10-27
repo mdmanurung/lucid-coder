@@ -162,28 +162,46 @@ function langPath() {
   return path.join(stateDir(), '.lucid-coder-lang');
 }
 
-// Override flag: r, python, both; absent or unreadable means auto-detect.
-function readLang() {
+// The override is per repo: the flag file is a JSON map from repo id (or the
+// real path outside a repo) to r, python or both. Anything unreadable, including
+// an old plain-text flag, means auto-detect.
+function langKey(cwd) {
+  let dir = path.resolve(cwd);
+  try { dir = fs.realpathSync(dir); } catch (e) {}
+  const repo = repoInfo(dir);
+  return repo ? repo.id : dir;
+}
+
+function readLangMap() {
   try {
-    const value = fs.readFileSync(langPath(), 'utf8').trim();
+    const map = JSON.parse(fs.readFileSync(langPath(), 'utf8'));
+    return map && typeof map === 'object' && !Array.isArray(map) ? map : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function readLang(cwd = process.cwd()) {
+  try {
+    const value = readLangMap()[langKey(cwd)];
     return LANG_VALUES[value] ? value : 'auto';
   } catch (e) {
     return 'auto';
   }
 }
 
-function setLang(value) {
-  if (LANG_VALUES[value]) {
-    fs.mkdirSync(stateDir(), { recursive: true });
-    fs.writeFileSync(langPath(), value);
-    return;
-  }
-  try { fs.unlinkSync(langPath()); } catch (e) {}
+function setLang(value, cwd = process.cwd()) {
+  const map = readLangMap();
+  const key = langKey(cwd);
+  if (LANG_VALUES[value]) map[key] = value;
+  else delete map[key];
+  fs.mkdirSync(stateDir(), { recursive: true });
+  fs.writeFileSync(langPath(), JSON.stringify(map));
 }
 
 // Tier languages for this session: the override flag wins over detection.
 function languages(cwd) {
-  const lang = readLang();
+  const lang = readLang(cwd);
   if (lang !== 'auto') return LANG_VALUES[lang];
   return ['r', 'python'].filter(l => detectLanguages(cwd).has(l));
 }
@@ -196,14 +214,17 @@ function sha256(buf) {
 
 // Returns the active rules that apply here. A repo file whose hash is not
 // trusted sets rules.notice instead of loading, so render can say so.
-function readActiveRules() {
+// langs, when given, drops language-scoped rules for languages not in use.
+function readActiveRules(langs) {
   let store = {};
   try { store = JSON.parse(fs.readFileSync(path.join(dataDir(), 'rules.json'), 'utf8')) || {}; } catch (e) {}
   let repo = null;
   try { repo = repoInfo(process.cwd()); } catch (e) {}
+  const applies = s => !s ||
+    !(s.kind === 'repo' && !(repo && s.repo === repo.id)) &&
+    !(s.kind === 'language' && langs && !langs.includes(s.language));
   const rules = (Array.isArray(store.rules) ? store.rules : []).filter(r =>
-    r && r.status === 'active' &&
-    !(r.scope && r.scope.kind === 'repo' && !(repo && r.scope.repo === repo.id)));
+    r && r.status === 'active' && applies(r.scope));
   if (!repo) return rules;
   try {
     const text = fs.readFileSync(path.join(repo.root, 'lucid-coder.rules.json'));

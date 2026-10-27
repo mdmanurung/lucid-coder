@@ -98,15 +98,18 @@ readStdin(payload => {
     }
     const lang = prompt.toLowerCase().match(LANG_COMMAND);
     if (lang) {
-      setLang(lang[1]);
-      writeOutput('UserPromptSubmit', `LUCID-CODER LANG ${readLang().toUpperCase()}`);
+      const cwd = payload.cwd || process.cwd();
+      setLang(lang[1], cwd);
+      writeOutput('UserPromptSubmit', `LUCID-CODER LANG ${readLang(cwd).toUpperCase()} (this repo, from the next session start or /clear)`);
       process.exit(0);
     }
     const match = prompt.toLowerCase().match(COMMAND);
     if (match) {
       const arg = match[1] || 'status';
       if (arg !== 'status') setMode(arg);
-      writeOutput('UserPromptSubmit', readMode() === 'off' ? 'LUCID-CODER OFF' : 'LUCID-CODER ON');
+      // Rules are injected at session start, so a change only lands after /clear or a new session.
+      const when = arg === 'status' ? '' : ' (from the next session start or /clear)';
+      writeOutput('UserPromptSubmit', (readMode() === 'off' ? 'LUCID-CODER OFF' : 'LUCID-CODER ON') + when);
       process.exit(0);
     }
     if (readMode() !== 'off' && nudgeOn() && CORRECTION.test(prompt) &&

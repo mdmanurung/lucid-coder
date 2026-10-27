@@ -5,7 +5,8 @@ const { readMode, readCore, readActiveRules, readTiers, languages, render, write
 
 function inject() {
   try {
-    writeOutput('SubagentStart', render(readCore(), readActiveRules(), readTiers(languages(process.cwd()))));
+    const langs = languages(process.cwd());
+    writeOutput('SubagentStart', render(readCore(), readActiveRules(langs), readTiers(langs)));
   } catch (e) {
     writeOutput('SubagentStart', FALLBACK_CORE);
   }

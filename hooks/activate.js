@@ -4,7 +4,8 @@ const { readMode, readCore, readActiveRules, readTiers, languages, render, write
 rememberDataDir();
 try {
   if (readMode() !== 'off') {
-    writeOutput('SessionStart', render(readCore(), readActiveRules(), readTiers(languages(process.cwd()))));
+    const langs = languages(process.cwd());
+    writeOutput('SessionStart', render(readCore(), readActiveRules(langs), readTiers(langs)));
   }
 } catch (e) {
   writeOutput('SessionStart', FALLBACK_CORE);

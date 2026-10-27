@@ -65,7 +65,7 @@ test('oversized store stays under the cap and says what it hid', () => {
   assert.ok(r.stdout.length < 10000, `length ${r.stdout.length}`);
   assert.match(r.stdout, /\d+ rules not shown; run \/lucid-coder:rules\./);
   // Worst case: both tiers on top of 200 rules.
-  fs.writeFileSync(path.join(home, '.lucid-coder-lang'), 'both');
+  fs.writeFileSync(path.join(home, '.lucid-coder-lang'), JSON.stringify({ [fs.realpathSync(home)]: 'both' }));
   const both = run('activate.js', home).stdout;
   assert.ok(both.length < 10000, `length ${both.length}`);
   assert.match(both, R_TIER);
@@ -106,7 +106,9 @@ test('activate injects the tier for the detected language, and the flag override
   assert.doesNotMatch(inR, PY_TIER);
   assert.ok(inR.indexOf('## Learning') < inR.indexOf('\n## R\n'), 'tier follows core');
 
-  fs.writeFileSync(path.join(home, '.lucid-coder-lang'), 'python');
+  fs.writeFileSync(path.join(home, '.lucid-coder-lang'), JSON.stringify({ [fs.realpathSync(rRepo)]: 'python' }));
+  const otherR = langTree(home, ['other/02_y.R']);
+  assert.match(run('activate.js', home, { cwd: otherR }).stdout, R_TIER, 'the flag is per repo');
   const overridden = run('activate.js', home, { cwd: rRepo }).stdout;
   assert.match(overridden, PY_TIER);
   assert.doesNotMatch(overridden, R_TIER);
@@ -157,10 +159,10 @@ test('prompt commands switch and report the mode', () => {
   const flag = path.join(home, '.lucid-coder-active');
   const say = p => run('prompt.js', home, { input: JSON.stringify({ prompt: p }) }).stdout;
 
-  assert.strictEqual(say('/lucid-coder off'), 'LUCID-CODER OFF');
+  assert.strictEqual(say('/lucid-coder off'), 'LUCID-CODER OFF (from the next session start or /clear)');
   assert.strictEqual(fs.readFileSync(flag, 'utf8'), 'off');
   assert.strictEqual(say('/lucid-coder status'), 'LUCID-CODER OFF');
-  assert.strictEqual(say('/lucid-coder:lucid-coder on'), 'LUCID-CODER ON');
+  assert.strictEqual(say('/lucid-coder:lucid-coder on'), 'LUCID-CODER ON (from the next session start or /clear)');
   assert.ok(!fs.existsSync(flag));
   assert.strictEqual(say('/lucid-coder'), 'LUCID-CODER ON');
   assert.strictEqual(say('turn lucid-coder off please'), '');
@@ -262,4 +264,15 @@ test('activate leaves a data-dir pointer that the CLI uses without CLAUDE_PLUGIN
     '--topic', 'user.x', '--scope', 'global', '--statement', 'S', '--why', 'W'], { cwd: home, env, encoding: 'utf8' });
   assert.strictEqual(r.status, 0, r.stderr);
   assert.ok(fs.existsSync(path.join(plugin, 'rules.json')));
+});
+
+test('language-scoped learned rules follow the languages in use', () => {
+  const home = setup();
+  writeStore(home, JSON.stringify({ rules: [
+    { id: 'r-py', topic: 'user.py_only', scope: { kind: 'language', language: 'python' }, status: 'active', statement: 'PY RULE' },
+    { id: 'r-r', topic: 'user.r_only', scope: { kind: 'language', language: 'r' }, status: 'active', statement: 'R RULE' },
+  ] }));
+  const inR = run('activate.js', home, { cwd: langTree(home, ['scripts/01_x.R']) }).stdout;
+  assert.match(inR, /R RULE/);
+  assert.doesNotMatch(inR, /PY RULE/);
 });

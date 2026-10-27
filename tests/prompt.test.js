@@ -98,18 +98,18 @@ test('nudge command writes and removes its flag', () => {
 test('lang command writes and removes its flag', () => {
   const home = setup();
   const flag = path.join(home, '.lucid-coder-lang');
-  assert.strictEqual(run(home, { prompt: '/lucid-coder lang python' }), 'LUCID-CODER LANG PYTHON');
-  assert.strictEqual(fs.readFileSync(flag, 'utf8'), 'python');
-  assert.strictEqual(run(home, { prompt: '/lucid-coder:lucid-coder lang both' }), 'LUCID-CODER LANG BOTH');
-  assert.strictEqual(run(home, { prompt: '/lucid-coder lang auto' }), 'LUCID-CODER LANG AUTO');
-  assert.ok(!fs.existsSync(flag));
+  assert.strictEqual(run(home, { prompt: '/lucid-coder lang python' }), 'LUCID-CODER LANG PYTHON (this repo, from the next session start or /clear)');
+  assert.deepStrictEqual(Object.values(JSON.parse(fs.readFileSync(flag, 'utf8'))), ['python']);
+  assert.strictEqual(run(home, { prompt: '/lucid-coder:lucid-coder lang both' }), 'LUCID-CODER LANG BOTH (this repo, from the next session start or /clear)');
+  assert.strictEqual(run(home, { prompt: '/lucid-coder lang auto' }), 'LUCID-CODER LANG AUTO (this repo, from the next session start or /clear)');
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(flag, 'utf8')), {});
   assert.strictEqual(run(home, { prompt: '/lucid-coder lang julia' }), '');
 });
 
 test('mode commands still work', () => {
   const home = setup();
-  assert.strictEqual(run(home, { prompt: '/lucid-coder off' }), 'LUCID-CODER OFF');
+  assert.strictEqual(run(home, { prompt: '/lucid-coder off' }), 'LUCID-CODER OFF (from the next session start or /clear)');
   assert.strictEqual(run(home, { prompt: '/lucid-coder status' }), 'LUCID-CODER OFF');
-  assert.strictEqual(run(home, { prompt: '/lucid-coder on' }), 'LUCID-CODER ON');
+  assert.strictEqual(run(home, { prompt: '/lucid-coder on' }), 'LUCID-CODER ON (from the next session start or /clear)');
   assert.strictEqual(run(home, { prompt: '/lucid-coder' }), 'LUCID-CODER ON');
 });
