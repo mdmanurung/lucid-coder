@@ -13,8 +13,22 @@ Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.
 
 ## Next action
 1. The user scores the human packet: `eval/results/packet-20261026/packet/sheet.tsv`. Its scripts come from the old rules (pilot A/B, rerun-4 C/D).
-2. Rerun the R grid under the current rules: tasks 01-04, all four arms, 2 reps, about $30. The task prompts and tool list changed (`52f5d2b`), so arm A reruns too and old rows are not a baseline.
+2. Done: grid 5 (below). Next measurement: decide the `unmatched = "error"` question and the `here()` path form, then a human packet from grid 5 if the old-rules packet shows an effect.
 3. Decisions open for the user: allow `verify_*.R` cross-artefact scripts (see `corpus-patterns.md`); fold in or drop the other session's uncommitted `templates/plots.*`, `bench/`, `skills/pseudobulk-de/` and `fig.text` row.
+
+## Grid 5 under the current rules (2026-10-27, night)
+- `eval/results/grid5-20261027/`: tasks 01-04 × A-D × 2 reps, run after `52f5d2b`. All 32 runs succeeded, gates 32/32, reruns 32/32. Cost: A $2.88, B $2.27, C $1.67, D $2.12.
+
+| Arm | air passes | Header | Lines (median) | Code lines | Checks | OUT of budget | Scripts with OUT = 0 |
+|---|---|---|---|---|---|---|---|
+| A | 5/8 | 0/8 | 98 | 65 | 36 | 23 | 2/8 |
+| B | 1/8 | 0/8 | 58.5 | 44.5 | 31 | 18 | 2/8 |
+| C | 8/8 | 8/8 | 77.5 (rerun 4: 121.5) | 56 (78) | 19 | 4 | 4/8 |
+| D | 8/8 | 8/8 | 74 (rerun 4: 116) | 51 (71.5) | 18 | 2 | 6/8 |
+
+- The plugin arms are now shorter than baseline; under the old rules they were longer. Arm D followed its learned rules (`out_dir` and `options(warn = 1)`) in 8/8 runs. Baseline Opus now uses `|>` in 8/8, so the pipe rule no longer separates the arms. A and B spend most checks on input audits at load (23 and 18 OUT).
+- Check classification (Opus agent, strict): C/D 6 OUT of 37 (16.2%), median 0. Five of the six are a second guard on one join, three of them `unmatched = "error"` next to `relationship =`. One is an `identical()` that cannot fail. If `unmatched = "error"` counts as part of the join default, C/D are 3 OUT of 34 (8.8%), as in reruns 3-4. Open question: `r.md` names only `relationship =`; `unmatched = "error"` is what stops silent drops, so it arguably belongs in the default.
+- Gaps: 3 C/D scripts (02_C_r1, 04_C_r1, 02_D_r2) have no overwrite guard. C/D have no usage guard (A/B 8/8). 26 of 34 C/D lints are `nonportable_path_linter` from `here::here("data/x.tsv")`; `here::here("data", "x.tsv")` avoids them, but `r.md` has 10 characters free.
 
 ## Review and alignment (2026-10-27, late)
 - A review found the injected rules (`rules/`) were current but everything around them was stale. Fixes, one commit each:
