@@ -12,9 +12,12 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-1. Done: the side-by-side review (below). Next: rerun 01sk (BUDGET=5) under the new comment and UPPER_SNAKE rules and publish a second page to see whether picks move to C/D.
+1. The user reviews round 2: https://claude.ai/artifact/CMz9xq2XZkCH7syopZ2gcs (7 agent panels from `eval/results/skill-nb2-20261027`, rep 1; key in its `review/side-by-side-key.tsv`). Round 1 picks stay in https://claude.ai/artifact/L8bViWW4Zhz5Hx9K1Juqq1.
 2. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
 3. Decisions open for the user: allow `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form; the other session's uncommitted `templates/plots.*`, `bench/`, `skills/*` and house-style rows.
+
+## 01sk rerun under the step-comment rules (2026-10-27, night)
+- `eval/results/skill-nb2-20261027`: gates 8/8 at BUDGET=5, $2.88-5.22 per run (C r2 hit the cap but passed). Script lines A 399/302, B 152/142, C 175/149, D 144/161. UPPER_SNAKE parameters in rep 1: C 4, D 3, A and B 0.
 
 ## Side-by-side review results (2026-10-27, night)
 - The user answered all 19 panels. Agent panels, unblinded: D won setup, load, fit and the SKILL.md Workflow; B won write and the notebook; A won filter-and-aggregate; C won none. One rep, one reader: a lean, not an effect.
