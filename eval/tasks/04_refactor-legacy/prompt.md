@@ -2,4 +2,4 @@
 
 Please refactor it into a new script. The outputs must stay the same: same files, same rows and columns, same values. Leave `scripts/00_legacy.R` as it is.
 
-Write one R script at `scripts/04_group-means.R` that takes the run directory as its only argument and writes its outputs there. Run it once with `Rscript scripts/04_group-means.R results/run1`. Use only base R and: dplyr, tidyr, readr, purrr, stringr, forcats, magrittr, ggplot2, here.
+Write one R script at `scripts/04_group-means.R` that takes the run directory as its only argument and writes its outputs there. Run it once with `Rscript scripts/04_group-means.R results/run1`. Use only base R and: dplyr, tidyr, readr, purrr, stringr, forcats, magrittr, ggplot2, here, limma, edgeR.
