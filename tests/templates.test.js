@@ -44,7 +44,7 @@ const rTimeout = 120000;
 
 test('template files exist', () => {
   for (const f of ['air.toml', '.lintr', 'ruff.toml', 'palettes.R', 'palettes.py', 'theme.R', 'theme.py',
-    EXAMPLE_R, EXAMPLE_PY]) {
+    'plots.R', 'plots.py', 'skillkit.py', EXAMPLE_R, EXAMPLE_PY]) {
     assert.ok(fs.existsSync(path.join(templates, f)), f);
   }
 });
@@ -59,7 +59,7 @@ test('ruff format and check pass on templates', (t) => {
 
 test('air format check passes on the R templates', (t) => {
   if (!has('air')) return t.skip('air not installed');
-  const r = sh('air', ['format', '--check', EXAMPLE_R, 'palettes.R', 'theme.R']);
+  const r = sh('air', ['format', '--check', EXAMPLE_R, 'palettes.R', 'theme.R', 'plots.R']);
   assert.strictEqual(r.status, 0, r.stdout + r.stderr);
 });
 
@@ -72,6 +72,12 @@ test('lintr finds nothing in the R example', { timeout: rTimeout }, (t) => {
 test('palettes.R self-check passes', { timeout: rTimeout }, (t) => {
   if (!hasR) return t.skip('R module not available');
   const r = rscript('palettes.R');
+  assert.strictEqual(r.status, 0, r.stderr);
+});
+
+test('plots.R self-check draws every form', { timeout: rTimeout }, (t) => {
+  if (!hasR) return t.skip('R module not available');
+  const r = rscript('plots.R');
   assert.strictEqual(r.status, 0, r.stderr);
 });
 
@@ -91,6 +97,31 @@ test('palettes.py self-check passes', { timeout: uvTimeout }, (t) => {
   if (!has('uv')) return t.skip('uv not installed');
   const r = sh('uv', [...uvPython, 'palettes.py']);
   assert.strictEqual(r.status, 0, r.stderr);
+});
+
+test('plots.py self-check draws every form', { timeout: uvTimeout }, (t) => {
+  if (!has('uv')) return t.skip('uv not installed');
+  const r = sh('uv', [...uvPython, 'plots.py']);
+  assert.strictEqual(r.status, 0, r.stderr);
+});
+
+test('skillkit.py self-check passes', { timeout: uvTimeout }, (t) => {
+  if (!has('uv')) return t.skip('uv not installed');
+  const r = sh('uv', [...uvPython, 'skillkit.py']);
+  assert.strictEqual(r.status, 0, r.stderr);
+});
+
+// Pipeline skills vendor these files (docs/pipeline-skills.md); a stale copy fails here.
+// Each skill's own pytest suite runs from its references/maintainer.md "Running and testing" line.
+test('pipeline skills vendor the current templates', () => {
+  const skills = path.join(root, 'skills');
+  for (const s of fs.readdirSync(skills)) {
+    for (const f of ['skillkit.py', 'plots.py', 'theme.py', 'palettes.py']) {
+      const copy = path.join(skills, s, 'scripts', f);
+      if (!fs.existsSync(copy)) continue;
+      assert.ok(fs.readFileSync(copy).equals(fs.readFileSync(path.join(templates, f))), `${s}/scripts/${f}`);
+    }
+  }
 });
 
 test('Python example runs into a new run dir', { timeout: uvTimeout }, (t) => {
