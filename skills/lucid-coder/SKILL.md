@@ -311,7 +311,7 @@ Make the choice explicit and say why.
 ## House style (defaults; see `references/house-style.md`)
 
 - R: `<-`, two-space indent, double quotes, `TRUE`/`FALSE`, snake_case,
-  UPPER_SNAKE constants, `|>` always and never `%>%`, `air` at 100 columns, one argument per line for long
+  UPPER_SNAKE constants, `|>` always and never `%>%`, a new line after every `|>` (one step per line, even for two steps), `air` at 100 columns, one argument per line for long
   calls, `library()` at the top for what the script uses, `pkg::fn()` for
   one-off calls. Helper files use `pkg::fn()` only and never call
   `library()` or `require()` inside a function. A `source()` line ends with

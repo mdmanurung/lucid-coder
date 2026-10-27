@@ -30,7 +30,7 @@ Sources are abbreviated:
 |---|---|---|
 | `r.assign` | `<-`, never `=` at top level | obs clean in immgenT, aifi, sound-life; mixed in dreamlet, MOCHA, IHA, MM, aging (`RS/dreamlet_analysis:53`, `RS/MOCHA_Manuscript:69`, `RS/IHA-Figure:130`, `RS/multiple-myeloma:67`, `RS/single_cell_aging:66`) |
 | `r.indent` | 2 spaces | obs split: 2 in immgenT, MM, aging (`C:155`, `RS/multiple-myeloma:67`, `RS/single_cell_aging:66`); 4 in IFN, reflex and the function bodies of aifi and sound-life (`RS/IFN_manuscript:86`, `PF/reflex_manuscript/shard_01:99`, `RS/aifi-healthy-pbmc-reference:125`, `RS/sound-life-scrna-analysis:84`); mixed in ALTRA, MOCHA |
-| `r.pipe` | `\|>` always, never `%>%`, in new and existing repositories | user rule 2026-10-26 (D1 revised in `PLAN.md`). `%>%` appears in 16 of 17 (`C:154`); `\|>` is base R 4.1+ and needs no dependency |
+| `r.pipe` | `\|>` always, never `%>%`, in new and existing repositories; a new line after every `\|>`, one step per line | user rule 2026-10-26 (D1 revised in `PLAN.md`). `%>%` appears in 16 of 17 (`C:154`); `\|>` is base R 4.1+ and needs no dependency |
 | `r.quotes` | double quotes | new: repos mix them (`RS/reflex_manuscript:62`) |
 | `r.bool` | `TRUE`/`FALSE`, never `T`/`F` | rec (`C:209`) |
 | `r.width` | soft limit 100 columns, set as `line-width = 100` in `air.toml`; one argument per line for long calls | decided 2026-10-26 (D3); rec (`C:209`); no repo had a rule (`C:156`) |
