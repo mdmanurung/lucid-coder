@@ -12,9 +12,15 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-1. The user reviews https://claude.ai/artifact/L8bViWW4Zhz5Hx9K1Juqq1: 7 blinded arm panels (01sk notebook runs, rep 1) and 12 human-corpus panels, four columns each. Read picks with ArtifactData `list` on collection `picks`; unblind with `eval/results/skill-nb-20261027/review/side-by-side-key.tsv`. Human picks are preferences to learn, not rules yet.
+1. Done: the side-by-side review (below). Next: rerun 01sk (BUDGET=5) under the new comment and UPPER_SNAKE rules and publish a second page to see whether picks move to C/D.
 2. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
 3. Decisions open for the user: allow `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form; the other session's uncommitted `templates/plots.*`, `bench/`, `skills/*` and house-style rows.
+
+## Side-by-side review results (2026-10-27, night)
+- The user answered all 19 panels. Agent panels, unblinded: D won setup, load, fit and the SKILL.md Workflow; B won write and the notebook; A won filter-and-aggregate; C won none. One rep, one reader: a lean, not an effect.
+- Applied as rules: top-of-script parameters in UPPER_SNAKE (reverses the R4DS lowercase rule; rubric H6 flipped); a short comment naming each step above its block, labels on long pipe verbs, a blank line between steps (core "Comments", house-style `comments.steps`); SKILL.md workflows keyword first (`docs.workflow`). To fit core, two lines moved out: the `check_*.R`/`anyNA()` examples and the separate-layers line.
+- Reinforced, no change: native `|>` (flagged on two human picks), one `stopifnot(identical(...))` on cell IDs vs count columns, no one-use functions, concise notebooks.
+- Not applied: "save key parameters in result.json, but toned down" has no clear threshold yet.
 
 ## Notebook split and 01sk rerun (2026-10-27, evening)
 - Core rule: scripts prep data, fit models and write tables; figures and reports go in a notebook that reads those tables. 01sk now asks for `report.ipynb` (R kernel `ir`), run by papermill and rendered to `report.md` by nbconvert.

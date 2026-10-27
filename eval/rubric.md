@@ -89,7 +89,7 @@ These items say whether the plugin was followed. They do not say whether the cod
 | H3 | No plot titles | no `ggtitle()` or `labs(title =)`; n/a without a plot | A `uptake_no_title` |
 | H4 | Learned rules (arm D) | `out_dir` named; `options(warn = 1)` first | A `rule_out_dir`, `rule_warn1` |
 | H5 | Tidyverse first | no `data.table`, `apply()` on a data frame, `merge()` or base loops over rows; count | A `base_df_calls` |
-| H6 | Lowercase R constants | no UPPER_SNAKE assignment in R; count | A `upper_constants` |
+| H6 | UPPER_SNAKE R parameters | parameters at the top in UPPER_SNAKE (user pick, 2026-10-27; reverses R4DS lowercase); count | A `upper_constants` |
 
 ## Protocol
 

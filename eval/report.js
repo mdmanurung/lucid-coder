@@ -134,7 +134,7 @@ const L3_MEASURES = [
   ['session info written (P2)', r => rate(r.map(x => x.session_info))],
   ['late library/import, median (P4)', r => median(r.map(x => x.late_loads))],
   ['base-R data-frame calls, median (H5)', r => median(r.map(x => x.base_df_calls))],
-  ['UPPER_SNAKE R constants, median (H6)', r => median(r.map(x => x.upper_constants))],
+  ['UPPER_SNAKE R parameters, median (H6, house style)', r => median(r.map(x => x.upper_constants))],
   ['uptake: %>% only', r => rate(r.map(x => x.uptake_pipe))],
   ['uptake: no plot title', r => rate(r.map(x => x.uptake_no_title))],
   ['uptake: theme_bw(base_size = 8)', r => rate(r.map(x => x.uptake_theme))],

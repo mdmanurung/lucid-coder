@@ -16,9 +16,9 @@ source(here::here("palettes.R"))
 source(here::here("theme.R"))
 
 # Reference = healthy, so log2_fc reads as disease minus healthy.
-condition_levels <- c("healthy", "disease")
+CONDITION_LEVELS <- c("healthy", "disease")
 # Multiple-testing family: every gene tested in this script, adjusted together.
-p_adjust_method <- "BH"
+P_ADJUST_METHOD <- "BH"
 
 args <- commandArgs(trailingOnly = TRUE)
 stopifnot("usage: Rscript scripts/01_fit-contrasts.R <run_dir>" = length(args) == 1)
@@ -32,7 +32,7 @@ dir.create(run_dir, recursive = TRUE)
 expression <- expand_grid(gene = c("IFI27", "ACTB", "CD3E"), donor_id = sprintf("D%02d", 1:8)) |>
   relocate(donor_id) |>
   mutate(
-    condition = fct(rep(rep(condition_levels, each = 4), times = 3), levels = condition_levels),
+    condition = fct(rep(rep(CONDITION_LEVELS, each = 4), times = 3), levels = CONDITION_LEVELS),
     log2_expr = c(
       c(5.1, 4.8, 5.4, 5.0, 8.2, 7.9, 8.5, 8.1), # IFI27
       c(10.1, 9.9, 10.2, 10.0, 10.0, 10.3, 9.8, 10.1), # ACTB
@@ -49,7 +49,7 @@ de_results <- expression |>
     tibble(log2_fc = disease_term[["Estimate"]], p_value = disease_term[["Pr(>|t|)"]])
   }) |>
   list_rbind(names_to = "gene") |>
-  mutate(q_value = p.adjust(p_value, method = p_adjust_method)) |>
+  mutate(q_value = p.adjust(p_value, method = P_ADJUST_METHOD)) |>
   arrange(q_value)
 
 # Plot the top gene ----
@@ -58,7 +58,7 @@ top_gene <- de_results$gene[[1]]
 top_gene_expression <- filter(expression, gene == top_gene)
 p_top_gene <- ggplot(top_gene_expression, aes(condition, log2_expr, colour = condition)) +
   geom_point() +
-  scale_colour_manual(values = palette_for(condition_levels, pal_condition)) +
+  scale_colour_manual(values = palette_for(CONDITION_LEVELS, pal_condition)) +
   labs(title = top_gene, y = "log2 expression (one point per donor)") +
   theme(legend.position = "none")
 

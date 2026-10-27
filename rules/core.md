@@ -1,29 +1,29 @@
 # lucid-coder: scientific R/Python a colleague can read
 For the next reader: one-pass understanding, clean rerun, as short as that allows.
-Authority: scientific correctness (estimand, replication unit, contrasts) > user's request > learned rules (narrowest scope wins) > this style. Corpus or copied code is evidence, not a template: modernise it.
+Authority: scientific correctness (estimand, replication unit, contrasts) > user's request > learned rules (narrowest scope wins) > this style. Corpus code is evidence, not a template: modernise it.
 
 ## Readability ladder (first rung that holds)
 1. Logic used once or twice stays inline; no named function for it.
 2. Names say what objects hold (`donor_counts`, not `tmp`). Name what a later step reuses; pipe the rest.
-3. Values a reader may change (cutoffs, levels, formula, seed) sit at the top; one-use paths and patterns stay inline.
+3. Values a reader may change (cutoffs, levels, formula, seed) sit at the top in UPPER_SNAKE; one-use paths and patterns stay inline.
 4. Repeated analysis (per cell type, contrast, level): a named vector or list, one map, one combine. Never a pasted block per level. Let the package loop when it can.
 5. A named function only when called 3+ times in a script, or shared by 2+ scripts (helper file); data in, one value out. In `map()`, an inline `\(x)`.
 6. Use the established package and its getters.
 
 ## Layout
-Header, one line each: Purpose, Inputs [producer or `[gap]`], Outputs, Run. Notes only for a decision the code cannot show. Scripts (`NN_verb-noun`) prep data, fit models, write tables. Figures and reports go in a notebook reading those tables, never report text pasted in a script. QC review and annotation are notebooks too, with markdown headings. `data/` read-only, outputs in a run dir; root-relative paths. Never `_v2`/`_final` or copied notebooks per subset.
+Header, one line each: Purpose, Inputs [producer or `[gap]`], Outputs, Run. Notes only for a decision the code cannot show. Scripts (`NN_verb-noun`) prep data, fit models, write tables. Figures and reports go in a notebook reading those tables, never report text pasted in a script. QC and annotation are notebooks too. `data/` read-only, outputs in a run dir; root-relative paths. Never `_v2`/`_final` or copied notebooks per subset.
 
-## Comments say why
-A decision, a number's origin, a reference level, an API need, a limit. Never restate code or keep dead code.
+## Comments
+A short comment names each step above its block (`# merge annotations with metadata`); a long pipe may label its verbs. Add why for a decision, a number's origin, a reference level, a limit. A blank line between steps. Never restate one line or keep dead code.
 
 ## Control flow
 Guard clauses first, no `else` after an exit. No globals. Never toggle behaviour via comments. Match exactly; select by name, not position (coefficients, columns, list elements).
 
 ## Checks: few, one line, able to fail
-Only a check that stops silent data loss, mislabel or overwrite earns its place: IDs identical before a positional copy; joins keep unique keys (a join argument, not a block); a new run dir is not overwritten. At most one extra per script. Skip what fails loudly anyway: a missing file or column. Not checks: input audits, type checks, expected counts, re-derived results, `check_*.R` files, `anyNA()` after `factor(levels = )`. In a notebook a printed `dim()` or crosstab is fine; a script needs the check. Never silence all warnings or fill NA silently.
+Only a check that stops silent data loss, mislabel or overwrite earns its place: IDs identical before a positional copy; joins keep unique keys (a join argument, not a block); a new run dir is not overwritten. At most one extra per script. Skip what fails loudly anyway: a missing file or column. Not checks: input audits, type checks, expected counts, re-derived results. In a notebook a printed `dim()` or crosstab is fine; a script needs the check. Never silence all warnings or fill NA silently.
 
 ## Data and reproducibility
-Long format, `NA` for unknown. Report removals in one line per filter step or one counts table, split by the contrast groups. Seed each stochastic step, a distinct seed per replicate. Explicit factor levels. Name the multiple-testing family. Raw counts, normalised values and scores in separate layers. Commit a lockfile. A script for every reported number.
+Long format, `NA` for unknown. Report removals in one line per filter step or one counts table, split by the contrast groups. Seed each stochastic step, a distinct seed per replicate. Explicit factor levels. Name the multiple-testing family. Commit a lockfile. A script for every reported number.
 
 ## Figures
 One palette keyed by label; unknown label fails. Source data from the plotted object (`p$data`), named by panel. State every denominator. Show each donor as a point over any summary; name SD, SE or CI. Bars start at 0. Axis titles carry units. Panels share axes. Legend order matches plot order.

@@ -35,14 +35,16 @@ overrides them).
 
 ## Worked examples
 
-Values a reader may change sit at the top, lowercase in R.
+Values a reader may change sit at the top in UPPER_SNAKE. Each step gets a short comment naming it, and a blank line before the next step.
 
 ```r
 # before: a typo in the argument name is swallowed by `...`
 pep_rich <- FindClusters(pep_rich, repep_richlution = 0.5)
 # after
-cluster_resolution <- 0.5 # chosen on the 2024-03 run; cluster ids below refer to it
-pep_rich <- FindClusters(pep_rich, resolution = cluster_resolution)
+CLUSTER_RESOLUTION <- 0.5 # chosen on the 2024-03 run; cluster ids below refer to it
+
+# cluster cells at the chosen resolution
+pep_rich <- FindClusters(pep_rich, resolution = CLUSTER_RESOLUTION)
 ```
 
 A check is one line that names what it guards.
