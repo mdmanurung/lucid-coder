@@ -3,5 +3,5 @@ Style: `ruff format` at 88 columns, run after every edit when on PATH; keep mess
 Checks: `if not ok: raise ValueError(f"...")`, one statement; `validate="m:1"` on every merge; `assert` only in tests; no bare `except:`; ignore warnings by category only.
 Idioms: one boolean mask (`|`, `.isin()`, `~mask`), subset once; `groupby().transform()` for per-group thresholds; `np.select()` for multi-way labels; `pd.crosstab(a, b, normalize="index")` for composition; named `.agg(n=("x", "size"))`; `pd.concat([f(x) for x in xs], keys=xs)`; `sc.concat(adatas, label=, keys=)`; package getters (`sc.get.rank_genes_groups_df`, `sc.get.obs_df`); a dict keyed by the loop variable for contrast configs.
 AnnData: a subset is a view, `.copy()` before assigning into `.obs`/`.var`; `random_state` as an argument; hand `.obs` on as parquet.
-Figures: `pdf.fonttype = 42`; `figsize` in mm / 25.4; `fig.savefig(run_dir / name, bbox_inches="tight")`, then `plt.close(fig)`; `sc.settings.figdir = run_dir`.
+Figures: `pdf.fonttype = 42`; `figsize` in mm / 25.4; `fig.savefig(run_dir / name, bbox_inches="tight")`, then `plt.close(fig)`; `sc.settings.figdir = run_dir`. Boxes `showfliers=False` under `sns.stripplot`; dense points `rasterized=True`.
 End with `sc.logging.print_versions()` written to the run dir.

@@ -92,3 +92,7 @@ a sourced file; a package for larger work).
 <https://r4ds.hadley.nz/workflow-style.html> is the R code-style authority (user rule, 2026-10-27).
 Taken into `rules/r.md`: lowercase snake_case names, constants included (its "Avoid" example is `SHORTFLIGHTS`); variants share a prefix, not a suffix; a space before `|>` and `|>` at the end of the line; named arguments one per line; pipelines over about 10-15 lines split into named sub-tasks, especially after reshaping or summarising; ggplot2 `+` follows the pipe rules; sectioning comments `# Load data ----`. Spacing rules are left to `air`.
 Also taken (R4DS idiom chapters and R Cookbook 2e, 2026-10-27): the `r.r4ds` row in `house-style.md`. R Cookbook predates `|>`, `join_by()` and `.default`; where the two books differ, R4DS wins. R Cookbook still supplies the modelling advice: fit with `data =`, then read results with accessors.
+
+## Wilke, "Fundamentals of Data Visualization"; data-to-viz caveats; R and Python graph galleries
+
+<https://clauswilke.com/dataviz/>, <https://www.data-to-viz.com/caveats.html>, <https://r-graph-gallery.com/>, <https://python-graph-gallery.com/>. These are the figure authority (user rule, 2026-10-27). Core `## Figures` now has points over summaries, named error bars, bars from 0, units in axis titles, shared panel axes and legend order. The full list and a chart-choice table are in the `fig.wilke` row of `house-style.md`. The 8 pt base size is the house's choice, not Wilke's. Wilke only says axis labels are usually too small.
