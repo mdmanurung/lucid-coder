@@ -1,0 +1,66 @@
+---
+title: "lucid-coder"
+subtitle: "Readable, reproducible R and Python for computational biology, as a Claude Code plugin"
+toc: false
+---
+
+lucid-coder makes Claude write analysis code the way a careful computational
+biologist does. Every session gets one house style for scripts and figures.
+Standard analyses run through tested scripts instead of fresh code. Your own
+corrections become rules that last.
+
+## Install
+
+Run these in Claude Code:
+
+```
+/plugin marketplace add mdmanurung/lucid-coder
+/plugin install lucid-coder@lucid-coder
+```
+
+Start a new session. A status line reads "Loading lucid-coder..." when the
+rules load.
+
+To try a local checkout without installing it:
+
+```bash
+claude --plugin-dir /path/to/lucid-coder
+```
+
+## What you get
+
+| Part | What it does | Page |
+|---|---|---|
+| Persona | Injects the house rules at every session start and into every subagent | [Persona and rules](persona.qmd) |
+| Learned rules | Saves a lasting correction ("always use `|>`") as a rule, after you approve it | [Persona and rules](persona.qmd#learned-rules) |
+| Figure style | One look for every scientific figure in ggplot2, ComplexHeatmap and plotnine, with tested templates | [Figures](figures.qmd) |
+| Pipeline skills | 21 tested scripts for single-cell and statistics analyses, from QC to MOFA | [Pipeline skills](pipelines.qmd) |
+
+## Quick start
+
+Ask for analysis work as usual. The persona applies on its own:
+
+> Write a script that sums raw counts per donor for CD14+ monocytes and runs DESeq2, stim vs ctrl.
+
+For a standard analysis, Claude picks the matching pipeline skill. It asks for
+each analysis parameter instead of guessing it:
+
+> Run pseudobulk DE on `data/kang.h5ad` for CD14+ monocytes.
+
+Claude then asks for the design, contrast, filters, cut-offs, seed, context and
+gene-id column. To see a skill work without your data, ask for its demo:
+
+> Run the pseudobulk-de demo.
+
+## Commands
+
+| Command | Effect |
+|---|---|
+| `/lucid-coder status` | Show whether the persona is on |
+| `/lucid-coder off`, `/lucid-coder on` | Turn the persona off or on |
+| `/lucid-coder lang r` (`python`, `both`, `auto`) | Choose which language rules load |
+| `/lucid-coder nudge off` | Stop the one-line "save this as a rule?" offer |
+| `/lucid-coder:learn` | Save a correction as a rule |
+| `/lucid-coder:rules` | List, approve, retire or trust rules |
+| `/lucid-coder:review` | Review code against the house style; writes nothing |
+| `/lucid-coder:align` | Install the house configs (air, ruff, lintr, palettes) into a repo, one diff at a time |

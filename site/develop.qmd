@@ -1,0 +1,71 @@
+---
+title: "Develop"
+---
+
+## Repository layout
+
+| Path | Holds |
+|---|---|
+| `.claude-plugin/` | `plugin.json` and `marketplace.json` |
+| `hooks/` | The three hooks and their shared `lib.js` |
+| `rules/` | Core, house and language rules injected each session |
+| `skills/` | The persona, rule-management skills, `figure-style` and the 21 pipeline skills |
+| `templates/` | `plots.*`, `theme.*`, `palettes.*`, `skillkit.py` and the air, ruff and lintr configs |
+| `bench/` | acumen benchmarks: with and without the skills |
+| `docs/` | The pipeline skill contract and the ClawBio determinism plan |
+| `site/` | This website |
+
+## Tests
+
+Hooks, rules and templates:
+
+```bash
+npm test   # node --test tests/*.test.js
+```
+
+Each pipeline skill has its own pytest suite. Run it with the exact `uv run`
+line in that skill's `references/maintainer.md`, for example:
+
+```bash
+cd skills/group-tests
+uv run --python 3.12 --with numpy,pandas,scipy,matplotlib,plotnine-extra,pytest \
+  python -m pytest -q -p no:cacheprovider tests
+```
+
+## Vendored helpers
+
+Each pipeline skill folder is self-contained, so it carries byte-identical
+copies of `templates/plots.py`, `theme.py`, `palettes.py` and `skillkit.py`.
+A test in each skill fails when a copy drifts. After editing a template, copy
+it into every skill:
+
+```bash
+for d in skills/*/scripts/plots.py; do cp templates/plots.py "$d"; done
+```
+
+## Adding a pipeline skill
+
+Follow the contract in
+[`docs/pipeline-skills.md`](https://github.com/mdmanurung/lucid-coder/blob/main/docs/pipeline-skills.md).
+Copy the shape of `skills/pseudobulk-de/`: a `SKILL.md` contract, one script
+entry point, a seeded demo generator, demo data under 1 MB, and tests for the
+demo golden values, the output tree and every `ERROR` string.
+
+## Benchmarks
+
+`bench/` holds [acumen](https://github.com/scverse/acumen) projects that run
+the same tasks with and without a skill. `docs/clawbio-determinism/BENCH.md`
+records the results.
+
+## This site
+
+The site is Quarto, in `site/`. The gallery images come from the template
+self-check:
+
+```bash
+uv run --with plotnine-extra,pandas,numpy python site/make_figures.py
+quarto preview site
+```
+
+A push to `main` that touches `site/` rebuilds the site and deploys it to
+GitHub Pages through `.github/workflows/docs.yml`.

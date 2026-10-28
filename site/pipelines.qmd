@@ -1,0 +1,107 @@
+---
+title: "Pipeline skills"
+---
+
+A pipeline skill is a tested script that Claude runs instead of writing new
+code for a standard analysis. The design ports
+[ClawBio](https://github.com/ClawBio/ClawBio)'s determinism framework: the
+skill is a contract, and the agent dispatches it without improvising.
+
+## What every skill guarantees
+
+- **No analysis defaults.** Thresholds, designs, gene sets and seeds are
+  required arguments. Claude asks you for each one. `--demo` alone pins
+  demo-only values.
+- **Context travels with the result.** A required `--context` (species,
+  tissue or cell type, condition, dataset) opens every report and summary.
+- **Fixed failures.** Bad input prints `ERROR: <message>` and exits 2, with no
+  traceback.
+- **Required checks.** Duplicate ids, a rank-deficient design, and several
+  samples per donor with no donor term all stop the run.
+- **Gene ids kept.** Gene tables carry `gene_id` beside `gene_symbol`. An
+  ambiguous symbol-to-id map stops the run. Use `--gene-id-col none` when the
+  data have symbols only.
+- **Nothing silently dropped.** Per-feature tables keep every input feature,
+  with a `status` column: `tested`, `not_tested`, `not_detected`,
+  `below_detection` or `not_measured`.
+- **A fixed output tree.**
+
+```
+outdir/
+├── report.md              # context, parameters, summary, figures with captions
+├── result.json            # summary fields, chat_summary_lines, preferred_artifacts
+├── tables/*.tsv
+├── data/*.h5ad            # objects the next skill reads
+├── figures/<name>.{pdf,png,csv}
+└── reproducibility/
+    ├── commands.sh        # the resolved command, every argument
+    ├── environment.txt    # package versions
+    └── checksums.sha256   # sha256sum -c from outdir
+```
+
+## Catalogue
+
+Each skill hands off to the next through its output tables or h5ad.
+
+### Single-cell preprocessing
+
+| Skill | Does | Engine |
+|---|---|---|
+| [sc-qc](https://github.com/mdmanurung/lucid-coder/blob/main/skills/sc-qc/SKILL.md) | Per-cell QC metrics, Scrublet doublets, fixed or MAD thresholds | scanpy |
+| [sc-normalize](https://github.com/mdmanurung/lucid-coder/blob/main/skills/sc-normalize/SKILL.md) | log1p, Pearson residuals, or dsb for ADT | scanpy, muon |
+| [sc-embed](https://github.com/mdmanurung/lucid-coder/blob/main/skills/sc-embed/SKILL.md) | HVG, PCA, optional Harmony, kNN, UMAP, Leiden | scanpy |
+| [sc-annotate](https://github.com/mdmanurung/lucid-coder/blob/main/skills/sc-annotate/SKILL.md) | Label transfer with CellTypist or ingest | CellTypist, scanpy |
+| [sc-markers](https://github.com/mdmanurung/lucid-coder/blob/main/skills/sc-markers/SKILL.md) | Marker genes per cluster with a fixed pass rule | scanpy |
+
+### Differential expression and abundance
+
+| Skill | Does | Engine |
+|---|---|---|
+| [pseudobulk-de](https://github.com/mdmanurung/lucid-coder/blob/main/skills/pseudobulk-de/SKILL.md) | Sum counts per sample, then DESeq2, or dreamlet for repeated measures | PyDESeq2, DESeq2, dreamlet |
+| [sc-de](https://github.com/mdmanurung/lucid-coder/blob/main/skills/sc-de/SKILL.md) | MAST hurdle model per cell type, or a per-feature linear model on sample values | MAST, R `lm` |
+| [variance-partition](https://github.com/mdmanurung/lucid-coder/blob/main/skills/variance-partition/SKILL.md) | Variance fractions per gene across covariates | variancePartition |
+| [mashr-sharing](https://github.com/mdmanurung/lucid-coder/blob/main/skills/mashr-sharing/SKILL.md) | Shared and specific effects across cell types | mashr |
+| [composition](https://github.com/mdmanurung/lucid-coder/blob/main/skills/composition/SKILL.md) | Cell-type composition with crumblr CLR and dream | crumblr |
+| [milo-da](https://github.com/mdmanurung/lucid-coder/blob/main/skills/milo-da/SKILL.md) | Neighbourhood differential abundance on the kNN graph | pertpy Milo |
+
+### Scores, pathways and programs
+
+| Skill | Does | Engine |
+|---|---|---|
+| [enrichment](https://github.com/mdmanurung/lucid-coder/blob/main/skills/enrichment/SKILL.md) | Preranked fgsea or over-representation on DE tables | fgsea, scipy |
+| [signature-scoring](https://github.com/mdmanurung/lucid-coder/blob/main/skills/signature-scoring/SKILL.md) | Gene-set scores per cell, with a size-matched random control | scanpy, decoupler |
+| [tf-activity](https://github.com/mdmanurung/lucid-coder/blob/main/skills/tf-activity/SKILL.md) | TF or pathway activity from CollecTRI or PROGENy | decoupler |
+| [gene-programs](https://github.com/mdmanurung/lucid-coder/blob/main/skills/gene-programs/SKILL.md) | Consensus NMF gene programs | scikit-learn |
+| [ccc](https://github.com/mdmanurung/lucid-coder/blob/main/skills/ccc/SKILL.md) | Ligand-receptor communication between cell types | LIANA+ |
+
+### Dynamics and integration
+
+| Skill | Does | Engine |
+|---|---|---|
+| [trajectory](https://github.com/mdmanurung/lucid-coder/blob/main/skills/trajectory/SKILL.md) | PAGA and diffusion pseudotime from a fixed root | scanpy |
+| [velocity](https://github.com/mdmanurung/lucid-coder/blob/main/skills/velocity/SKILL.md) | RNA velocity and fate probabilities | scVelo, CellRank 2 |
+| [mofa](https://github.com/mdmanurung/lucid-coder/blob/main/skills/mofa/SKILL.md) | Multi-omics factor analysis across views | mofapy2 |
+
+### Sample-level statistics
+
+| Skill | Does | Engine |
+|---|---|---|
+| [group-tests](https://github.com/mdmanurung/lucid-coder/blob/main/skills/group-tests/SKILL.md) | Wilcoxon, paired, Spearman or Pearson per feature, with effect sizes | scipy |
+| [longitudinal](https://github.com/mdmanurung/lucid-coder/blob/main/skills/longitudinal/SKILL.md) | One mixed model per feature over visits | lmerTest |
+
+## Running a skill yourself
+
+Claude normally runs the skill for you. To run one by hand, use the `uv run`
+line from the skill's `references/maintainer.md`:
+
+```bash
+cd skills/pseudobulk-de
+uv run --python 3.12 --with anndata,numpy,pandas,scipy,matplotlib,plotnine-extra,pydeseq2 \
+  python scripts/pseudobulk_de.py --demo --outdir /tmp/pbde-demo
+cd /tmp/pbde-demo && sha256sum -c reproducibility/checksums.sha256
+```
+
+Skills with an R engine (composition, variance-partition, mashr-sharing,
+longitudinal, enrichment's fgsea, sc-de, pseudobulk-de's DESeq2 and
+dreamlet) need `Rscript` on `PATH` or in `RSCRIPT`, with the R packages
+installed. The skill never installs them.

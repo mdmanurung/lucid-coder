@@ -1,0 +1,30 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "lucid-coder"
+  site-url: https://mdmanurung.github.io/lucid-coder/
+  repo-url: https://github.com/mdmanurung/lucid-coder
+  repo-actions: [edit, issue]
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - persona.qmd
+      - figures.qmd
+      - pipelines.qmd
+      - develop.qmd
+    right:
+      - icon: github
+        href: https://github.com/mdmanurung/lucid-coder
+  page-footer:
+    center: "lucid-coder, a Claude Code plugin by mdmanurung"
+
+format:
+  html:
+    theme:
+      light: cosmo
+      dark: darkly
+    toc: true
+    code-copy: true

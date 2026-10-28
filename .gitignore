@@ -27,3 +27,7 @@ bench/method-free/skills/*/*/
 bench/*/*.log
 bench/*/interp_answers.tsv
 __pycache__/
+
+# quarto site build
+site/_site/
+site/.quarto/
