@@ -12,11 +12,16 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-1. The user reviews rules-D against persona-D blind: https://claude.ai/artifact/39ScY8EorPPrspU484YF4y (3 whole-script panels, tasks 02-04; key in `eval/results/persona-vs-rules-20261028/review/side-by-side-key.tsv`, where arm C is the rule-list D run from sbs2 and arm D the persona run). Persona runs: `eval/results/persona-0204-20261028`, gates 3/3, script lines 34/137/123 against 23/97/85 under the rule list.
+1. Done: rules-D vs persona-D (below). Next: decide whether to keep the persona (it lost 2-1 on whole scripts, won the figure task) or run more tasks.
 2. Done: round 2 head-to-head (results below).
 3. Persona core is live (`rules/core.md`, 3,343 bytes): identity, five failure facts, eight habits, authority. The rule-list core it replaced is in git history (`4b14e3b`). Reviewer reports in `skills/lucid-coder/references/persona-panel-20261028/`. Dropped from core in the swap, kept in r.md/python.md or house-style only: no globals, comment toggles, dead code, `_v2`, denominators, distinct seed per replicate, root-relative path wording, "let the package loop", `check_*.R` ban text, separate layers, legend order. Blind test: item 1.
 4. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
 5. Decisions open for the user: allow `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form; the other session's uncommitted `templates/plots.*`, `bench/`, `skills/*` and house-style rows.
+
+## Rules vs persona, blind (2026-10-28)
+- Page https://claude.ai/artifact/39ScY8EorPPrspU484YF4y, whole scripts, C = rule-list D (sbs2), D = persona D. Unblinded: rules won 02 and 04, persona won 03. Scripts under the persona were longer (34/137/123 vs 23/97/85).
+- Reasons: 02 and 04 "but use suppressPackageStartupMessages" (the rule-list side lacked it; the persona side had it, so no change). 04: four six-line `write.table()` calls lost to the walked list: "if the write table is lengthy like this because so many arguments then I prefer [the list]". Habit 3 now reads: each output gets its own write line, a one-line call or a helper when the call is long; never a walked list. That matches round 1 (four `write_output()` calls beat `iwalk`) and this pick.
+- Scope check before the review: 02 and 04 outputs byte-identical across sides; 03 same 40 rows, median line vs mean ± SD; the page carried a scope note per panel (`--notes`).
 
 ## Branch note (2026-10-28)
 - The other session checked out `docs/clawbio-determinism` in the shared tree while this session was committing; commit `b315a9a` (persona core) landed there and was cherry-picked onto main as `5eb69dc`. Commits from this session now go through a worktree on main. The duplicate on their branch is harmless.
