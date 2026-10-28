@@ -35,6 +35,8 @@ ARGS = {
     "--paga-threshold": "0.1",
     "--genes": "G00,G01,G02",
     "--reference": "synthetic demo, no genome build",
+    "--context": "synthetic demo: 600 cells, 4 stages along one simulated path, "
+    "no real tissue",
     "--seed": "0",
 }
 
@@ -107,7 +109,9 @@ def test_demo_golden_values(demo_out):
     assert result["dropped_per_group"] == dict.fromkeys(
         ["progenitor", "early", "mid", "late"], 0
     )
-    assert 2 <= len(result["chat_summary_lines"]) <= 3
+    assert 3 <= len(result["chat_summary_lines"]) <= 4
+    assert result["context"] == ARGS["--context"]
+    assert result["chat_summary_lines"][0].startswith("Context: ")
     pseudotime = pd.read_csv(demo_out / "tables" / "pseudotime.tsv", sep="\t")
     truth = ad.read_h5ad(DEMO).obs["true_time"]
     rho = stats.spearmanr(
@@ -158,6 +162,11 @@ def test_missing_argument_fails_without_demo(tmp_path):
     assert is_error(
         run_with(tmp_path, drop=["--seed"]), "missing required arguments: --seed"
     )
+
+
+def test_missing_context_fails(tmp_path):
+    completed = run_with(tmp_path, drop=["--context"])
+    assert is_error(completed, "missing required arguments: --context")
 
 
 def test_demo_conflict(tmp_path):

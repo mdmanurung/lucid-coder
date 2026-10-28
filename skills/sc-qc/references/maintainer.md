@@ -67,7 +67,7 @@ From `skills/sc-qc`:
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with scanpy==1.12.4,scikit-image,pytest \
+  uv run --python 3.12 --with scanpy==1.12.4,scikit-image,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
@@ -134,3 +134,11 @@ of `templates/`; a test fails when they drift.
 - Wolock, Lopez, Klein (2019). Scrublet. Cell Systems 8:281.
 - Wolf, Angerer, Theis (2018). SCANPY. Genome Biology 19:15.
 - Heumos et al. (2023). Best practices for single-cell analysis. Nat Rev Genet 24:550.
+
+## Biology-core checks (2026-10-28)
+
+- `--context` is required and opens the report and `chat_summary_lines`.
+- A gotcha keeps doublets at "predicted" (house-style `claims.strength`); the
+  report lines and captions had no causal wording.
+- The status column and gene ids do not apply: every table is keyed by cell or
+  sample, none by gene.

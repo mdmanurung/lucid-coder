@@ -34,6 +34,7 @@ R2 = {
 R2_TOL = 0.5
 
 ARGS = {
+    "--context": "synthetic demo, healthy vs disease",
     "--metadata": str(EXAMPLES / "demo_meta.tsv"),
     "--group-col": "group",
     "--likelihoods": "rna=gaussian,adt=gaussian,tf=gaussian",
@@ -122,7 +123,9 @@ def test_demo_golden_values(demo_out):
     assert result["active_factors"] == ACTIVE
     assert result["seed"] == 0 and result["device"] == "cpu"
     assert "OMP_NUM_THREADS=1" in result["threads"]
-    assert len(result["chat_summary_lines"]) == 3
+    assert len(result["chat_summary_lines"]) == 4
+    assert result["chat_summary_lines"][0].startswith("Context: synthetic demo")
+    assert result["n_shared_ids"] == 60
     assert result["reference"] == "synthetic demo, no genome build"
     # Every metadata sample is in a view, so none is left out.
     assert result["dropped_per_group"] == {}
@@ -236,6 +239,10 @@ def test_missing_argument_fails_without_demo(tmp_path):
         run_with(tmp_path, drop=["--reference"]),
         "missing required arguments: --reference",
     )
+    assert is_error(
+        run_with(tmp_path, drop=["--context"]),
+        "missing required arguments: --context",
+    )
 
 
 def test_demo_conflict(tmp_path):
@@ -312,6 +319,10 @@ def test_too_many_views(tmp_path):
         (
             lambda t: t.rename(columns={"rna_001": "adt_001"}),
             "1 feature names appear in more than one view, e.g. 'adt_001'",
+        ),
+        (
+            lambda t: t.rename(index=lambda s: "X" + s),
+            "inputs share no sample ids; check they come from one study and reference",
         ),
         (
             lambda t: t.rename(index={"S01": "S99"}),

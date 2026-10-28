@@ -24,11 +24,15 @@ metadata:
     - ORA
     - MSigDB
   inputs:
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
     - name: de
       type: file
       format:
         - tsv
-      description: one DE table per contrast, a gene column plus statistics
+      description: one DE table per contrast, a gene_symbol column plus statistics
       required: true
     - name: gene_sets
       type: file
@@ -55,6 +59,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
     r:
       - fgsea
       - BiocParallel
@@ -104,7 +109,7 @@ or there is no DE table yet.
 
 | Input | Format | Required content | Example |
 |---|---|---|---|
-| `--de name=path` (repeat per contrast) | TSV, one row per gene | `gene`; fgsea: `--rank-col` (numeric); ora: `padj`, `log2_fc` (numeric) | pseudobulk-de `tables/de_results.tsv` |
+| `--de name=path` (repeat per contrast) | TSV, one row per gene | `gene_symbol` (joined to the gene sets); fgsea: `--rank-col` (numeric); ora: `padj`, `log2_fc` (numeric) | pseudobulk-de `tables/de_results.tsv` |
 | `--gene-sets` | `.gmt` (name, description, genes) or `.tsv` | GMT: unique set names; TSV: columns `set`, `gene` (long) | `examples/demo.gmt` |
 
 Gene IDs must be the same type in both files (symbols, or Ensembl). A contrast
@@ -134,6 +139,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--padj-max-sets` | Which BH-adjusted p marks a set significant? | `0.05` |
 | `--limit` | At which absolute NES (or log2 odds ratio) do the plot colours saturate? | `2.5` |
 | `--seed` | Which seed? fgsea's permutations use it; ORA draws none. | `0` |
+| `--context` | Species, tissue or cell type, condition and dataset? | `synthetic demo: 1000 genes, planted T contrast and null Mono contrast, no real tissue` |
 | `--reference` | Which genome build and annotation release gave the gene IDs (e.g. `GRCh38, GENCODE 44`)? Recorded in `result.json`. | `synthetic demo, no genome build` |
 | `--rank-col` (fgsea) | Which DE column ranks the genes (Wald `stat`, signed -log10 p, logFC)? | `stat` |
 | `--n-perm-simple` (fgsea) | How many permutations for fgsea's simple step? | `10000` |
@@ -151,7 +157,8 @@ python scripts/enrichment.py \
   --de T=results/de_T/tables/de_results.tsv --de Mono=results/de_Mono/tables/de_results.tsv \
   --gene-sets refs/hallmark_msigdb_2026.1.tsv --method fgsea --rank-col stat \
   --min-size 10 --max-size 500 --n-perm-simple 10000 --padj-max-sets 0.05 \
-  --limit 2.5 --seed 42 --reference "GRCh38, GENCODE 44" --outdir results/2026-10-27_enrichment
+  --limit 2.5 --seed 42 --reference "GRCh38, GENCODE 44" \
+  --context "human PBMC, IFN-beta vs control, Kang 2018" --outdir results/2026-10-27_enrichment
 
 # Demo (only when the user asks for one)
 python scripts/enrichment.py --demo --outdir demo_out
@@ -183,7 +190,9 @@ python scripts/enrichment.py --demo --outdir demo_out
      for every set; all contrasts empty is an error.
 6. **Adjust**: BH over the sets tested within each contrast (the family is one
    contrast). `significant` = `padj < --padj-max-sets`.
-7. **Sort** by contrast (in `--de` order), `padj`, set; NA last.
+7. **Sort** by contrast (in `--de` order), `padj`, set; NA last. Every set in
+   the file gets a row per contrast (`skillkit.with_status`): a set outside the
+   size range is `not_tested`, with NA statistics.
 8. **Draw** the dot plot and heatmap (both methods) and the running-ES curves
    (fgsea only).
 
@@ -198,9 +207,9 @@ and its table has `overlap` and `odds_ratio` in place of `nes`.
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # method, n_contrasts, n_sets_in_file, contrasts (per contrast: n_genes, n_sets_tested, n_matched, n_in_resource, n_significant, significant_sets; ora: n_universe, n_foreground), dropped_per_group (NA rows per contrast), params, seed, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # method, n_contrasts, n_sets_in_file, contrasts (per contrast: n_genes, n_sets_tested, n_matched, n_in_resource, n_significant, significant_sets; ora: n_universe, n_foreground), dropped_per_group (NA rows per contrast), status_counts, params, seed, reference, context, chat_summary_lines (first: "Context: ..."), preferred_artifacts
 ├── tables/
-│   └── enrichment.tsv         # contrast, set, set_size (genes in the file), size (found in the contrast), nes | overlap, odds_ratio, pvalue, padj, significant, leading_edge
+│   └── enrichment.tsv         # contrast, set, set_size (genes in the file), size (found in the contrast), nes | overlap, odds_ratio, pvalue, padj, significant, leading_edge, status
 ├── figures/
 │   ├── dotplot.pdf
 │   ├── dotplot.png
@@ -217,7 +226,10 @@ outdir/
     └── checksums.sha256       # tables and figure PDFs; sha256sum -c from outdir
 ```
 
-`leading_edge` is a comma-separated gene list. Figures come from the vendored
+`leading_edge` is a comma-separated gene list. `status` is `tested`, or
+`not_tested` for a set outside `--min-size`/`--max-size` in that contrast (too
+few of its genes matched); those rows keep NA statistics, and `size` says how
+many genes matched. Figures draw tested rows only. Figures come from the vendored
 `plots.py` (`plot_heatmap`) and matplotlib in the same theme, saved by
 `save_panel`, with no titles.
 
@@ -252,6 +264,12 @@ outdir/
   "the set is enriched among the changed genes" (ora) or "the set sits at the
   top or bottom of the ranking" (fgsea). The leading edge is a subset, and
   many members do not move.
+- **The model will want to call a `not_tested` set "not enriched".** Do not.
+  Too few of its genes were in the DE table to test it.
+- **The model will want to say the pathway "drives" the response or is
+  "activated".** Do not. Enrichment is an association between a set and the
+  ranking; say "enriched among" or "associated with" (house-style
+  `claims.strength`). Activity or mechanism needs a perturbation.
 - **The model will want to read an NES or a padj as a probability** ("95%
   likely active"). Do not. NES is a normalised enrichment score; padj is a
   BH-adjusted p for a set-level test.

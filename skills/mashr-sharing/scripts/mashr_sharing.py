@@ -1,5 +1,5 @@
 """Purpose: cross-cell-type effect sharing with mashr, from one DE table per cell type.
-Inputs:  --de name=path (repeatable), each a TSV with gene, effect and SE columns
+Inputs:  --de name=path (repeatable), TSVs with gene_id, gene_symbol, effect, SE
 Outputs: <outdir>/report.md, result.json, tables/, figures/, reproducibility/
 Run:     python scripts/mashr_sharing.py --demo --outdir demo_out
 Notes:   Every analysis argument is required; --demo alone pins the demo values.
@@ -20,11 +20,14 @@ import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
 from scipy import stats
 from skillkit import (
+    check_compatible,
+    check_gene_ids,
     fail,
     make_outdir,
     parse_required,
     run,
     seed_everything,
+    with_status,
     write_report,
     write_reproducibility,
     write_result,
@@ -35,8 +38,8 @@ SKILL_DIR = Path(__file__).resolve().parents[1]
 MASH_R = Path(__file__).resolve().parent / "mash.R"
 
 ANALYSIS_ARGS = [
+    "context",
     "de",
-    "gene_col",
     "effect_col",
     "se_col",
     "align",
@@ -50,11 +53,11 @@ ANALYSIS_ARGS = [
 ]
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
+    "context": "synthetic demo: 4 cell types x 800 genes, no real tissue",
     "de": [
         f"{ct}={SKILL_DIR / 'examples' / f'demo_{ct}.tsv'}"
         for ct in ["B", "CD4T", "CD8T", "Mono"]
     ],
-    "gene_col": "gene",
     "effect_col": "log2_fc",
     "se_col": "lfc_se",
     "align": "intersect",
@@ -75,11 +78,14 @@ ERRORS = {
     "too_few_tables": "need --de for at least 2 cell types, got {n}",
     "missing_file": "input file not found: {path}",
     "missing_column": "column {col!r} not found in the --de table for {name!r}",
+    "no_gene_cols": "the --de table for {name!r} needs gene_id and gene_symbol "
+    "columns; write gene_id as NA when the source has no ids",
+    "partial_ids": "{n} rows of the --de table for {name!r} have no gene_id; "
+    "give an id for every gene or for none",
     "duplicate_gene": "{n} genes repeat in the --de table for {name!r}, e.g. {gene!r}",
     "not_numeric": "column {col!r} in the --de table for {name!r} "
     "must be numeric with no missing values",
     "bad_se": "{n} rows of {col!r} in the --de table for {name!r} are <= 0",
-    "no_genes": "zero genes are shared by all --de tables (--align intersect)",
     "no_rscript": "Rscript not found; set RSCRIPT or put Rscript on PATH",
     "missing_r_package": "{tail}; ask for it to be installed, do not install it here",
     "too_few_strong": "{n} genes pass --strong-lfsr {strong_lfsr} in any cell type, "
@@ -96,8 +102,8 @@ SIG, OTHER = "#B2182B", "0.6"
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--context")
     parser.add_argument("--de", action="append")
-    parser.add_argument("--gene-col")
     parser.add_argument("--effect-col")
     parser.add_argument("--se-col")
     parser.add_argument("--align", choices=["intersect", "union"])
@@ -140,15 +146,22 @@ def check_values(p):
 
 
 def read_de(name, path, p):
-    """One DE table -> gene-indexed frame with effect and se columns."""
+    """One DE table -> frame indexed by gene_id (by gene_symbol if it has no ids)."""
     if not path.is_file():
         fail(ERRORS, "missing_file", path=path)
-    de = pd.read_csv(path, sep="\t", dtype={p["gene_col"]: str})
-    cols = [p["gene_col"], p["effect_col"], p["se_col"]]
+    de = pd.read_csv(path, sep="\t", dtype={"gene_id": str, "gene_symbol": str})
+    if not {"gene_id", "gene_symbol"} <= set(de.columns):
+        fail(ERRORS, "no_gene_cols", name=name)
+    cols = [p["effect_col"], p["se_col"]]
     for col in cols:
         if col not in de.columns:
             fail(ERRORS, "missing_column", col=col, name=name)
-    repeated = de[p["gene_col"]][de[p["gene_col"]].duplicated()]
+    n_na = int(de["gene_id"].isna().sum())
+    if 0 < n_na < len(de):
+        fail(ERRORS, "partial_ids", n=n_na, name=name)
+    # No ids at all (pseudobulk-de --gene-id-col none): join on symbols, id stays NA.
+    key = "gene_symbol" if n_na else "gene_id"
+    repeated = de[key][de[key].duplicated()]
     if len(repeated):
         fail(
             ERRORS,
@@ -157,7 +170,7 @@ def read_de(name, path, p):
             name=name,
             gene=repeated.iloc[0],
         )
-    for col in cols[1:]:
+    for col in cols:
         values = pd.to_numeric(de[col], errors="coerce")
         if not np.isfinite(values).all():
             fail(ERRORS, "not_numeric", col=col, name=name)
@@ -166,21 +179,28 @@ def read_de(name, path, p):
         fail(
             ERRORS, "bad_se", n=(de[p["se_col"]] <= 0).sum(), col=p["se_col"], name=name
         )
-    return de.set_index(p["gene_col"])[cols[1:]].set_axis(["effect", "se"], axis=1)
+    de = de.rename(columns=dict(zip(cols, ["effect", "se"], strict=True)))
+    return de.set_index(de[key].rename("key"))[
+        ["gene_id", "gene_symbol", "effect", "se"]
+    ]
 
 
 def align(tables, p):
-    """Steps 1-2: read every table, align genes; NA marks a gene a table lacks."""
+    """Steps 1-2: read every table, check ids, align genes; NA marks a gene a table
+    lacks. Returns bhat, shat, drops per table, the frames, the id map, n shared."""
     frames = {name: read_de(name, path, p) for name, path in tables.items()}
+    n_shared_ids = check_compatible({n: f.index for n, f in frames.items()}, "gene ids")
+    genes = pd.concat(f[["gene_id", "gene_symbol"]] for f in frames.values())
+    genes = genes[~genes.index.duplicated()]
+    has_ids = genes["gene_id"].notna().all()
+    check_gene_ids(list(genes["gene_id"]) if has_ids else None, genes["gene_symbol"])
     join = "inner" if p["align"] == "intersect" else "outer"
     bhat = pd.concat({n: f["effect"] for n, f in frames.items()}, axis=1, join=join)
     shat = pd.concat({n: f["se"] for n, f in frames.items()}, axis=1, join=join)
-    if bhat.empty:
-        fail(ERRORS, "no_genes")
     order = sorted(bhat.index)
     # Drops per group: genes each table loses to --align intersect (0 for union).
     dropped = {n: int((~f.index.isin(bhat.index)).sum()) for n, f in frames.items()}
-    return bhat.loc[order], shat.loc[order], dropped
+    return bhat.loc[order], shat.loc[order], dropped, frames, genes, n_shared_ids
 
 
 def run_mash(bhat, shat, p):
@@ -292,7 +312,8 @@ def draw_figures(figures, mash, posterior, counts, pair, p):
     plt.close(fig)
 
     a, b = pair
-    wide = posterior.pivot(index="gene", columns="cell_type")
+    tested = posterior[posterior["status"] == "tested"]
+    wide = tested.pivot(index="gene_symbol", columns="cell_type")
     data = pd.DataFrame(
         {
             f"raw_{a}": wide[("raw_effect", a)],
@@ -320,7 +341,7 @@ def analyse(argv, full_argv):
     p = parse_args(argv)
     tables = check_values(p)
     seed_everything(p["seed"])
-    bhat, shat, dropped = align(tables, p)
+    bhat, shat, dropped, frames, genes, n_shared_ids = align(tables, p)
     if Path(p["outdir"]).exists():
         make_outdir(p["outdir"])  # fails fast, before the R run
     # Every refusal comes before make_outdir, so a refused run leaves no outdir.
@@ -339,13 +360,27 @@ def analyse(argv, full_argv):
     posterior = pd.concat(
         {k: v.loc[bhat.index, names].stack(future_stack=True) for k, v in long.items()},
         axis=1,
-    ).rename_axis(["gene", "cell_type"])
+    ).rename_axis(["key", "cell_type"])
     posterior = posterior.dropna(subset=["raw_effect"]).reset_index()
     posterior["significant"] = posterior["lfsr"] < p["lfsr_max"]
-    posterior = posterior.sort_values(["gene", "cell_type"]).reset_index(drop=True)
+    # Every input gene keeps a row; a gene --align intersect dropped is not_tested.
+    posterior = pd.concat(
+        with_status(
+            posterior[posterior["cell_type"] == ct],
+            frame.index,
+            "key",
+            dict.fromkeys(frame.index.difference(bhat.index), "not_tested"),
+        ).assign(cell_type=ct)
+        for ct, frame in frames.items()
+    )
+    posterior = genes.join(posterior.set_index("key"), how="inner")
+    posterior = posterior.sort_values(["gene_symbol", "cell_type"])
+    posterior = posterior.reset_index(drop=True)
     posterior.to_csv(tables_dir / "posterior.tsv", sep="\t", index=False)
+    status_counts = posterior["status"].value_counts().sort_index().to_dict()
+    tested = posterior[posterior["status"] == "tested"]
 
-    n_sig = posterior.groupby("gene")["significant"].sum()
+    n_sig = tested.groupby("gene_symbol")["significant"].sum()
     counts = (
         n_sig.value_counts()
         .reindex(range(1, len(names) + 1), fill_value=0)
@@ -405,12 +440,15 @@ def analyse(argv, full_argv):
         "n_genes": len(bhat),
         "cell_types": names,
         "genes_dropped_by_align": dropped,
+        "n_shared_ids": n_shared_ids,
+        "joined_on": "gene_id" if genes["gene_id"].notna().all() else "gene_symbol",
+        "status_counts": status_counts,
         "n_strong": mash["n_strong"],
         "null_corr": p["null_corr"],
         "n_significant_any": n_any,
         "n_shared_all": n_shared,
         "n_specific": n_specific,
-        "significant_per_cell_type": posterior.groupby("cell_type")["significant"]
+        "significant_per_cell_type": tested.groupby("cell_type")["significant"]
         .sum()
         .astype(int)
         .to_dict(),
@@ -419,7 +457,14 @@ def analyse(argv, full_argv):
         "seed": p["seed"],
     }
     artifacts = ["report.md", "tables/posterior.tsv", "figures/sharing_heatmap.png"]
-    write_result(outdir, result, summary, artifacts, reference=p["reference"])
+    write_result(
+        outdir,
+        result,
+        summary,
+        artifacts,
+        context=p["context"],
+        reference=p["reference"],
+    )
     write_reproducibility(
         outdir,
         __file__,

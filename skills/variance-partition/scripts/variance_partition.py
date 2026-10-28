@@ -22,6 +22,7 @@ from palettes import palette_for
 from plots import plot_heatmap
 from skillkit import (
     check_design_rank,
+    check_gene_ids,
     check_replication,
     check_unique,
     fail,
@@ -29,6 +30,7 @@ from skillkit import (
     parse_required,
     run,
     seed_everything,
+    with_status,
     write_report,
     write_reproducibility,
     write_result,
@@ -38,9 +40,17 @@ from theme import save_panel
 SKILL_DIR = Path(__file__).resolve().parents[1]
 ENGINE = Path(__file__).resolve().parent / "varpart.R"
 
-MODEL_ARGS = ["formula", "min_frac", "n_top", "max_cancor", "reference", "seed"]
+MODEL_ARGS = [
+    "formula",
+    "min_frac",
+    "n_top",
+    "max_cancor",
+    "reference",
+    "context",
+    "seed",
+]
 COUNTS_ARGS = ["counts", "meta"]
-ADATA_ARGS = ["adata", "sample_col", "donor_col", "min_cells"]
+ADATA_ARGS = ["adata", "gene_id_col", "sample_col", "donor_col", "min_cells"]
 KEYS = [*COUNTS_ARGS, *ADATA_ARGS, "layer", *MODEL_ARGS]
 NAME = r"[A-Za-z_][\w.]*"
 RANDOM_TERM = re.compile(rf"\(\s*1\s*\|\s*({NAME})\s*\)")
@@ -50,6 +60,7 @@ DEMO = {
     "counts": str(SKILL_DIR / "examples" / "demo_counts.tsv"),
     "meta": str(SKILL_DIR / "examples" / "demo_meta.tsv"),
     "adata": None,
+    "gene_id_col": None,
     "sample_col": None,
     "donor_col": None,
     "min_cells": None,
@@ -59,6 +70,7 @@ DEMO = {
     "n_top": 5,
     "max_cancor": 0.9,
     "reference": "synthetic demo genes, no genome build",
+    "context": "synthetic demo: 12 donors, ctrl vs stim pseudobulk, no real tissue",
     "seed": 0,
     "outdir": "variance_partition_demo",
 }
@@ -72,6 +84,9 @@ ERRORS = {
     "--counts samples are already summed",
     "missing_file": "input file not found: {path}",
     "missing_layer": "layer not found in the h5ad: {layer}",
+    "missing_gene_id_col": "gene id column not found in var: {col}",
+    "missing_id_columns": "--counts must start with gene_id and gene_symbol columns, "
+    "then one column per sample",
     "missing_column": "column not found in the sample metadata: {col}",
     "bad_counts": "counts in {source} must be non-negative integers (raw counts)",
     "samples_mismatch": "--counts columns and --meta rows name different samples: "
@@ -114,6 +129,7 @@ def parse_args(argv):
     parser.add_argument("--counts")
     parser.add_argument("--meta")
     parser.add_argument("--adata")
+    parser.add_argument("--gene-id-col")
     parser.add_argument("--sample-col")
     parser.add_argument("--donor-col")
     parser.add_argument("--layer")
@@ -123,6 +139,7 @@ def parse_args(argv):
     parser.add_argument("--n-top", type=int)
     parser.add_argument("--max-cancor", type=float)
     parser.add_argument("--reference")
+    parser.add_argument("--context")
     parser.add_argument("--seed", type=int)
     optional = [k for k in [*COUNTS_ARGS, *ADATA_ARGS, "layer"] if k not in inputs]
     return parse_required(parser, [*inputs, *MODEL_ARGS], DEMO, argv, optional)
@@ -162,10 +179,17 @@ def read_tsv_input(p, terms):
             fail(ERRORS, "missing_file", path=path)
     # pandas renames a repeated header ("S1.1"), so read the header as written.
     with open(p["counts"]) as handle:
-        check_unique(handle.readline().rstrip("\n").split("\t")[1:], "sample ids")
-    counts = pd.read_csv(p["counts"], sep="\t", index_col=0)
+        header = handle.readline().rstrip("\n").split("\t")
+    if header[:2] != ["gene_id", "gene_symbol"]:
+        fail(ERRORS, "missing_id_columns")
+    check_unique(header[2:], "sample ids")
+    counts = pd.read_csv(p["counts"], sep="\t", dtype={"gene_id": str})
+    # An empty gene_id column (pseudobulk-de --gene-id-col none): symbols only.
+    ids = None if counts["gene_id"].isna().all() else counts["gene_id"].tolist()
+    gene_ids = check_gene_ids(ids, counts["gene_symbol"].astype(str).tolist())
+    counts = counts.drop(columns="gene_id").set_index("gene_symbol").rename_axis("gene")
+    counts.index = counts.index.astype(str)
     meta = pd.read_csv(p["meta"], sep="\t", index_col=0)
-    check_unique(counts.index.astype(str), "gene names")
     check_unique(meta.index.astype(str), "sample ids")
     check_counts(counts.to_numpy(), p["counts"])
     only = sorted(set(counts.columns) ^ set(meta.index.astype(str)))
@@ -180,7 +204,7 @@ def read_tsv_input(p, terms):
     meta = meta.loc[sorted(counts.columns), terms].rename_axis("sample")
     counts = counts[meta.index].astype(np.int64)
     detected = (counts > 0).mean(axis=1)
-    return counts, meta, [], detected, None
+    return counts, meta, [], detected, None, gene_ids
 
 
 def read_adata_input(p, terms):
@@ -197,7 +221,13 @@ def read_adata_input(p, terms):
     for col in [p["sample_col"], p["donor_col"], *terms]:
         if col not in adata.obs.columns:
             fail(ERRORS, "missing_column", col=col)
-    check_unique(adata.var_names, "gene names")
+    # var_names are the symbols; --gene-id-col none: the source has no gene ids.
+    ids = None
+    if p["gene_id_col"] != "none":
+        if p["gene_id_col"] not in adata.var.columns:
+            fail(ERRORS, "missing_gene_id_col", col=p["gene_id_col"])
+        ids = adata.var[p["gene_id_col"]].astype(str).tolist()
+    gene_ids = check_gene_ids(ids, adata.var_names.tolist())
     check_unique(adata.obs_names, "cell ids")
     matrix = sparse.csr_matrix(adata.layers[p["layer"]] if p["layer"] else adata.X)
     check_counts(matrix.data, f"layer {p['layer']}" if p["layer"] else "X")
@@ -235,7 +265,7 @@ def read_adata_input(p, terms):
     detected = pd.Series(
         np.asarray((matrix[in_kept] > 0).mean(axis=0)).ravel(), index=counts.index
     )
-    return counts[meta.index], meta, dropped, detected, n_donors
+    return counts[meta.index], meta, dropped, detected, n_donors, gene_ids
 
 
 def run_r(counts, meta, p):
@@ -328,10 +358,8 @@ def draw_figures(figures, fractions, order, top_genes, cancor, pal):
     heat["term_col"] = pd.Categorical(heat["term_col"], categories=terms)
     heat = heat.sort_values(["term_row", "term_col"]).reset_index(drop=True)
     # canCor lies in [0, 1]: white at 0, red at 1 on the diverging scale.
-    fig = plot_heatmap(heat, "term_row", "term_col", value, limit=1)
-    fig.set_layout_engine("tight")
-    save_panel(fig, heat, figures, "cancor_heatmap", 89, 70)
-    plt.close(fig)
+    plot = plot_heatmap(heat, "term_row", "term_col", value, limit=1)
+    save_panel(plot, heat, figures, "cancor_heatmap", 89, 70)
 
 
 def analyse(argv, full_argv):
@@ -339,7 +367,7 @@ def analyse(argv, full_argv):
     terms, random_terms = check_values(p)
     seed_everything(p["seed"])
     read = read_adata_input if p["adata"] else read_tsv_input
-    counts, meta, dropped, detected, n_donors = read(p, terms)
+    counts, meta, dropped, detected, n_donors, gene_ids = read(p, terms)
     for col in terms:
         if col not in random_terms and not pd.api.types.is_numeric_dtype(meta[col]):
             fail(ERRORS, "categorical_fixed", col=col)
@@ -377,7 +405,15 @@ def analyse(argv, full_argv):
     cancor.rename_axis("term").to_csv(tables / "cancor.tsv", sep="\t")
 
     fractions = fractions[["gene", *terms, "Residuals"]].sort_values("gene")
-    fractions.to_csv(tables / "variance_fractions.tsv", sep="\t", index=False)
+    # Every input gene keeps a row; a gene under --min-frac has NA fractions.
+    reasons = {
+        g: "not_detected" if d == 0 else "not_tested" for g, d in detected.items()
+    }
+    table = with_status(fractions, list(reasons), "gene", reasons).sort_values("gene")
+    table.insert(1, "gene_id", table["gene"].map(gene_ids))
+    table.rename(columns={"gene": "gene_symbol"}).to_csv(
+        tables / "variance_fractions.tsv", sep="\t", index=False
+    )
     long = fractions.melt(id_vars="gene", var_name="term", value_name="fraction")
     summary_table = (
         long.groupby("term")["fraction"]
@@ -431,6 +467,7 @@ def analyse(argv, full_argv):
         "n_samples": len(meta),
         "n_donors": n_donors,
         "n_genes": len(fractions),
+        "status_counts": {k: int(v) for k, v in table["status"].value_counts().items()},
         "dropped_samples": dropped,
         "top_covariate": top_covariate,
         "median_fractions": medians.round(6).to_dict(),
@@ -444,8 +481,17 @@ def analyse(argv, full_argv):
         "tables/variance_fractions.tsv",
         "figures/variance_violin.png",
     ]
-    write_result(outdir, result, summary, artifacts, reference=p["reference"])
-    packages = ["numpy", "pandas", "matplotlib", "anndata", "scipy"]
+    if p["adata"]:
+        result["gene_id_col"] = p["gene_id_col"]
+    write_result(
+        outdir,
+        result,
+        summary,
+        artifacts,
+        context=p["context"],
+        reference=p["reference"],
+    )
+    packages = ["numpy", "pandas", "matplotlib", "plotnine", "anndata", "scipy"]
     write_reproducibility(
         outdir, __file__, p, KEYS, full_argv, packages, extra=r_versions
     )

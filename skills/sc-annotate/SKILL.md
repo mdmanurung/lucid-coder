@@ -22,6 +22,10 @@ metadata:
     - CellTypist
     - scanpy ingest
   inputs:
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
     - name: query
       type: file
       format:
@@ -53,9 +57,11 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
       - scanpy
       - celltypist
       - scikit-learn<1.8
+      - pynndescent<0.7
   demo_data:
     - path: examples/demo_query.h5ad
       description: synthetic, 400 cells of 4 known types, 8 clusters, 158 genes
@@ -113,6 +119,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--engine` | CellTypist (`celltypist`) or scanpy ingest kNN (`ingest`)? | `celltypist` |
 | `--seed` | Which seed? | `0` |
 | `--reference` | Which genome build and annotation release named the query genes (e.g. `GRCh38, GENCODE 44`)? Recorded in `result.json`. | `synthetic demo genes, no genome build` |
+| `--context` | Species, tissue or cell type, condition and dataset? | `synthetic demo: 4 PBMC-like cell types, reference and half-depth query, no real tissue` |
 | `--model` | celltypist only: which saved CellTypist model? Give this or `--reference-adata`. | absent |
 | `--reference-adata` | Which labelled reference h5ad? (celltypist: trains a model; ingest: required) | `examples/demo_reference.h5ad` |
 | `--reference-label` | Which reference obs column holds the labels? | `cell_type` |
@@ -163,7 +170,7 @@ repeats `n_matched`).
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_cells, n_labels, n_shared_genes, n_matched, n_in_resource, label_counts, median_confidence, params, engine, seed, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # n_cells, n_labels, n_shared_genes, n_matched, n_in_resource, label_counts, median_confidence, params, engine, seed, reference, context, chat_summary_lines (first: "Context: ..."), preferred_artifacts
 ├── data/
 │   ├── annotated.h5ad         # the query, raw X, plus obs transferred_label and transferred_confidence
 │   └── celltypist_model.pkl   # only when celltypist trained on --reference-adata
@@ -201,6 +208,10 @@ outdir/
   right.** Do not. A score is not a probability: CellTypist's value is a model
   output from one classifier, and ingest's is a neighbour fraction. Neither is
   calibrated against truth; report it as "confidence".
+- **The model will want to state a transferred label as the cell's identity**
+  ("cluster 3 is NK cells"). Do not. The label is predicted by a model trained
+  on another dataset; write "predicted NK cell" or "labelled NK cell by
+  CellTypist" (house-style `claims.strength`), and check the marker dot plot.
 - **The model will want to read a marker the query lacks in a cell as absence.**
   Do not. Non-detection is not absence: a zero in a sparse cell is often
   dropout, so the dot plot's fraction expressing is a detection rate.
@@ -227,13 +238,15 @@ python scripts/sc_annotate.py \
   --query data/query.h5ad --markers config/pbmc_markers.tsv \
   --over-clustering leiden --engine celltypist \
   --model models/ref_pbmc_L2.pkl --majority-voting yes \
-  --seed 0 --reference 'GRCh38, GENCODE 44' --outdir results/2026-10-27_annotate
+  --seed 0 --reference 'GRCh38, GENCODE 44' \
+  --context 'human PBMC, IFN-beta vs control, Kang 2018' --outdir results/2026-10-27_annotate
 
 python scripts/sc_annotate.py \
   --query data/query.h5ad --markers config/pbmc_markers.tsv \
   --over-clustering leiden --engine ingest \
   --reference-adata data/reference.h5ad --reference-label cell_type \
-  --n-pcs 30 --n-neighbors 15 --seed 0 --reference 'GRCh38, GENCODE 44' --outdir results/2026-10-27_ingest
+  --n-pcs 30 --n-neighbors 15 --seed 0 --reference 'GRCh38, GENCODE 44' \
+  --context 'human PBMC, IFN-beta vs control, Kang 2018' --outdir results/2026-10-27_ingest
 
 # Demo (only when the user asks for one)
 python scripts/sc_annotate.py --demo --outdir demo_out

@@ -23,6 +23,10 @@ metadata:
     - UMAP
     - Leiden
   inputs:
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
     - name: adata
       type: file
       format:
@@ -57,6 +61,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
   demo_data:
     - path: examples/demo.h5ad
       description: synthetic, 2 batches x 3 groups x 100 cells, 300 genes
@@ -112,6 +117,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--resolution` | Which Leiden resolution? | `0.3` |
 | `--seed` | Which seed for PCA, Harmony, neighbours, UMAP and Leiden? | `0` |
 | `--reference` | Which genome build and annotation release named the genes (e.g. `GRCh38, GENCODE 44`)? Recorded in `result.json`. | `synthetic demo genes, no genome build` |
+| `--context` | Species, tissue or cell type, condition and dataset? | `synthetic demo: 2 batches x 3 groups, 300 genes, no real tissue` |
 | `--outdir` | Which new directory gets the outputs? It must not exist. | `sc_embed_demo` |
 
 The last column is **demo-only, not defaults**. `--demo` alone pins all of them.
@@ -151,7 +157,7 @@ cluster number, then batch.
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_cells, n_genes, n_hvg, n_clusters, cluster_sizes, use_rep, integration, seed, params, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # n_cells, n_genes, n_hvg, n_clusters, cluster_sizes, use_rep, integration, seed, params, reference, context, chat_summary_lines (first: "Context: ..."), preferred_artifacts
 ├── data/
 │   └── embedded.h5ad          # all genes; X log-normalised, layers["counts"], var highly_variable, obsm X_pca (+ X_pca_harmony), X_umap, obs leiden
 ├── tables/
@@ -202,6 +208,10 @@ outdir/
   Ask for the build and annotation release; it is recorded, never inferred.
 - **The model will want to name clusters as cell types** from the UMAP. Do not.
   Leiden numbers are not labels; annotation is a separate skill.
+- **The model will want to say integration "removed the batch effect"** because
+  the batch UMAP looks mixed. Do not. Harmony corrects the PCs only; X keeps
+  the batch shift. Say "batches mix in the embedding" (house-style
+  `claims.strength`).
 
 ## Engine scope
 
@@ -218,6 +228,7 @@ python scripts/sc_embed.py \
   --target-sum 10000 --n-top-genes 2000 --flavor seurat_v3 --batch-key sample \
   --n-comps 50 --integration harmony --n-neighbors 20 --n-pcs 30 \
   --min-dist 0.3 --resolution 1 --seed 0 --reference 'GRCh38, GENCODE 44' \
+  --context 'human PBMC, IFN-beta vs control, Kang 2018' \
   --outdir results/2026-10-27_embed
 
 # Demo (only when the user asks for one); add --integration none to compare

@@ -20,7 +20,8 @@ import anndata as ad
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from plots import FEW_POINTS, plot_box, plot_composition
+from matplotlib.colors import to_hex
+from plots import FEW_POINTS, ROTATE_X, plot_box, plot_composition
 from skillkit import (
     check_design_rank,
     check_replication,
@@ -30,6 +31,7 @@ from skillkit import (
     parse_required,
     run,
     seed_everything,
+    with_status,
     write_report,
     write_reproducibility,
     write_result,
@@ -39,7 +41,16 @@ from theme import save_panel
 SKILL_DIR = Path(__file__).resolve().parents[1]
 R_ENGINE = Path(__file__).resolve().parent / "crumblr.R"
 
-ANALYSIS_ARGS = ["formula", "coef", "group_col", "tau", "min_count", "padj_max", "seed"]
+ANALYSIS_ARGS = [
+    "context",
+    "formula",
+    "coef",
+    "group_col",
+    "tau",
+    "min_count",
+    "padj_max",
+    "seed",
+]
 INPUT_ARGS = ["adata", "sample_col", "label_col", "counts", "meta"]
 KEYS = [*INPUT_ARGS, "donor_col", *ANALYSIS_ARGS]
 NAME = r"[A-Za-z_][\w.]*"
@@ -53,6 +64,8 @@ DEMO = {
     "counts": None,
     "meta": None,
     "donor_col": "donor",
+    "context": "synthetic demo: 8 donors, ctrl vs stim, "
+    "7 PBMC-like labels, no real tissue",
     "formula": "~ condition + (1|donor)",
     "coef": "conditionstim",
     "group_col": "condition",
@@ -85,10 +98,9 @@ ERRORS = {
 
 DA_COLUMNS = ["label", "logFC", "se", "t", "ci_low", "ci_high", "pvalue", "padj"]
 # Fixed plot spec, not analysis thresholds. Groups take Paul Tol's bright set
-# (reference blue, then red), labels tab20; save_panel does not crop, so every
-# figure sets a layout engine.
+# (reference blue, then red), labels tab20 as hex (plotnine legends reject RGB tuples).
 GROUP_COLOURS = ["#4477AA", "#EE6677", "#228833", "#CCBB44", "#66CCEE", "#AA3377"]
-LABEL_COLOURS = plt.get_cmap("tab20").colors
+LABEL_COLOURS = [to_hex(c) for c in plt.get_cmap("tab20").colors]
 SIG, OTHER = "#B2182B", "0.5"
 JITTER_WIDTH = 0.2
 
@@ -101,6 +113,7 @@ def parse_args(argv):
     parser.add_argument("--counts")
     parser.add_argument("--meta")
     parser.add_argument("--donor-col")
+    parser.add_argument("--context")
     parser.add_argument("--formula")
     parser.add_argument("--coef")
     parser.add_argument("--group-col")
@@ -255,11 +268,8 @@ def draw_figures(figures, counts, props, meta, da, p):
     )
     long["sample"] = pd.Categorical(long["sample"], categories=order)
     long[group] = meta.loc[long["sample"].astype(str), group].to_numpy()
-    fig = plot_composition(long, "sample", "label", "cells", label_pal)
-    fig.axes[0].tick_params(axis="x", labelrotation=90)
-    fig.set_layout_engine("constrained")
-    save_panel(fig, long, figures, "composition", 120, 70)
-    plt.close(fig)
+    plot = plot_composition(long, "sample", "label", "cells", label_pal) + ROTATE_X
+    save_panel(plot, long, figures, "composition", 120, 70)
     captions["composition"] = (
         f"Stacked bars of the share of cells per label in each of {len(order)} "
         f"samples, ordered by {group} ({', '.join(levels)}); the denominator is "
@@ -279,7 +289,7 @@ def draw_figures(figures, counts, props, meta, da, p):
         if pair:
             rows[pair] = meta[pair]
         rows = rows.loc[order].reset_index()
-        fig = plot_box(
+        plot = plot_box(
             rows,
             group,
             value,
@@ -289,10 +299,8 @@ def draw_figures(figures, counts, props, meta, da, p):
             value_label=f"{label} (fraction of sample's cells)",
             pair=pair,
         )
-        fig.set_layout_engine("constrained")
         name = "proportion_" + re.sub(r"\W+", "_", label).strip("_")
-        save_panel(fig, rows, figures, name, 60, 60)
-        plt.close(fig)
+        save_panel(plot, rows, figures, name, 60, 60)
         captions[name] = (
             f"{shape} of the {label} share of each sample's cells per {group}; "
             f"each point is one sample, {joined}. crumblr {p['coef']} logFC "
@@ -357,13 +365,17 @@ def analyse(argv, full_argv):
     props.to_csv(tables / "proportions.tsv", sep="\t", float_format="%.6g")
     clr.rename_axis("sample").to_csv(tables / "clr.tsv", sep="\t", float_format="%.6g")
     da["significant"] = da["padj"] < p["padj_max"]
+    # Labels under --min-count stay in the table with NA statistics (data.status).
+    da = with_status(da, totals.index, "label", dict.fromkeys(dropped, "not_tested"))
     da = da.sort_values(["padj", "label"]).reset_index(drop=True)
+    status_counts = {k: int(v) for k, v in da["status"].value_counts().items()}
     da.to_csv(tables / "da_results.tsv", sep="\t", index=False, float_format="%.6g")
 
     plt.switch_backend("Agg")
-    captions, pair = draw_figures(figures, counts, props, meta, da, p)
+    tested = da[da["status"] == "tested"]
+    captions, pair = draw_figures(figures, counts, props, meta, tested, p)
 
-    sig = da[da["significant"]]
+    sig = da[da["significant"].eq(True)]
     signs = {r.label: "up" if r.logFC > 0 else "down" for r in sig.itertuples()}
     summary = [
         f"{n_samples} samples from {n_donors} donors, {counts.shape[1]} labels "
@@ -384,6 +396,7 @@ def analyse(argv, full_argv):
         "dropped_cells_by_level": dropped_cells,
         "n_labels_tested": counts.shape[1],
         "dropped_labels": dropped,
+        "status_counts": status_counts,
         "n_significant": len(sig),
         "significant": signs,
         "paired_by": pair,
@@ -392,8 +405,8 @@ def analyse(argv, full_argv):
         "seed": p["seed"],
     }
     artifacts = ["report.md", "tables/da_results.tsv", "figures/effect_forest.png"]
-    write_result(outdir, result, summary, artifacts)
-    packages = ["anndata", "numpy", "pandas", "matplotlib"]
+    write_result(outdir, result, summary, artifacts, context=p["context"])
+    packages = ["anndata", "numpy", "pandas", "matplotlib", "plotnine"]
     write_reproducibility(
         outdir, __file__, p, KEYS, full_argv, packages, extra=r_versions
     )

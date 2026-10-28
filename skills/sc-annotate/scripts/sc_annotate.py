@@ -17,14 +17,31 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import skillkit as kit
-from plots import FEW_POINTS, plot_box, plot_dotplot, plot_embedding, plot_heatmap
+from matplotlib.colors import to_hex
+from plotnine import scale_fill_gradient
+from plots import (
+    FEW_POINTS,
+    ROTATE_X,
+    plot_box,
+    plot_dotplot,
+    plot_embedding,
+    plot_heatmap,
+)
 from scipy import sparse
 from theme import save_panel
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 EXAMPLES = SKILL_DIR / "examples"
 
-REQUIRED = ["query", "markers", "over_clustering", "engine", "seed", "reference"]
+REQUIRED = [
+    "query",
+    "markers",
+    "over_clustering",
+    "engine",
+    "seed",
+    "reference",
+    "context",
+]
 ENGINE_ARGS = {
     "celltypist": ["model", "reference_adata", "reference_label", "majority_voting"],
     "ingest": ["reference_adata", "reference_label", "n_pcs", "n_neighbors"],
@@ -40,6 +57,8 @@ DEMO = {
     "engine": "celltypist",
     "seed": 0,
     "reference": "synthetic demo genes, no genome build",
+    "context": "synthetic demo: 4 PBMC-like cell types, reference and half-depth "
+    "query, no real tissue",
     "outdir": "sc_annotate_demo",
 }
 DEMO_ENGINE = {
@@ -75,10 +94,11 @@ ERRORS = {
     "marker_gene_absent": "marker genes not in the query: {genes}",
 }
 
-PACKAGES = ["anndata", "numpy", "pandas", "scipy", "matplotlib", "scanpy"]
+PACKAGES = ["anndata", "numpy", "pandas", "scipy", "matplotlib", "plotnine", "scanpy"]
 PACKAGES += ["celltypist", "scikit-learn", "pynndescent"]
 # Fixed plot spec, not analysis thresholds.
-TAB10 = [plt.get_cmap("tab10")(i) for i in range(10)]
+# Hex strings: plotnine legends reject RGBA tuples.
+TAB10 = [to_hex(c) for c in plt.get_cmap("tab10").colors]
 DOT_MAX_SIZE = 4  # mm, dot diameter at frac = 1
 JITTER_WIDTH = 0.3  # box widths each side
 HEATMAP_LIMIT = 1  # fractions run 0 to 1
@@ -97,6 +117,7 @@ def parse_args(argv):
     parser.add_argument("--seed", type=int)
     parser.add_argument("--model")
     parser.add_argument("--reference")
+    parser.add_argument("--context")
     parser.add_argument("--reference-adata")
     parser.add_argument("--reference-label")
     parser.add_argument("--majority-voting", choices=["yes", "no"])
@@ -273,25 +294,21 @@ def dotplot_frame(query, markers, labels):
 
 
 def draw_figures(figures, cells, dots, by_cluster, pal, seed, value_label):
-    fig = plot_embedding(cells, "umap_1", "umap_2", "label", pal, axis_name="UMAP")
-    fig.set_layout_engine("constrained")
-    save_panel(fig, cells, figures, "umap_label", 120, 89)
-    plt.close(fig)
+    plot = plot_embedding(cells, "umap_1", "umap_2", "label", pal, axis_name="UMAP")
+    save_panel(plot, cells, figures, "umap_label", 120, 89)
 
-    # Colorbar plus legend: tight layout keeps both on the page.
-    fig = plot_dotplot(
+    plot = plot_dotplot(
         dots,
         "gene",
         "label",
         "scaled mean expression",
         "fraction expressing",
         max_size=DOT_MAX_SIZE,
+        mean_label="Mean expression (scaled 0-1 per gene)",
     )
-    fig.set_layout_engine("tight")
-    save_panel(fig, dots, figures, "marker_dotplot", 140, 89)
-    plt.close(fig)
+    save_panel(plot, dots, figures, "marker_dotplot", 140, 89)
 
-    fig = plot_box(
+    plot = plot_box(
         cells,
         "label",
         "confidence",
@@ -300,18 +317,14 @@ def draw_figures(figures, cells, dots, by_cluster, pal, seed, value_label):
         seed=seed,
         value_label=value_label,
     )
-    fig.axes[0].tick_params(axis="x", rotation=90)
-    fig.set_layout_engine("constrained")
-    save_panel(fig, cells, figures, "confidence_box", 89, 89)
-    plt.close(fig)
+    save_panel(plot + ROTATE_X, cells, figures, "confidence_box", 89, 89)
 
-    fig = plot_heatmap(
+    plot = plot_heatmap(
         by_cluster, "label", "cluster", "fraction of cluster", limit=HEATMAP_LIMIT
     )
-    fig.axes[1].set_ylim(0, HEATMAP_LIMIT)  # fractions: show the 0-1 half only
-    fig.set_layout_engine("tight")
-    save_panel(fig, by_cluster, figures, "label_cluster_heatmap", 120, 89)
-    plt.close(fig)
+    # Fractions: white to red over 0-1, the upper half of the diverging scale.
+    plot += scale_fill_gradient(low="white", high="#B2182B", limits=(0, HEATMAP_LIMIT))
+    save_panel(plot, by_cluster, figures, "label_cluster_heatmap", 120, 89)
 
 
 def analyse(argv, argv_full):
@@ -452,6 +465,7 @@ def analyse(argv, argv_full):
         },
         summary,
         ["report.md", "tables/labels.tsv", "figures/marker_dotplot.png"],
+        context=p["context"],
         reference=p["reference"],
     )
     kit.write_reproducibility(outdir, __file__, p, KEYS, argv_full, PACKAGES)

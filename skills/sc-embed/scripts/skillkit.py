@@ -117,6 +117,7 @@ def write_report(outdir, title, params, keys, summary, captions):
     """report.md: parameter table, summary bullets, one caption per figure.
 
     Captions follow house-style fig.text: open with what is shown, <= 60 words.
+    `params["context"]` (the required --context) opens the report.
     """
     rows = "\n".join(f"| `{flag(k)}` | `{params.get(k)}` |" for k in keys)
     figures = "\n\n".join(
@@ -125,7 +126,8 @@ def write_report(outdir, title, params, keys, summary, captions):
     )
     bullets = "\n".join(f"- {line}" for line in summary)
     (Path(outdir) / "report.md").write_text(
-        f"# {title}\n\n| parameter | value |\n|---|---|\n{rows}\n\n{bullets}\n\n"
+        f"# {title}\n\nContext: {params['context']}\n\n"
+        f"| parameter | value |\n|---|---|\n{rows}\n\n{bullets}\n\n"
         f"## Figures\n\n{figures}\n"
     )
 
@@ -182,18 +184,112 @@ def check_replication(obs, sample_col, donor_col, design_terms):
     return int(per_donor.size), int(n_samples)
 
 
-def write_result(outdir, result, summary, artifacts, reference=None):
+def write_result(outdir, result, summary, artifacts, *, context, reference=None):
     """result.json with the ClawBio handoff fields (F-33).
 
-    `reference` is the user-stated genome build and annotation release (e.g.
+    `context` is the user-stated species, tissue or cell type, condition and dataset
+    (the required --context); it opens chat_summary_lines so no summary leaves without
+    it. `reference` is the user-stated genome build and annotation release (e.g.
     "GRCh38, GENCODE 44"); a gene-level skill requires it and never guesses it.
     """
-    out = {**result, "chat_summary_lines": summary, "preferred_artifacts": artifacts}
+    out = {
+        **result,
+        "context": context,
+        "chat_summary_lines": [f"Context: {context}", *summary],
+        "preferred_artifacts": artifacts,
+    }
     if reference is not None:
         out["reference"] = reference
     (Path(outdir) / "result.json").write_text(
         json.dumps(out, indent=2, default=str) + "\n"
     )
+
+
+# Why a feature has no result (biology-core: non-detection is not absence).
+STATUSES = ("tested", "not_tested", "not_detected", "below_detection", "not_measured")
+
+
+def with_status(tested, universe, id_col, reasons):
+    """Per-feature table with one row per input feature and a `status` column.
+
+    `tested` holds the features that got a result; `universe` lists every input
+    feature id; `reasons` maps each untested id to a STATUSES value. Untested rows
+    keep NA statistics, never 0. Raises ValueError, not SkillError: a gap here is a
+    bug in the skill script, not bad user input.
+    """
+    import pandas as pd
+
+    missing = set(universe) - set(tested[id_col]) - set(reasons)
+    if missing:
+        raise ValueError(
+            f"no status for {len(missing)} untested ids, e.g. {min(missing)}"
+        )
+    bad = set(reasons.values()) - set(STATUSES)
+    if bad:
+        raise ValueError(f"unknown status {sorted(bad)}; use one of {STATUSES}")
+    untested = pd.DataFrame({id_col: list(reasons), "status": list(reasons.values())})
+    untested = untested[~untested[id_col].isin(tested[id_col])]
+    return pd.concat([tested.assign(status="tested"), untested], ignore_index=True)
+
+
+def check_gene_ids(ids, symbols):
+    """Stop on an ambiguous id map: duplicated gene ids or a symbol with several ids.
+
+    `ids` are Ensembl gene ids (versioned where the source has versions) and
+    `symbols` the matching gene symbols, both as the source gives them. `ids=None`
+    (the user passed `--gene-id-col none`: the source has no ids) keeps symbols only
+    and maps each to None, so `gene_id` is written as NA, never guessed. Returns
+    {symbol: id} for output tables that carry `gene_id` beside `gene_symbol`.
+    """
+    if ids is None:
+        check_unique(symbols, "gene symbols")
+        return dict.fromkeys(symbols)
+    check_unique(ids, "gene ids")
+    by_symbol = {}
+    for gid, sym in zip(ids, symbols, strict=True):
+        by_symbol.setdefault(sym, []).append(gid)
+    ambiguous = sorted(s for s, g in by_symbol.items() if len(g) > 1)
+    if ambiguous:
+        raise SkillError(
+            f"{len(ambiguous)} gene symbol(s) map to several gene ids: "
+            + "; ".join(f"{s} -> {', '.join(by_symbol[s])}" for s in ambiguous[:3])
+            + "; choose one id per symbol, or drop them, before running"
+        )
+    return {s: g[0] for s, g in by_symbol.items()}
+
+
+def id_type(ids):
+    """Namespace of a set of gene ids: ensembl_versioned, ensembl, symbol or mixed."""
+    ids = [str(i) for i in ids]
+    ens = [i for i in ids if i.startswith(("ENSG", "ENSMUSG"))]
+    if not ens:
+        return "symbol"
+    if len(ens) < len(ids):
+        return "mixed"
+    return "ensembl_versioned" if all("." in i for i in ens) else "ensembl"
+
+
+def check_compatible(inputs, what):
+    """Stop when inputs to be combined cannot be matched; return n shared ids.
+
+    `inputs` maps an input name to the ids the inputs are joined on: gene ids for DE
+    tables (`what="gene ids"`, also checked for one id namespace), sample ids for
+    MOFA views (`what="sample ids"`; views share samples, not features).
+    """
+    if what == "gene ids":
+        types = {name: id_type(ids) for name, ids in inputs.items()}
+        if len(set(types.values())) > 1 or "mixed" in types.values():
+            raise SkillError(
+                "inputs use different gene id types ("
+                + ", ".join(f"{n}: {t}" for n, t in types.items())
+                + "); map them to one namespace and one reference before combining"
+            )
+    shared = set.intersection(*(set(map(str, ids)) for ids in inputs.values()))
+    if not shared:
+        raise SkillError(
+            f"inputs share no {what}; check they come from one study and reference"
+        )
+    return len(shared)
 
 
 def run(name, analyse, argv=None):
@@ -267,3 +363,36 @@ if __name__ == "__main__":
         out = make_outdir(Path(tmp) / "run")
         write_reproducibility(out, __file__, {"de": ["a=1", "b=2"]}, ["de"], [], [])
         assert "--de a=1 --de b=2" in (out / "reproducibility/commands.sh").read_text()
+    tested = pd.DataFrame({"gene": ["A"], "p": [0.1]})
+    table = with_status(tested, ["A", "B"], "gene", {"B": "not_tested"})
+    assert table["status"].tolist() == ["tested", "not_tested"]
+    assert table["p"].isna().tolist() == [False, True]
+    try:
+        with_status(tested, ["A", "B"], "gene", {})
+    except ValueError as exc:
+        assert "no status" in str(exc)
+    else:
+        raise SystemExit("with_status accepted an untested id without status")
+    assert check_gene_ids(["ENSG1.1", "ENSG2.3"], ["A", "B"]) == {
+        "A": "ENSG1.1",
+        "B": "ENSG2.3",
+    }
+    try:
+        check_gene_ids(["ENSG1.1", "ENSG2.3"], ["A", "A"])
+    except SkillError as exc:
+        assert "A -> ENSG1.1, ENSG2.3" in str(exc)
+    else:
+        raise SystemExit("check_gene_ids accepted an ambiguous symbol")
+    assert check_gene_ids(None, ["A", "B"]) == {"A": None, "B": None}
+    assert check_compatible({"a": ["X", "Y"], "b": ["Y", "Z"]}, "gene ids") == 1
+    assert check_compatible({"rna": ["s1", "s2"], "atac": ["s2"]}, "sample ids") == 1
+    try:
+        check_compatible({"a": ["ENSG1"], "b": ["TP53"]}, "gene ids")
+    except SkillError as exc:
+        assert "different gene id types" in str(exc)
+    else:
+        raise SystemExit("check_compatible accepted mixed id types")
+    with tempfile.TemporaryDirectory() as tmp:
+        write_result(tmp, {}, ["x"], [], context="human PBMC, IFN-b, Kang 2018")
+        res = json.loads((Path(tmp) / "result.json").read_text())
+        assert res["chat_summary_lines"][0] == "Context: human PBMC, IFN-b, Kang 2018"

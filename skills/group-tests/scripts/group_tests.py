@@ -13,16 +13,27 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import skillkit
+from plotnine import labs
 from plots import FEW_POINTS, plot_box, plot_scatter_fit
 from scipy import stats
 from theme import save_panel
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 GROUP_TESTS = ("wilcoxon", "paired-wilcoxon")
-REQUIRED = ["input", "test", "value_unit", "adjust", "alpha", "n_plot", "seed"]
+REQUIRED = [
+    "context",
+    "input",
+    "test",
+    "value_unit",
+    "adjust",
+    "alpha",
+    "n_plot",
+    "seed",
+]
 OPTIONAL = ["group_col", "levels", "pair_col", "covariate"]
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
+    "context": "synthetic demo: 20 donors, pre vs post, 30 features, no real tissue",
     "input": str(SKILL_DIR / "examples" / "demo.tsv"),
     "test": "paired-wilcoxon",
     "group_col": "visit",
@@ -62,6 +73,7 @@ def fail(key, **fields):
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--context")
     parser.add_argument("--input")
     parser.add_argument("--test", choices=[*GROUP_TESTS, "spearman", "pearson"])
     parser.add_argument("--group-col")
@@ -236,7 +248,7 @@ def draw_figures(figures, data, table, p, levels):
                 # Complete pairs only, matching the test.
                 complete = rows.groupby(pair)[p["group_col"]].transform("nunique") == 2
                 rows = rows[complete]
-            fig = plot_box(
+            plot = plot_box(
                 rows,
                 p["group_col"],
                 row.feature,
@@ -261,8 +273,9 @@ def draw_figures(figures, data, table, p, levels):
             )
         else:
             rows = rows.sort_values([p["covariate"], "subject"])
-            fig = plot_scatter_fit(rows, p["covariate"], row.feature)
-            fig.axes[0].set_ylabel(f"{row.feature} ({p['value_unit']})")
+            plot = plot_scatter_fit(rows, p["covariate"], row.feature) + labs(
+                y=f"{row.feature} ({p['value_unit']})"
+            )
             estimate = "rho" if p["test"] == "spearman" else "r"
             caption = (
                 f"Scatter plot of {row.feature} against {p['covariate']}; each point "
@@ -270,9 +283,7 @@ def draw_figures(figures, data, table, p, levels):
                 f"confidence band. {p['test'].title()} {estimate} "
                 f"{getattr(row, estimate):.2f}, padj {row.padj:.2g} ({family})."
             )
-        fig.set_layout_engine("constrained")
-        save_panel(fig, rows, figures, name, PANEL_MM, PANEL_MM)
-        plt.close(fig)
+        save_panel(plot, rows, figures, name, PANEL_MM, PANEL_MM)
         captions[name] = caption
     return captions
 
@@ -336,8 +347,8 @@ def analyse(argv, argv_as_run):
         "tables/tests.tsv",
         *[f"figures/{n}.png" for n in captions],
     ]
-    skillkit.write_result(outdir, result, summary, artifacts)
-    packages = ["numpy", "pandas", "scipy", "matplotlib"]
+    skillkit.write_result(outdir, result, summary, artifacts, context=p["context"])
+    packages = ["numpy", "pandas", "scipy", "matplotlib", "plotnine"]
     skillkit.write_reproducibility(outdir, __file__, p, keys, argv_as_run, packages)
     return outdir
 

@@ -32,6 +32,8 @@ OWN_GROUP = {"GP1": "g2", "GP2": "g1", "GP3": "g3"}
 
 ARGS = {
     "--adata": str(DEMO),
+    "--context": "synthetic demo",
+    "--gene-id-col": "gene_ids",
     "--groupby": "group",
     "--reference": "synthetic demo, no genome build",
     "--k": "3",
@@ -111,6 +113,11 @@ def test_demo_golden_values(demo_out):
     )
     assert (result["n_components_kept"], result["n_components_total"]) == (60, 60)
     assert result["n_genes_scored"] == 300
+    assert result["status_counts"] == {"tested": 300}
+    assert result["gene_id_col"] == "gene_ids"
+    assert result["chat_summary_lines"][0].startswith("Context: synthetic demo")
+    top = pd.read_csv(demo_out / "tables" / "top_genes.tsv", sep="\t")
+    assert top["gene_id"].str.startswith("ENSG9").all()
     assert result["reference"] == "synthetic demo, no genome build"
     assert {gp: set(genes) for gp, genes in result["top_genes"].items()} == PLANTED
     by_group = pd.read_csv(demo_out / "tables" / "program_by_group.tsv", sep="\t")
@@ -180,17 +187,34 @@ def test_missing_reference_fails(tmp_path):
     assert is_error(completed, "missing required arguments: --reference")
 
 
+def test_missing_context_fails(tmp_path):
+    completed = run_with(tmp_path, drop=["--context"])
+    assert is_error(completed, "missing required arguments: --context")
+
+
+# A duplicated symbol with two ids is ambiguous; without ids it is a duplicate.
 @pytest.mark.parametrize(
-    ("axis", "message"),
-    [("var", "duplicate gene names: G001"), ("obs", "duplicate cell ids: cell001")],
+    ("axis", "id_col", "message"),
+    [
+        (
+            "var",
+            "gene_ids",
+            "1 gene symbol(s) map to several gene ids: "
+            "G001 -> ENSG90000000000.1, ENSG90000000001.1",
+        ),
+        ("var", "none", "duplicate gene symbols: G001"),
+        ("obs", "gene_ids", "duplicate cell ids: cell001"),
+    ],
 )
-def test_duplicate_ids(tmp_path, axis, message):
+def test_duplicate_ids(tmp_path, axis, id_col, message):
     def duplicate(adata):
         names = getattr(adata, f"{axis}_names").to_list()
         names[0] = names[1]
         setattr(adata, f"{axis}_names", names)
 
-    completed = run_with(tmp_path, adata=edited_demo(tmp_path, duplicate))
+    completed = run_with(
+        tmp_path, adata=edited_demo(tmp_path, duplicate), gene_id_col=id_col
+    )
     assert is_error(completed, message)
 
 
@@ -244,6 +268,27 @@ def test_one_group(tmp_path):
 
     completed = run_with(tmp_path, adata=edited_demo(tmp_path, one_group))
     assert is_error(completed, "--groupby group needs at least 2 groups, found 1")
+
+
+def test_unexpressed_gene_keeps_a_status_row(tmp_path):
+    def silence(adata):
+        x = adata.X.toarray()
+        x[:, -1] = 0
+        adata.X = x
+
+    completed = run_with(
+        tmp_path, adata=edited_demo(tmp_path, silence), gene_id_col="none"
+    )
+    assert completed.returncode == 0, completed.stderr
+    out = tmp_path / "out"
+    loadings = pd.read_csv(out / "tables" / "gene_loadings.tsv", sep="\t")
+    row = loadings[loadings["gene"] == "G299"]
+    assert row["status"].tolist() == ["not_detected"]
+    assert row[["program", "score"]].isna().all().all()
+    assert loadings["gene_id"].isna().all()
+    result = json.loads((out / "result.json").read_text())
+    assert result["status_counts"] == {"tested": 299, "not_detected": 1}
+    assert result["gene_id_col"] == "none"
 
 
 def test_zero_cells(tmp_path):

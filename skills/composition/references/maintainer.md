@@ -78,7 +78,7 @@ From `skills/composition`:
 
 ```bash
 UV_CACHE_DIR=/tmp/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with anndata,matplotlib,scipy,pytest \
+  uv run --python 3.12 --with anndata,matplotlib,plotnine-extra,scipy,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
@@ -91,3 +91,13 @@ the tests change with it.
   for repeated measures designs. Bioinformatics 37:192-201.
 - crumblr: <https://gabrielhoffman.github.io/crumblr/> (Hoffman GE et al.,
   count ratio uncertainty modeling for cell-type composition).
+
+## Biology-core checks (2026-10-28)
+
+- `--context` is required and opens the report and `chat_summary_lines`.
+- `da_results.tsv` has a `status` column: a label under `--min-count` stays as
+  `not_tested` with NA statistics; `result.json` has `status_counts`. Figures use
+  tested labels only.
+- A gotcha keeps claims at "associated with" (house-style `claims.strength`).
+- Gene ids and `check_compatible` do not apply: the tables are keyed by cell-type
+  label and the skill reads one input.

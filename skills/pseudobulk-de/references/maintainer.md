@@ -46,7 +46,7 @@ UV_CACHE_DIR=/tmp/uvcache PYTHONDONTWRITEBYTECODE=1 \
   RSCRIPT=/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2/bin/Rscript \
   R_LIBS_USER=/exports/para-lipg-hpc/mdmanurung/R/4.5 \
   LD_LIBRARY_PATH=/home/mdmanurung/.local/lib/conda-gcc-runtime \
-  uv run --python 3.12 --with anndata,numpy,pandas,scipy,matplotlib,pydeseq2,pytest \
+  uv run --python 3.12 --with anndata,numpy,pandas,scipy,matplotlib,plotnine-extra,pydeseq2,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
@@ -88,7 +88,7 @@ first two; `~/.Renviron` sets `R_LIBS_USER` only when `HOME` is the user's.
 The demo data come from `examples/make_demo.py` (seed 0): 7 patients, `ctrl` and
 `stim` samples for P1-P6, one `ctrl` sample for P7 with 5 T cells, 300 genes.
 Genes `G000`-`G029` are truly DE in T cells (`var["true_de"]`, log2FC ±1.5); the
-last 40 genes are near-silent. With `--engine python` the demo keeps 12 samples
+last 40 genes are near-silent. `var["gene_ids"]` holds Ensembl-like ids. With `--engine python` the demo keeps 12 samples
 from 6 donors (P7_ctrl dropped: `dropped_by_level` is
 `{"stim": [], "ctrl": ["P7_ctrl"]}`), tests 250 genes and calls 28 significant, all truly DE.
 `--engine r` gives the same 28. `--engine dreamlet` (design
@@ -119,6 +119,26 @@ PDF, PNG and source CSV. No titles; captions sit in `report.md`.
 `dreamlet` (`~/.claude/skills/dreamlet/SKILL.md`) documents the dreamlet calls
 and the `~ condition + (1|donor_id)` form used by `--engine dreamlet`; this
 skill's calls agree with it.
+
+## Biology-core checks (2026-10-28)
+
+From `docs/pipeline-skills.md` "Biology-core checks". Applied:
+
+- context: required `--context`, first line of the report and `chat_summary_lines`.
+- status: `de_results.tsv` keeps all input genes; genes under `--min-frac` get
+  `not_detected` (zero in the kept samples' cells) or `not_tested`, with NA
+  statistics. Engine NA rows stay `tested`, so `n_genes_tested` is unchanged (250).
+  The figures get tested genes only.
+- gene ids: required `--gene-id-col` (demo `gene_ids`, added to `examples/make_demo.py`
+  after the random draws, so the goldens hold). `check_gene_ids` replaces the
+  `check_unique(var_names)` check. `de_results.tsv` writes `gene_symbol` and
+  `gene_id`; the code keeps `gene` inside. `pseudobulk_counts.tsv` starts with
+  `gene_id`, `gene_symbol` so variance-partition `--counts` accepts it; `run_r`
+  hands the R engines a symbol-keyed temp copy, so `deseq2.R` and `dreamlet.R`
+  are unchanged.
+- claim wording: one gotcha says a DE call is an association, not a mechanism.
+
+Not applied: compatible inputs (one input file).
 
 ## Citations
 

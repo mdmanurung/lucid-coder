@@ -23,6 +23,14 @@ metadata:
     - liana
     - cellphonedb
   inputs:
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
+    - name: gene_id_col
+      type: string
+      description: var column of Ensembl gene ids, or none when the source has none
+      required: true
     - name: adata
       type: file
       format:
@@ -55,6 +63,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
       - threadpoolctl
   demo_data:
     - path: examples/demo.h5ad
@@ -91,7 +100,7 @@ argument it names. Do not work around it.
 
 | Input | Format | Required content | Example |
 |---|---|---|---|
-| `--adata` | `.h5ad` | log-normalised values (`normalize_total` + `log1p`) in `X`; not raw counts, not scaled | sc-annotate's output h5ad; `examples/demo.h5ad` |
+| `--adata` | `.h5ad` | log-normalised values (`normalize_total` + `log1p`) in `X`; not raw counts, not scaled; `var_names` are gene symbols, `--gene-id-col` names the Ensembl id column | sc-annotate's output h5ad; `examples/demo.h5ad` |
 | `--groupby` | obs column | at least 2 cell-type labels | `cell_type`; demo `cell_type` |
 | `--sample` (optional) | obs column | sample or donor ID; one LIANA run per sample | demo `sample` (not used by `--demo`) |
 | `--resource` | TSV | columns `ligand`, `receptor`; complex subunits joined by `_`; same identifiers as `var_names` | `consensus_resource.tsv`; `examples/demo_resource.tsv` |
@@ -121,6 +130,8 @@ Each row is a grill question. Ask the user; never fill one in.
 | Argument | Meaning | Grill question | Demo-only value |
 |---|---|---|---|
 | `--adata` | input h5ad | Which h5ad holds the log-normalised cells? | `examples/demo.h5ad` |
+| `--context` | species, tissue or cell type, condition, dataset | Species, tissue or cell type, condition and dataset? | `synthetic demo: 3 cell types x 40 cells, 2 samples, planted LIG1-REC1 and LIG2-REC2, no real tissue` |
+| `--gene-id-col` | `var` column of Ensembl gene ids, or `none` | Which `var` column holds the Ensembl gene ids? (`none` if the source has symbols only; `gene_id` is then NA, never guessed.) | `gene_ids` |
 | `--resource` | ligand-receptor TSV | Which resource file (consensus export, or a curated one)? | `examples/demo_resource.tsv` |
 | `--groupby` | obs column of cell types | Which obs column holds the cell-type labels? | `cell_type` |
 | `--sample` (optional) | obs column of samples | Run once per sample? If so, which column? Absent means one pooled run. | absent |
@@ -179,6 +190,13 @@ python scripts/ccc.py --demo --outdir demo_out
 
 `interactions.tsv` holds every tested interaction, sorted by sample (if any),
 then `magnitude_rank`, `specificity_rank`, source, target, ligand, receptor.
+Then one row per resource pair with no tested interaction, with NA source,
+target and ranks: `status` is `not_measured` when a subunit is missing from
+`var_names`, `not_tested` when every subunit is measured but no source-target
+row passed `--expr-prop` / `--min-cells`. Tested rows have `status` `tested`;
+`status_counts` in `result.json` counts rows. `ligand_gene_id` and
+`receptor_gene_id` map each subunit through `--gene-id-col` (subunits joined by
+`_`; NA when a subunit has no id). Figures use tested rows only.
 `ligand` and `receptor` are liana's `ligand_complex` and `receptor_complex`.
 `pair_counts.tsv` is sorted by sample (if any), source, target in `--groupby`
 order.
@@ -186,9 +204,9 @@ order.
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_cells, n_groups, n_resource_pairs, n_matched, n_in_resource, n_interactions, n_pass, top_interactions, methods, seed, params, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # n_cells, n_groups, n_resource_pairs, n_matched, n_in_resource, n_interactions, n_pass, status_counts, gene_id_col, top_interactions, methods, seed, params, context, reference, chat_summary_lines (first: "Context: ..."), preferred_artifacts
 ├── tables/
-│   ├── interactions.tsv       # [sample], source, target, ligand, receptor, magnitude_rank, specificity_rank, passes
+│   ├── interactions.tsv       # [sample], source, target, ligand, receptor, ligand_gene_id, receptor_gene_id, magnitude_rank, specificity_rank, passes, status
 │   └── pair_counts.tsv        # [sample], source, target, n_pass
 ├── figures/
 │   ├── pair_counts_heatmap.pdf
@@ -217,7 +235,12 @@ outdir/
   "passes the rank cutoffs".
 - **The model will want to call a pair with a gene outside `var_names` "not
   communicating".** Do not. Non-detection is not absence: the pair was not
-  tested; `n_matched` says how many resource genes were.
+  tested; its `status` in `interactions.tsv` is `not_measured`, and
+  `n_matched` says how many resource genes were.
+- **The model will want to say a sender drives or regulates the receiver** via a
+  passing pair. Do not. A pair is predicted from co-expression against a prior
+  resource; say "predicted interaction". Signalling needs protein or
+  perturbation data (house-style `claims.strength`).
 - **The model will want to run the human resource on mouse genes**, or to
   uppercase `var_names` to get past `no resource pair has its ligand and
   receptor in var_names`. Do not. Ask for the right species' resource.

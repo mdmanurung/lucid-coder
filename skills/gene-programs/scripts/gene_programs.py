@@ -16,15 +16,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scanpy as sc
+from plotnine import geom_hline
 from plots import FEW_POINTS, plot_box, plot_heatmap
 from scipy import sparse
 from skillkit import (
+    check_gene_ids,
     check_unique,
     fail,
     make_outdir,
     parse_required,
     run,
     seed_everything,
+    with_status,
     write_report,
     write_reproducibility,
     write_result,
@@ -39,6 +42,8 @@ SKILL_DIR = Path(__file__).resolve().parents[1]
 
 REQUIRED = [
     "adata",
+    "context",
+    "gene_id_col",
     "groupby",
     "reference",
     "k",
@@ -49,10 +54,13 @@ REQUIRED = [
     "n_top_genes",
     "seed",
 ]
-KEYS = [*REQUIRED[:2], "layer", *REQUIRED[2:]]
+KEYS = [*REQUIRED[:4], "layer", *REQUIRED[4:]]
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
     "adata": str(SKILL_DIR / "examples" / "demo.h5ad"),
+    "context": "synthetic demo: 3 groups x 60 cells, 300 genes, 3 planted "
+    "programs, no real tissue",
+    "gene_id_col": "gene_ids",
     "groupby": "group",
     "reference": "synthetic demo, no genome build",
     "layer": None,
@@ -70,7 +78,7 @@ ERRORS = {
     "bad_value": "{arg} must be {rule}, got {value}",
     "missing_file": "input file not found: {path}",
     "missing_layer": "layer not found in the h5ad: {layer}",
-    "missing_column": "obs column not found: {col}",
+    "missing_column": "{what} column not found: {col}",
     "not_counts": "{source} does not look like raw counts: {why}",
     "few_groups": "--groupby {col} needs at least 2 groups, found {n}",
     "too_many_hvg": "--n-hvg {n_hvg} exceeds the {n_expressed} expressed genes",
@@ -107,6 +115,8 @@ COLOURS = [
 def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--adata")
+    parser.add_argument("--context")
+    parser.add_argument("--gene-id-col")
     parser.add_argument("--groupby")
     parser.add_argument("--reference")
     parser.add_argument("--layer")
@@ -150,13 +160,18 @@ def load(p):
     if not path.is_file():
         fail(ERRORS, "missing_file", path=path)
     adata = ad.read_h5ad(path)
-    check_unique(adata.var_names, "gene names")
+    # var_names are symbols; --gene-id-col none means the source has no ids.
+    id_col = p["gene_id_col"]
+    if id_col != "none" and id_col not in adata.var.columns:
+        fail(ERRORS, "missing_column", what="var", col=id_col)
+    ids = None if id_col == "none" else adata.var[id_col].astype(str).tolist()
+    gene_ids = check_gene_ids(ids, adata.var_names.tolist())
     check_unique(adata.obs_names, "cell ids")
     if p["layer"] is not None and p["layer"] not in adata.layers:
         fail(ERRORS, "missing_layer", layer=p["layer"])
     col = p["groupby"]
     if col not in adata.obs.columns:
-        fail(ERRORS, "missing_column", col=col)
+        fail(ERRORS, "missing_column", what="obs", col=col)
 
     source = f"layer {p['layer']}" if p["layer"] else "X"
     counts = sparse.csr_matrix(adata.layers[p["layer"]] if p["layer"] else adata.X)
@@ -178,7 +193,7 @@ def load(p):
     n_groups = len(adata.obs[col].cat.categories)
     if n_groups < 2:
         fail(ERRORS, "few_groups", col=col, n=n_groups)
-    return adata, counts
+    return adata, counts, gene_ids
 
 
 def select_hvg(adata, counts, p):
@@ -319,14 +334,12 @@ def draw_figures(
     heat["z-score of mean usage"] = (
         heat["mean_usage"] - means.transform("mean")
     ) / means.transform("std")
-    fig = plot_heatmap(
+    plot = plot_heatmap(
         heat, "program", col, "z-score of mean usage", limit=HEATMAP_LIMIT
     )
-    fig.set_layout_engine("tight")
     width = min(183, max(89, 50 + 6 * len(groups)))
     height = max(50, 25 + 6 * len(programs))
-    save_panel(fig, heat, figures, "usage_heatmap", width, height)
-    plt.close(fig)
+    save_panel(plot, heat, figures, "usage_heatmap", width, height)
 
     # Structure plot: cells by group, then dominant program, then its usage.
     wide = usage_long.pivot(index="cell", columns="program", values="usage")[programs]
@@ -377,24 +390,22 @@ def draw_figures(
     )
     tg["program"] = pd.Categorical(tg["program"], categories=programs)
     tg["gene"] = pd.Categorical(tg["gene"], categories=genes)
-    fig = plot_heatmap(
+    plot = plot_heatmap(
         tg, "program", "gene", "z-score of gene score", limit=HEATMAP_LIMIT
     )
-    fig.set_layout_engine("tight")
     save_panel(
-        fig,
+        plot,
         tg,
         figures,
         "top_gene_heatmap",
         min(183, max(89, 40 + 3 * len(genes))),
         height,
     )
-    plt.close(fig)
 
     # AUC per program by group (D-pl-30): one point per program.
     auc = by_group[["program", col, "auc"]].copy()
     auc[col] = auc[col].astype(str)
-    fig = plot_box(
+    plot = plot_box(
         auc,
         col,
         "auc",
@@ -403,19 +414,17 @@ def draw_figures(
         seed=p["seed"],
         value_label=AUC_LABEL,
     )
-    fig.axes[0].axhline(0.5, ls="--", lw=0.5, c="black")
-    fig.set_layout_engine("tight")
+    plot += geom_hline(yintercept=0.5, linetype="dashed", size=0.25)
     save_panel(
-        fig, auc, figures, "auc_by_group", min(183, max(89, 40 + 15 * len(groups))), 60
+        plot, auc, figures, "auc_by_group", min(183, max(89, 40 + 15 * len(groups))), 60
     )
-    plt.close(fig)
 
 
 def analyse(argv, full_argv):
     p = parse_args(argv)
     seed_everything(p["seed"])
     sc.settings.n_jobs = 1
-    adata, counts = load(p)
+    adata, counts, gene_ids = load(p)
     col = p["groupby"]
     groups = list(adata.obs[col].cat.categories)
 
@@ -461,6 +470,16 @@ def analyse(argv, full_argv):
     top = loadings.groupby("program", observed=True).head(p["n_top_genes"]).copy()
     top.insert(1, "rank", top.groupby("program", observed=True).cumcount() + 1)
     top = top.drop(columns="hvg")
+    top.insert(top.columns.get_loc("gene") + 1, "gene_id", top["gene"].map(gene_ids))
+    # Genes with no counts (sd 0) get no score: one NA row each (data.status).
+    unscored = sorted(set(adata.var_names) - set(loadings["gene"]))
+    table = with_status(
+        loadings, adata.var_names, "gene", dict.fromkeys(unscored, "not_detected")
+    )
+    table.insert(2, "gene_id", table["gene"].map(gene_ids))
+    status_counts = (
+        table.drop_duplicates("gene")["status"].value_counts().astype(int).to_dict()
+    )
 
     by_group = summarise_groups(usage_long, col, programs, groups)
 
@@ -480,7 +499,7 @@ def analyse(argv, full_argv):
     outdir = make_outdir(p["outdir"])
     tables, figures = outdir / "tables", outdir / "figures"
     usage_long.to_csv(tables / "usage.tsv", sep="\t", index=False)
-    loadings.to_csv(tables / "gene_loadings.tsv", sep="\t", index=False)
+    table.to_csv(tables / "gene_loadings.tsv", sep="\t", index=False)
     top.to_csv(tables / "top_genes.tsv", sep="\t", index=False)
     by_group.to_csv(tables / "program_by_group.tsv", sep="\t", index=False)
     stability.to_csv(tables / "stability.tsv", sep="\t", index=False)
@@ -556,6 +575,8 @@ def analyse(argv, full_argv):
             "n_genes": adata.n_vars,
             "n_hvg": len(hvg),
             "n_genes_scored": int(loadings["gene"].nunique()),
+            "status_counts": status_counts,
+            "gene_id_col": p["gene_id_col"],
             "k": p["k"],
             "n_components_kept": n_kept,
             "n_components_total": n_total,
@@ -566,6 +587,7 @@ def analyse(argv, full_argv):
         },
         summary,
         ["report.md", "tables/program_by_group.tsv", "figures/usage_heatmap.png"],
+        context=p["context"],
         reference=p["reference"],
     )
     write_reproducibility(

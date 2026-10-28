@@ -36,6 +36,8 @@ adata.obs["stage"] = pd.Categorical(
     pd.qcut(adata.obs["true_t"], 4, labels=STAGES), categories=STAGES
 )
 adata.var = adata.var[[]]
+# Ensembl-like ids so the demo exercises --gene-id-col.
+adata.var["gene_ids"] = [f"ENSG9{i:010d}.1" for i in range(N_GENES)]
 
 # UMAP for plotting only; velocity.py recomputes PCA and neighbours itself.
 embed = adata.copy()

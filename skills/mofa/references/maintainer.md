@@ -48,13 +48,22 @@ IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 F-03 (demo when no input) is replaced on purpose: the demo runs only when the
 user asks for it.
 
+## Biology-core checks (2026-10-28)
+
+Applied: required `--context`; `check_compatible` on sample ids across `--view`
+files (`n_shared_ids`; views share samples, not features, so features are not
+compared); the factor-mechanism gotcha now cites `claims.strength`. Not applied:
+the `status` column, because MOFA models every input feature and `weights.tsv`
+already lists each one; gene ids, because view features are generic and
+view-prefixed (`rna_001`), not a gene-keyed result.
+
 ## Running and testing
 
 From `skills/mofa`:
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with mofapy2,h5py,numpy,pandas,scipy,matplotlib,pytest \
+  uv run --python 3.12 --with mofapy2,h5py,numpy,pandas,scipy,matplotlib,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 

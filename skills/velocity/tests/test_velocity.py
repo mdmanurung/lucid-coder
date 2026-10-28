@@ -31,6 +31,7 @@ TOP_GENES = ["G08", "G20", "G28", "G44"]
 
 ARGS = {
     "--adata": str(DEMO),
+    "--gene-id-col": "gene_ids",
     "--mode": "stochastic",
     "--min-shared-counts": "10",
     "--n-top-genes": "30",
@@ -38,6 +39,9 @@ ARGS = {
     "--n-neighbors": "30",
     "--groupby": "stage",
     "--terminal-states": "s4",
+    "--context": (
+        "synthetic demo: scVelo simulation, 500 cells, 4 stages, no real tissue"
+    ),
     "--reference": "synthetic demo, no genome build",
     "--seed": "0",
 }
@@ -111,7 +115,19 @@ def test_demo_golden_values(demo_out):
     assert list(result["median_velocity_pseudotime"]) == ["s1", "s2", "s3", "s4"]
     assert medians == sorted(medians)
     assert result["seed"] == 0
-    assert len(result["chat_summary_lines"]) == 3
+    assert len(result["chat_summary_lines"]) == 4
+    assert result["chat_summary_lines"][0].startswith("Context: synthetic demo")
+    assert result["context"].startswith("synthetic demo")
+    assert result["status_counts"] == {"tested": 30, "not_tested": 20}
+    assert result["gene_id_col"] == "gene_ids"
+    genes = pd.read_csv(demo_out / "tables" / "velocity_genes.tsv", sep="\t")
+    assert list(genes.columns[:2]) == ["gene_id", "gene_symbol"]
+    assert len(genes) == 50 and genes["gene_symbol"].is_monotonic_increasing
+    assert genes.loc[genes["gene_symbol"] == "G01", "gene_id"].item() == (
+        "ENSG90000000001.1"
+    )
+    untested = genes[genes["status"] != "tested"]
+    assert untested["velocity_r2"].isna().all()
     table = pd.read_csv(demo_out / "tables" / "velocity_pseudotime.tsv", sep="\t")
     truth = ad.read_h5ad(DEMO).obs["true_t"]
     rho = stats.spearmanr(
@@ -188,7 +204,7 @@ def test_dynamical_smoke(tmp_path):
     assert "fit_likelihood" in genes.columns
 
 
-@pytest.mark.parametrize("arg", ["--seed", "--reference"])
+@pytest.mark.parametrize("arg", ["--seed", "--reference", "--context", "--gene-id-col"])
 def test_missing_argument_fails_without_demo(tmp_path, arg):
     assert is_error(
         run_with(tmp_path, drop=[arg]), f"missing required arguments: {arg}"
@@ -221,6 +237,7 @@ def test_demo_conflict(tmp_path):
         ({"n_states": "3"}, "--n-states is used only with --terminal-states auto"),
         ({"adata": "/no/such.h5ad"}, "input file not found: /no/such.h5ad"),
         ({"groupby": "leiden"}, "obs column not found: leiden"),
+        ({"gene_id_col": "ensembl"}, "var column not found: ensembl"),
         (
             {"terminal_states": "s4,s9"},
             "terminal states not in obs column 'stage': s9",
@@ -283,3 +300,24 @@ def test_one_group(tmp_path):
 def test_vendored_copies_match_templates(name):
     vendored = (SKILL_DIR / "scripts" / name).read_bytes()
     assert vendored == (TEMPLATES / name).read_bytes()
+
+
+def test_duplicate_gene_id_fails(tmp_path):
+    """One Ensembl id on two symbols is an ambiguous map: stop, never guess."""
+
+    def dupe(a):
+        a.var.loc["G02", "gene_ids"] = a.var.loc["G01", "gene_ids"]
+
+    path = broken_demo(tmp_path, dupe)
+    assert is_error(
+        run_with(tmp_path, adata=path), "duplicate gene ids: ENSG90000000001.1"
+    )
+
+
+def test_gene_id_col_none_writes_na(tmp_path):
+    completed = run_with(tmp_path, gene_id_col="none")
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads((tmp_path / "out" / "result.json").read_text())
+    assert result["gene_id_col"] == "none"
+    genes = pd.read_csv(tmp_path / "out" / "tables" / "velocity_genes.tsv", sep="\t")
+    assert genes["gene_id"].isna().all()

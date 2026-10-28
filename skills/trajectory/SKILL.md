@@ -25,6 +25,10 @@ metadata:
         - h5ad
       description: embedded AnnData with neighbours, X_umap and a group column
       required: true
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
   outputs:
     - name: report
       type: file
@@ -46,6 +50,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
   demo_data:
     - path: examples/demo.h5ad
       description: synthetic linear trajectory, 600 cells, 4 stages, 40 genes, known time
@@ -101,6 +106,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--paga-threshold` | Which PAGA connectivity must a group pair reach to count as an edge? | `0.1` |
 | `--genes` | Which genes get a trend plot? A comma list, or a file with one gene per line. | `G00,G01,G02` |
 | `--reference` | Which genome build and annotation release name the genes (for example `GRCh38, GENCODE 44`)? Recorded in `result.json`, never guessed. | `synthetic demo, no genome build` |
+| `--context` | Species, tissue or cell type, condition and dataset? Printed first in the report and the chat summary. | `synthetic demo: 600 cells, 4 stages along one simulated path, no real tissue` |
 | `--seed` | Which seed (diffusion map `random_state`, box-plot jitter)? | `0` |
 | `--outdir` | Which new directory gets the outputs? It must not exist. | `trajectory_demo` |
 
@@ -114,7 +120,8 @@ an error.
 python scripts/trajectory.py \
   --adata data/embedded.h5ad --groups leiden --root-group 3 \
   --n-dcs 10 --paga-threshold 0.1 --genes genes.txt \
-  --reference "GRCh38, GENCODE 44" --seed 0 --outdir results/2026-10-27_trajectory
+  --reference "GRCh38, GENCODE 44" \
+  --context "human bone marrow CD34+, healthy donors, Setty 2019" --seed 0 --outdir results/2026-10-27_trajectory
 
 # Demo (only when the user asks for one)
 python scripts/trajectory.py --demo --outdir demo_out
@@ -153,7 +160,7 @@ pair once (upper triangle), in group order.
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_cells, n_groups, root_cell, n_unreachable, dropped_per_group, n_edges_above_threshold, edges_above_threshold, median_pseudotime, genes, params, seed, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # n_cells, n_groups, root_cell, n_unreachable, dropped_per_group, n_edges_above_threshold, edges_above_threshold, median_pseudotime, genes, params, seed, context, reference, chat_summary_lines, preferred_artifacts
 ├── data/
 │   └── trajectory.h5ad        # input plus obs dpt_pseudotime, uns paga and iroot, obsm X_diffmap
 ├── tables/
@@ -200,6 +207,11 @@ outdir/
 - **The model will want to read pseudotime as real time** or as a lineage
   claim. Do not. DPT orders cells by diffusion distance from one root; say so,
   and name the root.
+- **The model will want to say a gene whose trend rises along pseudotime
+  "drives" the trajectory** or that the root group "gives rise to" the late
+  groups. Do not. Pseudotime and PAGA edges are model predictions from one
+  snapshot; a trend is "associated with" the predicted ordering
+  (house-style `claims.strength`).
 - **The model will want to drop `inf` pseudotime cells silently** or fill them.
   Do not. They are counted in `n_unreachable`; tell the user.
 - **The model will want to read PAGA connectivity as a transition

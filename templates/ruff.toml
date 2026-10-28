@@ -6,3 +6,7 @@ select = ["E", "F", "I", "B", "UP"]
 
 [format]
 quote-style = "double"
+
+# The vendored helpers sit beside each script; name them so every ruff version sorts alike.
+[lint.isort]
+known-first-party = ["palettes", "plots", "skillkit", "theme"]

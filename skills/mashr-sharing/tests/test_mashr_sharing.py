@@ -32,7 +32,7 @@ SPECIFIC = {
 
 DE = [x for ct in CELL_TYPES for x in ("--de", f"{ct}={EXAMPLES / f'demo_{ct}.tsv'}")]
 ARGS = {
-    "--gene-col": "gene",
+    "--context": "synthetic demo, 4 cell types",
     "--effect-col": "log2_fc",
     "--se-col": "lfc_se",
     "--align": "intersect",
@@ -123,9 +123,14 @@ def test_demo_golden_values(demo_out):
     assert result["scatter_pair"] == ["B", "Mono"]
     assert result["genes_dropped_by_align"] == dict.fromkeys(CELL_TYPES, 0)
     assert result["reference"] == "synthetic demo genes, no genome build"
-    assert result["seed"] == 0 and 2 <= len(result["chat_summary_lines"]) <= 3
+    assert result["seed"] == 0 and 3 <= len(result["chat_summary_lines"]) <= 4
+    assert result["chat_summary_lines"][0].startswith("Context: synthetic demo")
+    assert result["n_shared_ids"] == 800 and result["joined_on"] == "gene_id"
+    assert result["status_counts"] == {"tested": 3200}
     post = pd.read_csv(demo_out / "tables" / "posterior.tsv", sep="\t")
-    n_sig = post[post["significant"]].groupby("gene")["cell_type"].agg(list)
+    assert post.columns[:3].tolist() == ["gene_id", "gene_symbol", "cell_type"]
+    assert post["gene_id"].str.startswith("ENSG9").all()
+    n_sig = post[post["significant"]].groupby("gene_symbol")["cell_type"].agg(list)
     # Every shared gene is recovered in all four types; every one-type call is
     # a planted specific gene in its own cell type; no null gene passes.
     assert set(n_sig[n_sig.str.len() == 4].index) == SHARED
@@ -180,6 +185,30 @@ def test_intersect_drops_per_cell_type(tmp_path):
         "CD8T": 50,
         "Mono": 50,
     }
+    # Dropped genes stay in posterior.tsv as not_tested with NA statistics.
+    assert result["status_counts"] == {"not_tested": 150, "tested": 3000}
+    post = pd.read_csv(tmp_path / "out" / "tables" / "posterior.tsv", sep="\t")
+    untested = post[post["status"] == "not_tested"]
+    assert untested["pm"].isna().all() and untested["raw_effect"].isna().all()
+
+
+@needs_r
+def test_no_gene_ids_joins_on_symbols(tmp_path):
+    """gene_id NA in every table (source without ids): join on symbols, id stays NA."""
+    de = [
+        x
+        for ct in CELL_TYPES
+        for x in (
+            "--de",
+            write_table(tmp_path, ct, demo_table(ct).assign(gene_id=pd.NA)),
+        )
+    ]
+    completed = run_with(tmp_path, de=de)
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads((tmp_path / "out" / "result.json").read_text())
+    assert result["joined_on"] == "gene_symbol" and result["n_significant_any"] == 153
+    post = pd.read_csv(tmp_path / "out" / "tables" / "posterior.tsv", sep="\t")
+    assert post["gene_id"].isna().all()
 
 
 @needs_r
@@ -231,6 +260,12 @@ def test_missing_argument_fails_without_demo(tmp_path):
     )
 
 
+def test_missing_context_fails(tmp_path):
+    assert is_error(
+        run_with(tmp_path, drop=["--context"]), "missing required arguments: --context"
+    )
+
+
 def test_demo_conflict(tmp_path):
     completed = run("--demo", "--seed", "1", "--outdir", str(tmp_path / "out"))
     assert is_error(completed, "--demo fixes the analysis arguments; drop: --seed")
@@ -261,7 +296,7 @@ def test_argument_errors(tmp_path, de, changes, message):
     [
         (
             lambda t: pd.concat([t, t.head(2)]),
-            "2 genes repeat in the --de table for 'B', e.g. 'G0000'",
+            "2 genes repeat in the --de table for 'B', e.g. 'ENSG90000000000.1'",
         ),
         (
             lambda t: t.assign(
@@ -274,8 +309,27 @@ def test_argument_errors(tmp_path, de, changes, message):
             "3 rows of 'lfc_se' in the --de table for 'B' are <= 0",
         ),
         (
-            lambda t: t.assign(gene="X" + t["gene"]),
-            "zero genes are shared by all --de tables (--align intersect)",
+            lambda t: t.assign(gene_id=t["gene_id"].str.replace("ENSG9", "ENSG8")),
+            "inputs share no gene ids; check they come from one study and reference",
+        ),
+        (
+            lambda t: t.drop(columns="gene_id"),
+            "the --de table for 'B' needs gene_id and gene_symbol columns",
+        ),
+        (
+            lambda t: t.assign(gene_id=t["gene_id"].where(t.index > 0)),
+            "1 rows of the --de table for 'B' have no gene_id",
+        ),
+        (
+            lambda t: t.assign(gene_id=t["gene_id"].str.split(".").str[0]),
+            "inputs use different gene id types (B: ensembl, CD4T: ensembl_versioned",
+        ),
+        (
+            lambda t: t.assign(
+                gene_symbol=t["gene_symbol"].where(t.index != 1, "G0000")
+            ),
+            "1 gene symbol(s) map to several gene ids: "
+            "G0000 -> ENSG90000000000.1, ENSG90000000001.1",
         ),
     ],
 )

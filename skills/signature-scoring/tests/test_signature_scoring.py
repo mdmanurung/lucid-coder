@@ -33,6 +33,7 @@ ARGS = {
     "--n-random": "50",
     "--reference": "synthetic demo genes, no genome build",
     "--seed": "0",
+    "--context": "synthetic demo: 8 samples, healthy vs disease, no real tissue",
 }
 
 
@@ -113,6 +114,9 @@ def test_demo_golden_values(demo_out):
     assert result["seed"] == 0 and result["method"] == "score_genes"
     assert (result["n_matched"], result["n_in_resource"]) == (20, 21)
     assert result["reference"] == "synthetic demo genes, no genome build"
+    assert result["context"].startswith("synthetic demo")
+    assert result["chat_summary_lines"][0].startswith("Context: ")
+    assert result["status_counts"] == {"tested": 2}
     # 4 samples per group is under FEW_POINTS: points and a median, no box.
     report = (demo_out / "report.md").read_text()
     assert "Dot plot of the per-sample mean sig_up score by group with a bar" in report
@@ -191,9 +195,24 @@ def test_no_umap_skips_umap_figures(tmp_path):
     assert not any(name.startswith("score_umap") for name in figures)
 
 
-def test_missing_argument_fails_without_demo(tmp_path):
-    completed = run_with(tmp_path, drop=["--n-random"])
-    assert is_error(completed, "missing required arguments: --n-random")
+@pytest.mark.parametrize("arg", ["--n-random", "--context"])
+def test_missing_argument_fails_without_demo(tmp_path, arg):
+    completed = run_with(tmp_path, drop=[arg])
+    assert is_error(completed, f"missing required arguments: {arg}")
+
+
+def test_small_set_not_tested(tmp_path):
+    text = DEMO_SETS.read_text() + "tiny\tG020\ntiny\tG021\n"
+    completed = run_with(tmp_path, gene_sets=gene_sets(tmp_path, text), n_random="5")
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads((tmp_path / "out" / "result.json").read_text())
+    assert result["status_counts"] == {"not_tested": 1, "tested": 2}
+    assert "tiny" not in result["beats_random"]
+    control = pd.read_csv(tmp_path / "out" / "tables" / "random_control.tsv", sep="\t")
+    tiny = control[control["set"] == "tiny"].iloc[0]
+    assert tiny["status"] == "not_tested" and pd.isna(tiny["p_empirical"])
+    figures = {f.name for f in (tmp_path / "out" / "figures").iterdir()}
+    assert not any("tiny" in name for name in figures)
 
 
 def test_demo_conflict(tmp_path):

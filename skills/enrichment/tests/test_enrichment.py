@@ -33,6 +33,7 @@ COMMON = {
     "--limit": "2.5",
     "--seed": "0",
     "--reference": "synthetic demo, no genome build",
+    "--context": "synthetic demo, two contrasts",
 }
 ORA = {
     **COMMON,
@@ -76,8 +77,9 @@ def enrichment(outdir):
 
 
 def significant(outdir, contrast):
-    table = enrichment(outdir)
-    return set(table.loc[table["significant"] & (table["contrast"] == contrast), "set"])
+    table = enrichment(outdir).query("status == 'tested'")
+    hit = table["significant"].astype(bool) & (table["contrast"] == contrast)
+    return set(table.loc[hit, "set"])
 
 
 def contract_paths():
@@ -147,7 +149,18 @@ def test_demo_golden_values(demo_out):
         "Mono": "SET_NULL5",
         "T": "SET_UP",
     }
-    assert 2 <= len(result["chat_summary_lines"]) <= 3
+    assert len(result["chat_summary_lines"]) == 4
+    assert result["chat_summary_lines"][0].startswith("Context: synthetic demo")
+    assert result["context"].startswith("synthetic demo")
+    # SET_TINY stays in the table per contrast, untested, with NA statistics.
+    assert result["status_counts"] == {"tested": 18, "not_tested": 2}
+    tiny = table.query("set == 'SET_TINY'")
+    assert tiny["status"].tolist() == ["not_tested", "not_tested"]
+    assert tiny[["nes", "pvalue", "padj"]].isna().all().all()
+    assert tiny["size"].tolist() == [8, 8]
+    assert "SET_TINY" not in set(
+        pd.read_csv(demo_out / "figures" / "dotplot.csv")["set"]
+    )
 
 
 def test_ora_golden_values(ora_out):
@@ -160,6 +173,7 @@ def test_ora_golden_values(ora_out):
     assert significant(ora_out, "Mono") == set()
     up = enrichment(ora_out).query("contrast == 'T' and set == 'SET_UP'").iloc[0]
     assert (up["set_size"], up["size"], up["overlap"]) == (40, 40, 15)
+    assert result["status_counts"] == {"tested": 18, "not_tested": 2}
 
 
 def test_na_rows_dropped_per_contrast(tmp_path):
@@ -235,7 +249,7 @@ def test_rerun_is_identical(demo_out, tmp_path):
     assert check.returncode == 0, check.stdout
 
 
-@pytest.mark.parametrize("arg", ["--seed", "--reference"])
+@pytest.mark.parametrize("arg", ["--seed", "--reference", "--context"])
 def test_missing_argument_fails_without_demo(tmp_path, arg):
     assert is_error(
         run_with(tmp_path, drop=[arg]), f"missing required arguments: {arg}"
@@ -289,13 +303,13 @@ def test_argument_errors(tmp_path, base, drop, changes, message):
         (
             "de",
             "de.tsv",
-            "gene\tpadj\tlog2_fc\nA\tlow\t1\n",
+            "gene_symbol\tpadj\tlog2_fc\nA\tlow\t1\n",
             "column 'padj' in {path} must be numeric and finite",
         ),
         (
             "de",
             "de.tsv",
-            "gene\tpadj\tlog2_fc\nA\t0.1\t1\nA\t0.2\t1\n",
+            "gene_symbol\tpadj\tlog2_fc\nA\t0.1\t1\nA\t0.2\t1\n",
             "duplicate gene names in {path}: A; make them unique before running",
         ),
         (

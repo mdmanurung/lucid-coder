@@ -25,6 +25,7 @@ COHORT_TRUTH = {f"F{i:02d}" for i in range(7, 13)}
 AGE_TRUTH = {f"F{i:02d}" for i in range(13, 19)}
 
 ARGS = {
+    "--context": "synthetic demo, pre vs post",
     "--input": str(DEMO),
     "--test": "paired-wilcoxon",
     "--group-col": "visit",
@@ -109,7 +110,9 @@ def test_demo_golden_values(demo_out):
     # BH bounds the FDR, not zero.
     assert significant(demo_out) == VISIT_TRUTH | {"F15"}
     assert result["seed"] == 0 and result["test"] == "paired-wilcoxon"
-    assert 2 <= len(result["chat_summary_lines"]) <= 3
+    assert 3 <= len(result["chat_summary_lines"]) <= 4
+    assert result["chat_summary_lines"][0].startswith("Context: synthetic demo")
+    assert result["context"].startswith("synthetic demo")
     tests = pd.read_csv(demo_out / "tables" / "tests.tsv", sep="\t")
     assert tests["feature"].head(6).tolist() == sorted(VISIT_TRUTH)
     assert (tests.loc[tests["feature"].isin(VISIT_TRUTH), "hodges_lehmann"] > 0).all()
@@ -197,6 +200,12 @@ def test_rerun_is_identical(demo_out, tmp_path):
 def test_missing_argument_fails_without_demo(tmp_path):
     assert is_error(
         run_with(tmp_path, drop=["--seed"]), "missing required arguments: --seed"
+    )
+
+
+def test_missing_context_fails(tmp_path):
+    assert is_error(
+        run_with(tmp_path, drop=["--context"]), "missing required arguments: --context"
     )
 
 

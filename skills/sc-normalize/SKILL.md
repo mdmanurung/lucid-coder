@@ -24,6 +24,10 @@ metadata:
     - dsb
     - CITE-seq
   inputs:
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
     - name: adata
       type: file
       format:
@@ -63,6 +67,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
       - threadpoolctl
   demo_data:
     - path: examples/demo.h5ad
@@ -133,6 +138,7 @@ argument it names. Do not work around it.
 |---|---|---|---|
 | `--adata` | `.h5ad` | raw counts (non-negative integers) in `X`; no cell with zero counts. RNA for `log1p`/`pearson`, ADT of cells for `dsb` | sc-qc `data/qc_filtered.h5ad`, `examples/demo.h5ad` |
 | `--empty-droplets` | `.h5ad` | ADT counts of empty droplets in `X`, the same features in the same order as `--adata`, no barcode shared with `--adata` | `examples/demo_empty.h5ad` |
+| gene ids | `var[--gene-id-col]` | log1p/pearson: Ensembl gene ids, one per symbol in `var_names`; no id shared by two symbols | `gene_ids` in `examples/demo.h5ad` |
 | isotypes | `var_names` | every `--isotype-controls` name is a feature of `--adata` | `IgG1,IgG2a,IgG2b` |
 
 ## Parameters (all required, no defaults)
@@ -147,8 +153,10 @@ required for that method and refused for the others.
 | `--layer-out` | Which layer name gets the normalised values (not `counts`)? | `normalized` |
 | `--seed` | Which seed for the dsb GMM and the diagnostic PCA? | `0` |
 | `--reference` | Which genome build and annotation release named the genes (e.g. `GRCh38, GENCODE 44`)? For dsb, which antibody panel and release? Recorded in `result.json`. | `synthetic demo features, no genome build` |
+| `--context` | Species, tissue or cell type, condition and dataset? | `synthetic demo: 3 groups x 200 cells, RNA and ADT, no real tissue` |
 | `--target-sum` | log1p: to what total is each cell scaled first? | `10000` |
 | `--theta` | pearson: which NB overdispersion theta (100 in Lause et al.)? | `100` |
+| `--gene-id-col` | log1p/pearson: which `var` column holds the Ensembl gene ids (`var_names` are the symbols)? `none` if the source has no ids; `gene_id` is then NA. | `gene_ids` |
 | `--clip` | pearson: clip residuals to +-what (scanpy suggests sqrt(n cells))? | `25` |
 | `--empty-droplets` | dsb: which h5ad holds the ADT counts of empty droplets, and how were they chosen? | `examples/demo_empty.h5ad` |
 | `--isotype-controls` | dsb: which features are isotype controls (comma list)? | `IgG1,IgG2a,IgG2b` |
@@ -163,8 +171,11 @@ dsb` switches to the ADT demo files.
 1. **Validate** arguments and inputs; bad input gives `ERROR: <message>`, exit 2.
    Nothing is written before every check passes. Feature names and cell ids
    must be unique in `--adata` and `--empty-droplets` (`skillkit.check_unique`).
+   For log1p/pearson, `skillkit.check_gene_ids` stops on a gene id shared by
+   two symbols.
 2. **Drop all-zero features** (zero counts in every cell); the count goes in
-   `result.json` and the summary. Pearson residuals are 0/0 for them.
+   `result.json` and the summary, and each stays in `gene_mean_variance.tsv`
+   with `status` `not_detected` and NA statistics. Pearson residuals are 0/0 for them.
 3. **Keep counts** in `layers["counts"]`.
 4. **Normalise X** by `--method`:
    - `log1p`: `normalize_total(target_sum=--target-sum)`, `log1p`;
@@ -184,16 +195,19 @@ BLAS runs on one thread (`threadpoolctl`). Fixed constants: dsb pseudocount 10,
 ## Output structure
 
 `per_cell_summary.tsv` is sorted by cell; `gene_mean_variance.tsv` by feature.
+`gene_mean_variance.tsv` keeps every input feature: `status` is `tested`, or
+`not_detected` for an all-zero feature (NA statistics, left out of the
+figures). `gene_id` (log1p/pearson only) is NA under `--gene-id-col none`.
 
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # method, n_cells, n_features, n_features_dropped, pc1_depth_abs_spearman, layer_out, seed, params, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # method, n_cells, n_features, n_features_dropped, status_counts, gene_id_col, pc1_depth_abs_spearman, layer_out, seed, params, reference, context, chat_summary_lines (first: "Context: ..."), preferred_artifacts
 ├── data/
 │   └── normalized.h5ad        # X normalised (dense), layers["counts"] input, layers[--layer-out] = X
 ├── tables/
 │   ├── per_cell_summary.tsv   # cell, library_size, normalised_total, n_detected, pc1
-│   └── gene_mean_variance.tsv # feature, mean_counts, var_counts, mean_normalised, var_normalised
+│   └── gene_mean_variance.tsv # feature, gene_id (not dsb), mean_counts, var_counts, mean_normalised, var_normalised, status
 ├── figures/
 │   ├── mean_variance.pdf
 │   ├── mean_variance.png
@@ -252,6 +266,9 @@ of `templates/`; a test fails when they drift.
 - **The model will want to guess `--reference`** from the gene names. Do not.
   Ask for the build and annotation release (or the ADT panel); it is recorded,
   never inferred.
+- **The model will want to say depth "drives" PC1.** Do not. |rho| is a rank
+  correlation, so write "PC1 is associated with library size" (house-style
+  `claims.strength`).
 - **The model will want to read a high |rho| as a failure and switch method.**
   Do not. Report both runs; a cell type with more RNA can also tie PC1 to depth.
 

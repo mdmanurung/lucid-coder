@@ -7,6 +7,7 @@ Notes:   12 donors x ctrl/stim = 24 samples, 120 genes, negative binomial counts
          (log2FC +-2), G040-G059 pure noise. Background genes carry a donor log-SD
          of 0.4 and a small condition effect, so donor has the largest median
          fraction. rin is a per-sample covariate with no effect on expression.
+         demo_counts.tsv starts with gene_id (Ensembl-like) and gene_symbol.
 """
 
 from pathlib import Path
@@ -50,7 +51,12 @@ log_mean = (
 mu = np.exp(log_mean)
 counts = rng.negative_binomial(1 / DISPERSION, 1 / (1 + mu * DISPERSION))
 
-pd.DataFrame(
-    counts.T, index=pd.Index(genes, name="gene"), columns=meta["sample"]
-).to_csv(out / "demo_counts.tsv", sep="\t")
+# Ensembl-like ids beside the symbols: --counts needs gene_id and gene_symbol.
+ids = pd.MultiIndex.from_arrays(
+    [[f"ENSG9{i:010d}.1" for i in range(N_GENES)], genes],
+    names=["gene_id", "gene_symbol"],
+)
+pd.DataFrame(counts.T, index=ids, columns=meta["sample"]).to_csv(
+    out / "demo_counts.tsv", sep="\t"
+)
 meta.to_csv(out / "demo_meta.tsv", sep="\t", index=False)

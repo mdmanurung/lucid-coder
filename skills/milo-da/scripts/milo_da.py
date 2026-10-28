@@ -39,6 +39,7 @@ from threadpoolctl import threadpool_limits
 SKILL_DIR = Path(__file__).resolve().parents[1]
 ANALYSIS_ARGS = [
     "adata",
+    "context",
     "sample_col",
     "donor_col",
     "design",
@@ -54,6 +55,8 @@ ANALYSIS_ARGS = [
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
     "adata": str(SKILL_DIR / "examples" / "demo.h5ad"),
+    "context": "synthetic demo: 6 samples, condition B vs A, "
+    "4 Gaussian-blob cell types, no real tissue",
     "sample_col": "sample",
     "donor_col": "donor",
     "design": "~condition",
@@ -102,6 +105,7 @@ PACKAGES = [
 def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--adata")
+    parser.add_argument("--context")
     parser.add_argument("--sample-col")
     parser.add_argument("--donor-col")
     parser.add_argument("--design")
@@ -416,6 +420,7 @@ def analyse(argv, argv_run):
         },
         summary,
         ["report.md", "figures/nhood_graph.png", "tables/da_by_annotation.tsv"],
+        context=p["context"],
     )
     write_reproducibility(outdir, __file__, p, ANALYSIS_ARGS, argv_run, PACKAGES)
     return outdir

@@ -28,6 +28,7 @@ TIME_TRUTH = {f"F{i:02d}" for i in range(1, 7)}
 GAP_SUBJECT = "S24"  # misses visit 2 in every feature
 
 ARGS = {
+    "--context": "synthetic demo, 3 visits",
     "--input": str(DEMO),
     "--formula": "value ~ time + age + (1|subject)",
     "--term": "time3",
@@ -111,7 +112,8 @@ def test_demo_golden_values(demo_out):
     assert result["singular_features"] == ["F30"]
     assert result["n_not_converged"] == 0 and result["failed_features"] == []
     assert result["seed"] == 0 and result["term"] == "time3"
-    assert 2 <= len(result["chat_summary_lines"]) <= 3
+    assert 3 <= len(result["chat_summary_lines"]) <= 4
+    assert result["chat_summary_lines"][0].startswith("Context: synthetic demo")
     table = results(demo_out)
     assert set(table["feature"].head(6)) == TIME_TRUTH
     assert (table["estimate"].head(6).between(1.3, 1.7)).all()
@@ -215,6 +217,12 @@ def test_rerun_is_identical(demo_out, tmp_path):
 def test_missing_argument_fails_without_demo(tmp_path):
     assert is_error(
         run_with(tmp_path, drop=["--seed"]), "missing required arguments: --seed"
+    )
+
+
+def test_missing_context_fails(tmp_path):
+    assert is_error(
+        run_with(tmp_path, drop=["--context"]), "missing required arguments: --context"
     )
 
 

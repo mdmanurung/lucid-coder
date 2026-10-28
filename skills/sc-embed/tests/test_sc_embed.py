@@ -38,6 +38,7 @@ ARGS = {
     "--resolution": "0.3",
     "--seed": "0",
     "--reference": "synthetic demo genes, no genome build",
+    "--context": "synthetic demo, no real tissue",
 }
 
 
@@ -112,6 +113,8 @@ def test_demo_golden_values(demo_out):
     assert result["use_rep"] == "X_pca_harmony" and result["seed"] == 0
     assert 2 <= len(result["chat_summary_lines"]) <= 3
     assert result["reference"] == "synthetic demo genes, no genome build"
+    assert result["context"].startswith("synthetic demo")
+    assert result["chat_summary_lines"][0].startswith("Context: ")
     report = (demo_out / "report.md").read_text()
     how = "10 PCs of X_pca_harmony, 15 neighbours, min_dist 0.3, seed 0"
     assert report.count(how) == 2  # both UMAP captions say how
@@ -159,10 +162,10 @@ def test_output_contract(demo_out):
     assert "counts" in embedded.layers and embedded.n_vars == 300
 
 
-def test_missing_argument_fails_without_demo(tmp_path):
-    assert is_error(
-        run_with(tmp_path, drop=["--seed"]), "missing required arguments: --seed"
-    )
+@pytest.mark.parametrize("flag", ["--seed", "--context"])
+def test_missing_argument_fails_without_demo(tmp_path, flag):
+    completed = run_with(tmp_path, drop=[flag])
+    assert is_error(completed, f"missing required arguments: {flag}")
 
 
 def test_missing_reference_fails(tmp_path):

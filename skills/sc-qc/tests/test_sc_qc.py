@@ -39,6 +39,7 @@ ARGS = {
     "--doublet-threshold": "auto",
     "--seed": "0",
     "--reference": "synthetic demo genes, no genome build",
+    "--context": "synthetic demo, no real tissue",
 }
 FIXED = {
     "mode": "fixed",
@@ -113,6 +114,8 @@ def test_demo_golden_values(demo_out):
     assert result["n_doublets"] == N_DOUBLETS
     assert result["cells_after_per_sample"] == AFTER_PER_SAMPLE
     assert result["reference"] == "synthetic demo genes, no genome build"
+    assert result["context"].startswith("synthetic demo")
+    assert result["chat_summary_lines"][0].startswith("Context: ")
     for s, n in AFTER_PER_SAMPLE.items():
         assert n + result["failed_qc_per_sample"][s] <= N_BEFORE // 3
     assert sum(result["failed_qc_per_sample"].values()) == N_FAILED_QC
@@ -151,9 +154,10 @@ def test_output_contract(demo_out):
     assert "--seed 0" in (demo_out / "reproducibility" / "commands.sh").read_text()
 
 
-def test_missing_argument_fails_without_demo(tmp_path):
-    completed = run_with(tmp_path, drop=["--seed"])
-    assert is_error(completed, "missing required arguments: --seed")
+@pytest.mark.parametrize("flag", ["--seed", "--context"])
+def test_missing_argument_fails_without_demo(tmp_path, flag):
+    completed = run_with(tmp_path, drop=[flag])
+    assert is_error(completed, f"missing required arguments: {flag}")
 
 
 def test_missing_reference_fails(tmp_path):

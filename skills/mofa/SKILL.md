@@ -22,6 +22,10 @@ metadata:
     - multi-omics
     - factor analysis
   inputs:
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
     - name: view
       type: file
       format:
@@ -54,6 +58,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
   demo_data:
     - path: examples/demo_rna.tsv
       description: synthetic, 60 samples, 3 views, 2 shared and 1 view-specific factor
@@ -103,7 +108,9 @@ argument it names. Do not work around it.
 | `--view name=path` | TSV, wide, repeated | first column sample ID; one numeric column per feature; empty or `NA` is missing | `examples/demo_rna.tsv` |
 | `--metadata` | TSV | column `sample`, the `--group-col`; other columns are tested too | `examples/demo_meta.tsv` |
 
-Feature names must be unique across views (prefix them, `rna_CD4`). IDs are
+Feature names must be unique across views (prefix them, `rna_CD4`). Views are
+joined on sample IDs: `skillkit.check_compatible` stops the run when no sample
+is in every view, and `result.json` reports `n_shared_ids` (adopted 2026-10-28). IDs are
 read as text, so `01` stays `01`. Gaussian views should be normalised and on a
 log-like scale; the script does not transform them.
 
@@ -113,6 +120,7 @@ Each row is a grill question. Ask the user; never fill one in.
 
 | Argument | Grill question | Demo-only value |
 |---|---|---|
+| `--context` | Species, tissue or cell type, condition and dataset? It opens the report and the chat summary. | `synthetic demo: 60 samples, healthy vs disease, no real tissue` |
 | `--view` | Which views, each as `name=path`? (repeat the flag) | `rna`, `adt`, `tf` from `examples/` |
 | `--metadata` | Which TSV holds one row per sample? | `examples/demo_meta.tsv` |
 | `--group-col` | Which metadata column holds the groups to colour and test? | `group` |
@@ -134,6 +142,7 @@ view, and a gene name means nothing without its annotation release.
 
 ```bash
 python scripts/mofa.py \
+  --context "human PBMC pseudobulk, RNA + ADT + Olink, healthy vs SLE, cohort X" \
   --view rna=results/pb/rna_scaled.tsv --view adt=results/pb/adt.tsv \
   --view olink=results/olink/npx.tsv \
   --metadata results/meta/samples.tsv --group-col status \
@@ -197,7 +206,7 @@ each.
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_samples, views, n_factors, n_active, active_factors, r2_total, device, threads, dropped_per_group, params, seed, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # context, n_samples, views, n_factors, n_active, active_factors, r2_total, device, threads, dropped_per_group, n_shared_ids, params, seed, reference, chat_summary_lines, preferred_artifacts
 ├── tables/
 │   ├── variance_explained.tsv
 │   ├── factors.tsv
@@ -260,7 +269,8 @@ outdir/
 - **The model will want to name a factor as a cell type or a mechanism**
   ("the T-cell activation factor"). Do not. A factor is a shared axis of
   variation; its weights and tests suggest a reading, and that reading is a
-  hypothesis to state as one.
+  hypothesis to state as one. A factor tied to the group is "associated with"
+  it, never "driven by" it (house-style `claims.strength`).
 - **The model will want to read a large R² as a significant factor.** Do not.
   Variance explained is not a test; only `factor_vs_metadata.tsv` padj is.
   A factor with high R² can tie to no covariate.

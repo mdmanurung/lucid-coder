@@ -65,6 +65,15 @@ IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 F-03 (demo when no input) is replaced on purpose: the demo runs only when the
 user asks for it.
 
+## Biology-core checks (2026-10-28)
+
+Applied: required `--context` (report, `result.json`, first chat line) and a
+claim-wording gotcha (house-style `claims.strength`). Not applied: the `status`
+column, because `model_results.tsv` already keeps every feature and an unfitted
+one keeps `n_obs`, `n_subjects` and `fit_message` with an NA p-value, which
+`with_status` would drop; gene ids, because features are generic (frequencies,
+scores, NPX); compatible inputs, because the skill reads one table.
+
 ## Running and testing
 
 From `skills/longitudinal`:
@@ -74,7 +83,7 @@ RSCRIPT=/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2/bin/Rscript \
 R_LIBS_USER=/exports/para-lipg-hpc/mdmanurung/R/4.5 \
 LD_LIBRARY_PATH=/home/mdmanurung/.local/lib/conda-gcc-runtime \
 UV_CACHE_DIR=/tmp/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with numpy,pandas,scipy,matplotlib,pytest \
+  uv run --python 3.12 --with numpy,pandas,scipy,matplotlib,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 

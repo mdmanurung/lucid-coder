@@ -28,6 +28,8 @@ PLANTED = [
 
 ARGS = {
     "--adata": str(DEMO),
+    "--context": "synthetic demo",
+    "--gene-id-col": "gene_ids",
     "--resource": str(RESOURCE),
     "--groupby": "cell_type",
     "--methods": "rank_aggregate",
@@ -117,6 +119,10 @@ def test_demo_golden_values(demo_out):
     head = interactions.head(2)[["source", "target", "ligand", "receptor"]]
     assert head.to_dict("records") == PLANTED
     assert interactions["passes"].tolist() == [True, True] + [False] * 178
+    assert interactions["ligand_gene_id"].iloc[0] == "ENSG90000000000.1"
+    assert result["status_counts"] == {"tested": 180}
+    assert result["gene_id_col"] == "gene_ids"
+    assert result["chat_summary_lines"][0].startswith("Context: synthetic demo")
     counts = pd.read_csv(demo_out / "tables" / "pair_counts.tsv", sep="\t")
     assert len(counts) == 9 and counts["n_pass"].sum() == 2
     planted_cell = (counts["source"] == "sender") & (counts["target"] == "receiver")
@@ -182,6 +188,62 @@ def test_missing_argument_fails_without_demo(tmp_path):
     assert is_error(completed, "missing required arguments: --n-perms")
 
 
+def test_missing_context_fails(tmp_path):
+    completed = run_with(tmp_path, drop=["--context"])
+    assert is_error(completed, "missing required arguments: --context")
+
+
+def test_untested_pairs_keep_a_status_row(tmp_path):
+    """An expressed-nowhere pair is not_tested; a pair with a missing gene is
+    not_measured; both keep NA ranks."""
+
+    def silence(adata):
+        adata.X = adata.X.toarray()
+        adata.X[:, list(adata.var_names).index("G00")] = 0
+
+    path = tmp_path / "resource.tsv"
+    path.write_text(RESOURCE.read_text() + "G00\tG01\nNOGENE\tREC1\n")
+    completed = run_with(
+        tmp_path, adata=edited_demo(tmp_path, silence), resource=str(path)
+    )
+    assert completed.returncode == 0, completed.stderr
+    out = tmp_path / "out"
+    table = pd.read_csv(out / "tables" / "interactions.tsv", sep="\t")
+    status = table.set_index(["ligand", "receptor"])["status"].to_dict()
+    assert status[("G00", "G01")] == "not_tested"
+    assert status[("NOGENE", "REC1")] == "not_measured"
+    assert table.loc[table["status"] != "tested", "magnitude_rank"].isna().all()
+    result = json.loads((out / "result.json").read_text())
+    assert result["status_counts"] == {
+        "tested": 180,
+        "not_tested": 1,
+        "not_measured": 1,
+    }
+
+
+def test_gene_id_col_none_writes_na(tmp_path):
+    completed = run_with(tmp_path, gene_id_col="none")
+    assert completed.returncode == 0, completed.stderr
+    out = tmp_path / "out"
+    table = pd.read_csv(out / "tables" / "interactions.tsv", sep="\t")
+    assert table[["ligand_gene_id", "receptor_gene_id"]].isna().all().all()
+    assert json.loads((out / "result.json").read_text())["gene_id_col"] == "none"
+
+
+def test_ambiguous_gene_ids(tmp_path):
+    def two_ids_one_symbol(adata):
+        names = list(adata.var_names)
+        names[1] = names[0]
+        adata.var_names = names
+
+    completed = run_with(tmp_path, adata=edited_demo(tmp_path, two_ids_one_symbol))
+    assert is_error(
+        completed,
+        "1 gene symbol(s) map to several gene ids: "
+        "LIG1 -> ENSG90000000000.1, ENSG90000000001.1",
+    )
+
+
 def test_demo_conflict(tmp_path):
     completed = run("--demo", "--seed", "1", "--outdir", str(tmp_path / "out"))
     assert is_error(completed, "--demo fixes the analysis arguments; drop: --seed")
@@ -202,6 +264,7 @@ def test_outdir_exists(tmp_path):
         ({"adata": "/no/such.h5ad"}, "input file not found: /no/such.h5ad"),
         ({"groupby": "leiden"}, "obs column not found: leiden"),
         ({"sample": "donor"}, "obs column not found: donor"),
+        ({"gene_id_col": "ensembl"}, "var column not found: ensembl"),
         ({"targets": "receiver,tcell"}, "--targets: labels not in cell_type: tcell"),
         ({"magnitude_max": "1e-9"}, "zero interactions pass magnitude_rank <= 1e-09"),
     ],
@@ -248,14 +311,20 @@ def test_one_group(tmp_path):
     assert is_error(completed, "--groupby cell_type needs at least 2 groups, found 1")
 
 
-@pytest.mark.parametrize(("axis", "what"), [("var", "gene names"), ("obs", "cell ids")])
-def test_duplicate_ids(tmp_path, axis, what):
+# A duplicated var name with distinct ids is test_ambiguous_gene_ids; without ids
+# (--gene-id-col none) it is a duplicate symbol.
+@pytest.mark.parametrize(
+    ("axis", "what", "id_col"),
+    [("var", "gene symbols", "none"), ("obs", "cell ids", "gene_ids")],
+)
+def test_duplicate_ids(tmp_path, axis, what, id_col):
     def duplicate(adata):
         names = list(getattr(adata, f"{axis}_names"))
         names[1] = names[0]
         setattr(adata, f"{axis}_names", names)
 
-    completed = run_with(tmp_path, adata=edited_demo(tmp_path, duplicate))
+    adata = edited_demo(tmp_path, duplicate)
+    completed = run_with(tmp_path, adata=adata, gene_id_col=id_col)
     assert is_error(completed, f"duplicate {what}: ")
 
 

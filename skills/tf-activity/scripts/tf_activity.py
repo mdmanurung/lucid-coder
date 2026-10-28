@@ -32,6 +32,7 @@ from skillkit import (
     parse_required,
     run,
     seed_everything,
+    with_status,
     write_report,
     write_reproducibility,
     write_result,
@@ -40,7 +41,16 @@ from theme import save_panel
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 
-REQUIRED = ["input", "network", "method", "tmin", "n_top", "reference", "seed"]
+REQUIRED = [
+    "input",
+    "network",
+    "method",
+    "tmin",
+    "n_top",
+    "reference",
+    "context",
+    "seed",
+]
 MODE_ARGS = {
     "cells": ["adata", "groupby", "rank_method", "limit"],
     "contrast": ["de_table", "stat_col", "contrast"],
@@ -56,6 +66,7 @@ DEMO = {
         "tmin": 5,
         "n_top": 2,
         "reference": "synthetic demo genes, no genome build",
+        "context": "synthetic demo: 3 groups x 60 cells, no real tissue",
         "seed": 0,
         "adata": str(EXAMPLES / "demo.h5ad"),
         "groupby": "group",
@@ -70,6 +81,7 @@ DEMO = {
         "tmin": 5,
         "n_top": 2,
         "reference": "synthetic demo genes, no genome build",
+        "context": "synthetic demo: 3 groups x 60 cells, no real tissue",
         "seed": 0,
         "de_table": str(EXAMPLES / "demo_de.tsv"),
         "stat_col": "stat",
@@ -106,6 +118,7 @@ def parse_args(argv):
     parser.add_argument("--tmin", type=int)
     parser.add_argument("--n-top", type=int)
     parser.add_argument("--reference")
+    parser.add_argument("--context")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--adata")
     parser.add_argument("--groupby")
@@ -297,12 +310,10 @@ def draw_cells(figures, acts, table, top, p):
     heat["source"] = pd.Categorical(heat["source"], categories=sources)
     label = f"mean {p['method'].upper()} activity ({UNIT})"
     heat = heat.rename(columns={"score": label})
-    fig = plot_heatmap(heat, "source", "group", label, limit=p["limit"])
-    fig.set_layout_engine("tight")
+    plot = plot_heatmap(heat, "source", "group", label, limit=p["limit"])
     width = min(183, max(89, 50 + 8 * heat["group"].nunique()))
     height = max(50, 20 + 5 * len(sources))
-    save_panel(fig, heat, figures, "activity_heatmap", width, height)
-    plt.close(fig)
+    save_panel(plot, heat, figures, "activity_heatmap", width, height)
 
     groups = list(acts.obs[p["groupby"]].cat.categories)
     long = (
@@ -377,9 +388,15 @@ def analyse(argv, full_argv):
         table = score_contrast(mat, net, p)
         top = table.reindex(table["score"].abs().sort_values(ascending=False).index)
         top = top["source"].head(p["n_top"]).tolist()
-    table = table.merge(n_targets, on="source", how="left")
     if set(table["source"]) != set(net["source"]):
         raise RuntimeError("decoupler kept different sources than the in-script prune")
+    # Sources under tmin stay in the table as not_tested, with NA statistics.
+    reasons = dict.fromkeys(dropped["source"], "not_tested")
+    table = with_status(table, n_targets["source"], "source", reasons)
+    table = table.merge(n_targets, on="source", how="left")
+    status_counts = (
+        table.drop_duplicates("source")["status"].value_counts().sort_index().to_dict()
+    )
 
     outdir = make_outdir(p["outdir"])
     tables, figures = outdir / "tables", outdir / "figures"
@@ -387,7 +404,7 @@ def analyse(argv, full_argv):
     dropped.to_csv(tables / "sources_dropped.tsv", sep="\t", index=False)
 
     plt.switch_backend("Agg")
-    n_src = table["source"].nunique()
+    n_src = status_counts["tested"]
     if cells:
         col = p["groupby"]
         shown = draw_cells(figures, acts, table, top, p)
@@ -406,7 +423,7 @@ def analyse(argv, full_argv):
             f"{acts.n_obs} cells in {len(top)} groups of {col} scored with "
             f"{p['method']} on {n_src} sources (tmin {p['tmin']}); "
             f"{len(dropped)} sources dropped under tmin.",
-            "Top source per group: "
+            "Top source per group by inferred activity: "
             + "; ".join(f"{g}: {s[0]}" for g, s in top.items())
             + f" ({p['rank_method']}, group vs rest, BH within group).",
         ]
@@ -424,7 +441,8 @@ def analyse(argv, full_argv):
             f"{p['method']} on {n_src} sources (tmin {p['tmin']}); "
             f"{len(dropped)} sources dropped under tmin; {n_dropped_genes} genes "
             "dropped for a missing stat.",
-            f"Top {len(top)} sources by |score|: {', '.join(top)} (BH across sources).",
+            f"Top {len(top)} sources by |inferred activity score|: {', '.join(top)} "
+            "(BH across sources).",
         ]
         n_units, artifacts = mat.shape[1], "figures/activity_bar.png"
 
@@ -437,6 +455,7 @@ def analyse(argv, full_argv):
             "n_cells" if cells else "n_genes": n_units,
             "n_sources_scored": n_src,
             "n_sources_dropped": len(dropped),
+            "status_counts": status_counts,
             "n_matched": n_matched,
             "n_in_resource": n_in_resource,
             "top_sources": top,
@@ -446,6 +465,7 @@ def analyse(argv, full_argv):
         },
         summary,
         ["report.md", "tables/activity.tsv", artifacts],
+        context=p["context"],
         reference=p["reference"],
     )
     write_reproducibility(
@@ -454,7 +474,7 @@ def analyse(argv, full_argv):
         p,
         keys,
         full_argv,
-        ["decoupler", "anndata", "numpy", "pandas", "scipy", "matplotlib"],
+        ["decoupler", "anndata", "numpy", "pandas", "scipy", "matplotlib", "plotnine"],
     )
     return outdir
 

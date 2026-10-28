@@ -121,6 +121,37 @@ the user approved each one. The `skillkit` helpers carry the fixed messages.
   dropped subjects. A mean line with a named interval (SD, SE or CI) may sit beside the
   per-subject lines.
 
+## Biology-core checks (adopted 2026-10-28)
+
+From the installed `biology-core` skill, approved by the user ("1/2/3/4/5 please").
+The `skillkit` helpers carry the fixed behaviour.
+
+1. **Context.** Every skill takes a required `--context` (species, tissue or cell
+   type, condition, dataset; for example `human PBMC, IFN-beta vs control, Kang 2018`).
+   It is a grill question. `write_report` prints it under the title, and
+   `write_result(context=)` puts it first in `chat_summary_lines`. The demo value
+   names the synthetic data.
+2. **Status column.** Every per-feature result table (genes, gene sets, TFs, pairs)
+   keeps every input feature, built with `skillkit.with_status`. Untested rows keep NA
+   statistics and a `status` of `not_tested` (filtered), `not_detected`,
+   `below_detection` or `not_measured`. `result.json` counts each status.
+3. **Claim wording.** Report lines and captions say "associated with", "scored" or
+   "predicted", never "drives" or "causes" (house-style `claims.strength`). Add a
+   gotcha where a skill's output invites the stronger claim.
+4. **Gene ids.** A gene-level skill writes `gene_id` beside `gene_symbol`:
+   - h5ad input: a required `--gene-id-col` names the `var` column of Ensembl ids,
+     and `var_names` are the symbols;
+   - table input: the table must hold `gene_id` and `gene_symbol` columns;
+   - `--gene-id-col none` is the explicit answer when the source has no ids (Kang
+     2018 has symbols only); `gene_id` is then written as NA and `result.json`
+     has `gene_id_col: none`, never a guessed mapping;
+   - `skillkit.check_gene_ids` runs first and stops on an ambiguous map.
+5. **Compatible inputs.** A skill that combines several inputs runs
+   `skillkit.check_compatible` on the ids it joins them by: gene ids across
+   mashr-sharing `--de` tables (mixed id types also stop), sample ids across mofa
+   `--view` files (views share samples, not features). No shared ids stops the run;
+   `result.json` reports `n_shared_ids`. group-tests reads one input, so it has none.
+
 ## Reference skills to check against
 
 These installed skills document each tool's API. A pipeline skill's calls and gotchas

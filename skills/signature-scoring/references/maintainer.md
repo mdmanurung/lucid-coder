@@ -62,7 +62,7 @@ From `skills/signature-scoring`:
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with anndata,scanpy,decoupler,matplotlib,pytest \
+  uv run --python 3.12 --with anndata,scanpy,decoupler,matplotlib,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
@@ -88,6 +88,17 @@ titles; captions sit in `report.md`.
 
 `scripts/skillkit.py`, `plots.py`, `theme.py` and `palettes.py` are byte copies
 of `templates/`; a test fails when they drift.
+
+## Biology-core checks (2026-10-28)
+
+- `--context` is required and opens the report and `chat_summary_lines`.
+- `random_control.tsv` keeps every listed set with a `status`; sets under
+  `--min-genes` are `not_tested` rows instead of stopping the run, which now
+  stops only when every set is short. Per-cell and per-sample tables get none.
+- Gene ids do not apply: no output table is keyed by gene (sets are the
+  features), so there is no `--gene-id-col`. `--reference` stays.
+- Compatible inputs do not apply: one h5ad, one gene-set file.
+- Claim wording: a gotcha says a score is associated with a group, not a driver.
 
 ## Citations
 

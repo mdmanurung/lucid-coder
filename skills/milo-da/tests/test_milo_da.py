@@ -37,6 +37,7 @@ GOLDEN = {
 
 ARGS = {
     "--adata": str(DEMO),
+    "--context": "synthetic demo",
     "--sample-col": "sample",
     "--donor-col": "donor",
     "--design": "~condition",
@@ -111,7 +112,8 @@ def test_demo_golden_values(demo_out):
     result = json.loads((demo_out / "result.json").read_text())
     assert {k: result[k] for k in GOLDEN} == GOLDEN
     assert result["seed"] == 0 and result["solver"] == "pydeseq2"
-    assert len(result["chat_summary_lines"]) == 3
+    assert len(result["chat_summary_lines"]) == 4
+    assert result["chat_summary_lines"][0] == "Context: " + result["context"]
     nhoods = pd.read_csv(demo_out / "tables" / "nhoods.tsv", sep="\t")
     keys = ["SpatialFDR", "PValue", "nhood"]
     assert nhoods[keys].equals(nhoods.sort_values(keys)[keys].reset_index(drop=True))
@@ -150,7 +152,7 @@ def test_other_k_rebuilds_graph(tmp_path):
     assert completed.returncode == 0, completed.stderr
     result = json.loads((out / "result.json").read_text())
     assert result["graph_rebuilt"] is True
-    assert "rebuilt with k = 20" in result["chat_summary_lines"][1]
+    assert "rebuilt with k = 20" in result["chat_summary_lines"][2]
 
 
 def test_mixed_label(tmp_path):
@@ -172,6 +174,12 @@ def test_mixed_label(tmp_path):
 def test_missing_argument_fails_without_demo(tmp_path):
     assert is_error(
         run_with(tmp_path, drop=["--seed"]), "missing required arguments: --seed"
+    )
+
+
+def test_missing_context_fails(tmp_path):
+    assert is_error(
+        run_with(tmp_path, drop=["--context"]), "missing required arguments: --context"
     )
 
 

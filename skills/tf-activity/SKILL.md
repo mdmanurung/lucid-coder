@@ -23,6 +23,10 @@ metadata:
     - CollecTRI
     - PROGENy
   inputs:
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
     - name: network
       type: file
       format:
@@ -61,6 +65,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
   demo_data:
     - path: examples/demo.h5ad
       description: synthetic, 3 groups x 60 cells, 300 genes; TF1 active in g1, TF2 in g2
@@ -134,6 +139,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--tmin` | minimum targets per source | How many of a source's targets must be in the data for it to be scored? | `5` |
 | `--n-top` | top sources in the figures | How many top sources per group (cells) or in total (contrast) go in the figures? | `2` |
 | `--reference` | genome build and annotation release of the gene names | Which genome build and annotation were the genes counted against (e.g. `GRCh38, GENCODE 44`)? | `synthetic demo genes, no genome build` |
+| `--context` | biological context of the data | Species, tissue or cell type, condition and dataset? | `synthetic demo: 3 groups x 60 cells, no real tissue` |
 | `--seed` | seed | Which seed? (Recorded; no step draws random numbers.) | `0` |
 | `--adata` (cells) | input h5ad | Which h5ad holds the log-normalised cells? | `examples/demo.h5ad` |
 | `--groupby` (cells) | obs column of groups | Which obs column holds the clusters or labels? | `group` |
@@ -155,12 +161,14 @@ python scripts/tf_activity.py --input cells \
   --network ref/collectri_human.tsv --method ulm --tmin 5 \
   --rank-method t-test_overestim_var --n-top 5 --limit 3 \
   --reference "GRCh38, GENCODE 44" --seed 0 \
+  --context "human PBMC, IFN-beta vs control, Kang 2018" \
   --outdir results/2026-10-27_tf_cells
 
 python scripts/tf_activity.py --input contrast \
   --de-table results/2026-10-27_pbde/tables/de_results.tsv --stat-col stat \
   --contrast disease_vs_healthy --network ref/progeny_human_top500.tsv \
   --method mlm --tmin 5 --n-top 10 --reference "GRCh38, GENCODE 44" --seed 0 \
+  --context "human PBMC, IFN-beta vs control, Kang 2018" \
   --outdir results/2026-10-27_tf_de
 
 # Demo (only when the user asks for one)
@@ -196,15 +204,19 @@ python scripts/tf_activity.py --demo --input contrast --outdir demo_contrast
 ## Output structure
 
 `activity.tsv` columns: cells `source, group, score, stat, pvalue, padj,
-n_targets`, sorted by group (category order), then `stat` descending, then
-source; contrast `source, contrast, score, pvalue, padj, n_targets`, sorted by
-score descending, then source. `sources_dropped.tsv` is `source, n_targets`,
-sorted by source.
+status, n_targets`, sorted by group (category order), then `stat` descending,
+then source; contrast `source, contrast, score, pvalue, padj, status,
+n_targets`, sorted by score descending, then source. Every network source has a
+row: scored sources have `status` `tested`; sources under `--tmin` follow as one
+`not_tested` row each, sorted by source, with NA group, statistics and p-values
+(never 0). Figures use only `tested` rows. `result.json` `status_counts` counts
+sources per status. `sources_dropped.tsv` is `source, n_targets`, sorted by
+source.
 
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # input, n_cells or n_genes, n_sources_scored, n_sources_dropped, n_matched, n_in_resource, top_sources, method, seed, params, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # input, n_cells or n_genes, n_sources_scored, n_sources_dropped, status_counts, n_matched, n_in_resource, top_sources, method, seed, params, context, reference, chat_summary_lines, preferred_artifacts
 ├── tables/
 │   ├── activity.tsv
 │   └── sources_dropped.tsv
@@ -246,6 +258,11 @@ outdir/
 - **The model will want to score a DE table's `padj` or `-log10(p)` column.**
   Do not. Score a signed statistic (`stat` or `log2_fc`), as the user chose;
   an unsigned column cannot say activated or repressed.
+- **The model will want to say a top TF "drives", "causes" or "regulates" the
+  contrast or cluster.** Do not. TF activity is inferred from its targets'
+  expression and a prior network, not measured; say the TF's activity is
+  "predicted higher" or "scored higher" and "associated with" the group
+  (house-style `claims.strength`). A causal claim needs a perturbation.
 - **The model will want to call a positive score "TF expression is up".** Do
   not. The score is from the targets' values and the network's signed weights;
   the TF's own transcript is not used.

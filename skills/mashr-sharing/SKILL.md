@@ -2,7 +2,7 @@
 name: mashr-sharing
 description: >-
   Cross-cell-type effect sharing with mashr: takes one DE table per cell type
-  (gene, logFC, SE; a pseudobulk-de de_results.tsv works as is), aligns genes,
+  (gene_id, gene_symbol, logFC, SE), checks the ids are compatible, aligns genes,
   fits mashr with canonical or canonical plus data-driven (ED) covariances, and
   writes posterior means, posterior SDs and lfsr per gene and cell type, counts
   of genes significant in 1..K cell types, mashr pairwise sharing, raw-logFC
@@ -24,6 +24,10 @@ metadata:
     - differential expression
     - cell types
   inputs:
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
     - name: de
       type: file
       format:
@@ -48,6 +52,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
     r:
       - mashr
       - ashr
@@ -86,18 +91,26 @@ argument it names. Do not work around it.
 | Input | Format | Required content | Example |
 |---|---|---|---|
 | `--de name=path` | TSV, one per cell type, at least 2 | one row per gene; `name` labels the cell type | `CD4T=out_cd4/tables/de_results.tsv` |
-| gene column | `--gene-col` | unique within a table | `gene` |
+| gene columns | `gene_id`, `gene_symbol` (fixed names) | `gene_id` unique within a table (Ensembl, as the source gives it), or NA in every row when the source has no ids | `ENSG00000111640.15`, `GAPDH` |
 | effect column | `--effect-col` | numeric, no NA (logFC, same contrast in every table) | `log2_fc` |
 | SE column | `--se-col` | numeric, no NA, > 0 | `lfc_se` |
 
-A pseudobulk-de `tables/de_results.tsv` works directly with `gene`, `log2_fc`,
-`lfc_se`. Drop its NA rows first (genes the engine could not fit). A limma or
+A pseudobulk-de `tables/de_results.tsv` carries `gene_id`, `gene_symbol`,
+`log2_fc`, `lfc_se`. Drop its NA rows first (genes the engine could not fit). A limma or
 dreamlet table has no SE column: add `se = logFC / t`, as dreamlet's `run_mash`
 does.
 
 Required checks (docs/pipeline-skills.md, adopted 2026-10-27):
 - **Unique ids**: a repeated gene in a table stops the run (`duplicate_gene`), as
   does a repeated cell-type name (`duplicate_name`).
+- **Gene ids** (adopted 2026-10-28): genes are joined on `gene_id`. A table with
+  `gene_id` NA in some rows stops (`partial_ids`); NA in every row (a source with
+  symbols only) joins on `gene_symbol`, writes `gene_id` as NA and records
+  `joined_on: gene_symbol`. A symbol with several ids stops the run
+  (`skillkit.check_gene_ids`).
+- **Compatible inputs** (adopted 2026-10-28): `skillkit.check_compatible` stops
+  when the tables use different id types (versioned vs unversioned Ensembl, ids vs
+  symbols) or share no gene; `result.json` reports `n_shared_ids`.
 - **Reference record**: `--reference` (genome build and annotation release) is
   required and written to `result.json`; every table must use the same one.
 - **Drops per group**: genes each cell type loses to `--align intersect` are
@@ -111,8 +124,8 @@ Each row is a grill question. Ask the user; never fill one in.
 
 | Argument | Grill question | Demo-only value |
 |---|---|---|
+| `--context` | Species, tissue or cell type, condition and dataset? It opens the report and the chat summary. | `synthetic demo: 4 cell types x 800 genes, no real tissue` |
 | `--de` (repeat) | Which DE table belongs to which cell type? Do all tables test the same contrast? | `B=`, `CD4T=`, `CD8T=`, `Mono=` `examples/demo_*.tsv` |
-| `--gene-col` | Which column holds the gene ID? | `gene` |
 | `--effect-col` | Which column holds the effect (logFC)? | `log2_fc` |
 | `--se-col` | Which column holds its standard error? | `lfc_se` |
 | `--align` | Keep only genes tested in every cell type (`intersect`), or every gene with the missing cells treated as unmeasured (`union`)? | `intersect` |
@@ -130,9 +143,10 @@ only `--outdir` may be given beside it.
 
 ```bash
 python scripts/mashr_sharing.py \
+  --context "human PBMC, IFN-beta vs control, Kang 2018" \
   --de B=b/tables/de_results.tsv --de CD4T=cd4/tables/de_results.tsv \
   --de Mono=mono/tables/de_results.tsv \
-  --gene-col gene --effect-col log2_fc --se-col lfc_se --align intersect \
+  --effect-col log2_fc --se-col lfc_se --align intersect \
   --covariances canonical+ed --strong-lfsr 0.05 --lfsr-max 0.05 \
   --sharing-factor 0.5 --reference "GRCh38, GENCODE 44" --seed 0 \
   --outdir results/2026-10-27_mash
@@ -168,15 +182,18 @@ python scripts/mashr_sharing.py --demo --outdir demo_out
 
 ## Output structure
 
-`posterior.tsv` is long, sorted by gene then cell type, with no row for an
-unmeasured cell. The pair tables are sorted by `cell_type_a`, `cell_type_b`.
+`posterior.tsv` is long, sorted by gene symbol then cell type. Every gene of
+every input table has a row: `status` is `tested`, or `not_tested` with NA
+statistics when `--align intersect` dropped it. A gene a table never held has
+no row for that cell type. Counts, figures and sharing use `tested` rows only;
+`result.json` counts rows per status (`status_counts`). The pair tables are sorted by `cell_type_a`, `cell_type_b`.
 
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_genes, cell_types, genes_dropped_by_align, n_strong, null_corr, n_significant_any, n_shared_all, n_specific, significant_per_cell_type, scatter_pair, params, seed, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # context, n_genes, cell_types, genes_dropped_by_align, n_shared_ids, joined_on, status_counts, n_strong, null_corr, n_significant_any, n_shared_all, n_specific, significant_per_cell_type, scatter_pair, params, seed, reference, chat_summary_lines, preferred_artifacts
 ├── tables/
-│   ├── posterior.tsv          # gene, cell_type, raw_effect, raw_se, pm, psd, lfsr, significant
+│   ├── posterior.tsv          # gene_id, gene_symbol, cell_type, raw_effect, raw_se, pm, psd, lfsr, significant, status
 │   ├── significant_counts.tsv # n_cell_types (1..K), n_genes
 │   ├── pairwise_sharing.tsv   # cell_type_a, cell_type_b, sharing
 │   ├── raw_spearman.tsv       # cell_type_a, cell_type_b, n_genes, rho, pvalue
@@ -217,6 +234,12 @@ outdir/
   cell type.** Do not say more than the table shows. One pass and three misses
   can still be a shared effect that is underpowered elsewhere; point to the
   sharing heatmap and the posterior means.
+- **The model will want to read shared effects as a shared mechanism** or say
+  one cell type "drives" another. Do not. Sharing is agreement in sign and size
+  of posterior effects; say "shared effect" or "associated with" (house-style
+  `claims.strength`).
+- **The model will want to read `not_tested` as no effect.** Do not. The gene
+  was missing from another table; it was not tested in this run.
 - **The model will want to switch to `canonical`** when `canonical+ed` stops on
   too few strong signals, or to relax `--strong-lfsr`. Do not. Ask the user;
   both change the prior.

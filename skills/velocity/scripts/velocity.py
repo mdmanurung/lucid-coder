@@ -1,5 +1,6 @@
 """Purpose: RNA velocity (scVelo) and fate probabilities (CellRank 2) from an h5ad.
-Inputs:  --adata <file.h5ad> with spliced/unspliced layers, X_umap and a group column
+Inputs:  --adata <file.h5ad> with spliced/unspliced layers, X_umap, a group column
+         and a var column of Ensembl ids (--gene-id-col, or none)
 Outputs: <outdir>/report.md, result.json, data/, tables/, figures/, reproducibility/
 Run:     python scripts/velocity.py --demo --outdir demo_out
 Notes:   Every analysis argument is required; --demo alone pins the demo values.
@@ -25,14 +26,17 @@ import pandas as pd  # noqa: E402
 import scanpy as sc  # noqa: E402
 import scvelo as scv  # noqa: E402
 from matplotlib.colors import to_hex  # noqa: E402
+from plotnine import element_text, theme  # noqa: E402
 from plots import plot_composition  # noqa: E402
 from skillkit import (  # noqa: E402
+    check_gene_ids,
     check_unique,
     fail,
     make_outdir,
     parse_required,
     run,
     seed_everything,
+    with_status,
     write_report,
     write_reproducibility,
     write_result,
@@ -42,6 +46,7 @@ from theme import save_panel  # noqa: E402
 SKILL_DIR = Path(__file__).resolve().parents[1]
 REQUIRED = [
     "adata",
+    "gene_id_col",
     "mode",
     "min_shared_counts",
     "n_top_genes",
@@ -49,6 +54,7 @@ REQUIRED = [
     "n_neighbors",
     "groupby",
     "terminal_states",
+    "context",
     "reference",
     "seed",
 ]
@@ -56,6 +62,7 @@ OPTIONAL = ["n_states"]
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
     "adata": str(SKILL_DIR / "examples" / "demo.h5ad"),
+    "gene_id_col": "gene_ids",
     "mode": "stochastic",
     "min_shared_counts": 10,
     "n_top_genes": 30,
@@ -64,6 +71,7 @@ DEMO = {
     "groupby": "stage",
     "terminal_states": "s4",
     "n_states": None,
+    "context": "synthetic demo: scVelo simulation, 500 cells, 4 stages, no real tissue",
     "reference": "synthetic demo, no genome build",
     "seed": 0,
     "outdir": "velocity_demo",
@@ -77,6 +85,8 @@ ERRORS = {
     "unspliced counts (velocyto, STARsolo or alevin-fry)",
     "no_umap": "obsm['X_umap'] not found; run sc-embed or sc.tl.umap first",
     "missing_column": "obs column not found: {col}",
+    "missing_id_column": "var column not found: {col}; name the column of Ensembl "
+    "gene ids, or pass --gene-id-col none if the source has none",
     "one_group": "obs column {col!r} has {n} group(s); fates need at least 2",
     "terminal_absent": "terminal states not in obs column {col!r}: {groups}",
     "too_few_genes": "--n-top-genes {n_top} exceeds the {n_kept} genes left after "
@@ -96,6 +106,7 @@ PACKAGES = [
     "pandas",
     "scipy",
     "matplotlib",
+    "plotnine",
 ]
 # Fixed method choices, not user thresholds; SKILL.md "Steps" names each one.
 # Auto terminal states: CellRank's tutorial rule, macrostates with
@@ -110,6 +121,7 @@ PSEUDOTIME = "velocity pseudotime"
 def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--adata")
+    parser.add_argument("--gene-id-col")
     parser.add_argument("--mode")
     parser.add_argument("--min-shared-counts", type=int)
     parser.add_argument("--n-top-genes", type=int)
@@ -118,6 +130,7 @@ def parse_args(argv):
     parser.add_argument("--groupby")
     parser.add_argument("--terminal-states")
     parser.add_argument("--n-states", type=int)
+    parser.add_argument("--context")
     parser.add_argument("--reference")
     parser.add_argument("--seed", type=int)
     return parse_required(parser, REQUIRED, DEMO, argv, optional=OPTIONAL)
@@ -176,6 +189,11 @@ def load(p, terminal):
     adata = ad.read_h5ad(path)
     check_unique(adata.var_names, "gene names")
     check_unique(adata.obs_names, "cell ids")
+    id_col = p["gene_id_col"]
+    if id_col != "none" and id_col not in adata.var.columns:
+        fail(ERRORS, "missing_id_column", col=id_col)
+    ids = None if id_col == "none" else adata.var[id_col].astype(str).tolist()
+    id_map = check_gene_ids(ids, adata.var_names.tolist())
     for layer in ("spliced", "unspliced"):
         if layer not in adata.layers:
             fail(ERRORS, "missing_layer", layer=layer)
@@ -194,15 +212,17 @@ def load(p, terminal):
     absent = [g for g in terminal or [] if g not in levels]
     if absent:
         fail(ERRORS, "terminal_absent", col=col, groups=", ".join(absent))
-    return adata, levels
+    return adata, levels, id_map
 
 
 def preprocess(adata, p):
     """Steps 3-4: gene filter, normalise, HVG subset, PCA, neighbours, moments.
 
-    Returns the input gene count, so the report can say how many were not tested.
+    Returns the input gene ids and zero-count genes, for the status column.
     """
-    n_genes_input = adata.n_vars
+    genes_input = adata.var_names.tolist()
+    counts = adata.layers["spliced"].sum(axis=0) + adata.layers["unspliced"].sum(axis=0)
+    zero = set(adata.var_names[np.asarray(counts).ravel() == 0])
     scv.pp.filter_genes(adata, min_shared_counts=p["min_shared_counts"])
     if p["n_top_genes"] > adata.n_vars:
         fail(
@@ -225,7 +245,7 @@ def preprocess(adata, p):
         adata, n_pcs=p["n_pcs"], n_neighbors=p["n_neighbors"], random_state=p["seed"]
     )
     scv.pp.moments(adata, n_pcs=None, n_neighbors=None)
-    return n_genes_input
+    return genes_input, zero
 
 
 def fates(adata, terminal, p):
@@ -331,13 +351,10 @@ def draw_figures(figures, adata, p, levels, pal, cells, by_group, top):
             strict=False,
         )
     )
-    fig = plot_composition(
+    plot = plot_composition(
         by_group, col, "terminal_state", "fate probability", fate_pal
-    )
-    fig.axes[0].tick_params(axis="x", labelrotation=45)
-    fig.set_layout_engine("constrained")
-    save_panel(fig, by_group, figures, "fate_by_group", 89, 70)
-    plt.close(fig)
+    ) + theme(axis_text_x=element_text(rotation=45, ha="right"))
+    save_panel(plot, by_group, figures, "fate_by_group", 89, 70)
 
     slope = phase_slope(adata.var, p["mode"])
     phase = pd.concat(
@@ -370,7 +387,7 @@ def draw_figures(figures, adata, p, levels, pal, cells, by_group, top):
 def analyse(argv, full_argv):
     p = parse_args(argv)
     terminal = check_values(p)
-    adata, levels = load(p, terminal)
+    adata, levels, id_map = load(p, terminal)
     col = p["groupby"]
     seed_everything(p["seed"])
     sc.settings.n_jobs = 1
@@ -380,7 +397,8 @@ def analyse(argv, full_argv):
     warnings.filterwarnings("ignore", category=UserWarning)
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     # Preprocess before make_outdir: its gene and PC checks leave no outdir.
-    n_genes_input = preprocess(adata, p)
+    genes_input, zero = preprocess(adata, p)
+    n_genes_input = len(genes_input)
     outdir = make_outdir(p["outdir"])
     (outdir / "data").mkdir()
     # Steps 5-6: velocity, velocity graph, velocity pseudotime, UMAP projection.
@@ -434,15 +452,23 @@ def analyse(argv, full_argv):
     )
 
     score = SCORE[p["mode"]]
-    genes = (
-        adata.var.filter(regex="^(velocity|fit)_")
-        .rename_axis("gene")
-        .reset_index()
-        .sort_values("gene")
+    fitted = adata.var.filter(regex="^(velocity|fit)_").rename_axis("gene_symbol")
+    # Genes filtered out (counts, HVG) were never fit: NA stats and a status.
+    reasons = {
+        g: "not_detected" if g in zero else "not_tested"
+        for g in genes_input
+        if g not in adata.var_names
+    }
+    genes = with_status(fitted.reset_index(), genes_input, "gene_symbol", reasons)
+    genes.insert(0, "gene_id", genes["gene_symbol"].map(id_map))
+    genes = genes.sort_values("gene_symbol")
+    genes.to_csv(
+        outdir / "tables" / "velocity_genes.tsv", sep="\t", index=False, na_rep="NA"
     )
-    genes.to_csv(outdir / "tables" / "velocity_genes.tsv", sep="\t", index=False)
+    status_counts = genes["status"].value_counts().to_dict()
     top = (
-        genes.sort_values([score, "gene"], ascending=[False, True])["gene"]
+        genes[genes["status"] == "tested"]
+        .sort_values([score, "gene_symbol"], ascending=[False, True])["gene_symbol"]
         .head(N_PHASE_GENES)
         .tolist()
     )
@@ -473,8 +499,9 @@ def analyse(argv, full_argv):
         "umap_velocity_pseudotime": f"UMAP of {adata.n_obs} cells coloured by "
         "scVelo velocity pseudotime (0 at the inferred root cells, 1 at the end "
         f"points; {graph}).",
-        "fate_by_group": f"Mean CellRank fate probability per {col} group towards "
-        f"each of {len(states)} terminal states ({how}); bars sum to 100%.",
+        "fate_by_group": f"Mean CellRank predicted fate probability per {col} group "
+        f"towards each of {len(states)} terminal states ({how}); bars sum to 100%; "
+        "a model prediction, not observed lineage.",
         "phase_portraits": f"Phase portraits of the {len(top)} genes with the "
         f"highest {score}: smoothed unspliced (Mu) against spliced (Ms) per cell, "
         f"moments over {p['n_neighbors']} neighbours, coloured by group; the dashed "
@@ -487,7 +514,7 @@ def analyse(argv, full_argv):
         "Median velocity pseudotime by group: "
         + ", ".join(f"{lv} {v:.3f}" for lv, v in medians.items())
         + ".",
-        f"Terminal states: {', '.join(states)} ({how}).",
+        f"Terminal states: {', '.join(states)} ({how}); fates are model predictions.",
     ]
     keys = [*REQUIRED, *OPTIONAL]
     write_report(outdir, f"Velocity: {p['mode']} model", p, keys, summary, captions)
@@ -495,6 +522,8 @@ def analyse(argv, full_argv):
         "n_cells": adata.n_obs,
         "n_genes": adata.n_vars,
         "n_genes_input": n_genes_input,
+        "status_counts": status_counts,
+        "gene_id_col": p["gene_id_col"],
         "mode": p["mode"],
         "terminal_states": states,
         "top_genes": top,
@@ -507,7 +536,14 @@ def analyse(argv, full_argv):
         "tables/fate_by_group.tsv",
         "figures/velocity_stream.png",
     ]
-    write_result(outdir, result, summary, artifacts, reference=p["reference"])
+    write_result(
+        outdir,
+        result,
+        summary,
+        artifacts,
+        context=p["context"],
+        reference=p["reference"],
+    )
     write_reproducibility(outdir, __file__, p, keys, full_argv, PACKAGES)
     return outdir
 

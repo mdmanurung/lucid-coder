@@ -5,7 +5,8 @@ Run:     python examples/make_demo.py
 Notes:   demo.h5ad: 6 donors x ctrl/stim x cell types T and Mono, 80 cells each,
          200 genes. In T cells G000-G009 are 3-fold up and G010-G014 3-fold down
          in stim (var["true_de"]); Mono has no DE. X = normalize_total(1e4) + log1p
-         (natural log), sparse. demo_npx.tsv: 40 samples (20 healthy, 20 disease),
+         (natural log), sparse; var["gene_ids"] holds Ensembl-like ids
+         (ENSG90000000000.1, ...). demo_npx.tsv: 40 samples (20 healthy, 20 disease),
          50 proteins P01-P50, NPX (log2). P01-P08 are 1 NPX higher in disease;
          P09-P12 rise 0.05 NPX per year of age; the rest are null.
 """
@@ -48,7 +49,11 @@ obs.index = [f"cell{i:04d}" for i in range(len(obs))]
 adata = ad.AnnData(
     X=sparse.csr_matrix(x),
     obs=obs,
-    var=pd.DataFrame({"true_de": true_de}, index=genes),
+    # Ensembl-like ids for --gene-id-col; var_names are the symbols.
+    var=pd.DataFrame(
+        {"true_de": true_de, "gene_ids": [f"ENSG9{i:010d}.1" for i in range(N_GENES)]},
+        index=genes,
+    ),
 )
 adata.write_h5ad(HERE / "demo.h5ad", compression="gzip")
 

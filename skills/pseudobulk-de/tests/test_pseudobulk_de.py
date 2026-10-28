@@ -30,6 +30,7 @@ RANDOM_DESIGN = "~ condition + (1|patient)"
 
 ARGS = {
     "--adata": str(DEMO),
+    "--gene-id-col": "gene_ids",
     "--cell-type-col": "cell_type",
     "--cell-type": "T",
     "--sample-col": "sample",
@@ -43,6 +44,7 @@ ARGS = {
     "--seed": "0",
     "--engine": "python",
     "--reference": "synthetic demo, no genome",
+    "--context": "synthetic demo: 7 patients, ctrl vs stim T cells, no real tissue",
 }
 
 
@@ -108,7 +110,36 @@ def test_demo_golden_values(demo_out):
     assert 2 <= len(result["chat_summary_lines"]) <= 3
     truth = set(ad.read_h5ad(DEMO).var.query("true_de").index)
     de = pd.read_csv(demo_out / "tables" / "de_results.tsv", sep="\t")
-    assert set(de.loc[de["significant"], "gene"]) <= truth
+    assert set(de.loc[de["significant"], "gene_symbol"]) <= truth
+
+
+def test_biology_core_fields(demo_out):
+    result = json.loads((demo_out / "result.json").read_text())
+    assert result["context"] == ARGS["--context"]
+    assert result["chat_summary_lines"][0].startswith("Context: ")
+    assert result["gene_id_col"] == "gene_ids"
+    counts = result["status_counts"]
+    assert counts["tested"] == N_GENES_TESTED and sum(counts.values()) == 300
+    assert set(counts) <= {"tested", "not_tested", "not_detected"}
+    de = pd.read_csv(demo_out / "tables" / "de_results.tsv", sep="\t")
+    assert list(de.columns[:2]) == ["gene_symbol", "gene_id"] and len(de) == 300
+    untested = de[de["status"] != "tested"]
+    assert untested["pvalue"].isna().all() and not untested["significant"].any()
+    assert {f"G{i:03d}" for i in range(260, 300)} <= set(untested["gene_symbol"])
+    g000 = de.loc[de["gene_symbol"] == "G000", "gene_id"]
+    assert g000.tolist() == ["ENSG90000000000.1"]
+    counts = pd.read_csv(demo_out / "tables" / "pseudobulk_counts.tsv", sep="\t")
+    assert list(counts.columns[:2]) == ["gene_id", "gene_symbol"]
+    assert len(counts) == N_GENES_TESTED
+
+
+def test_gene_id_col_none_writes_na(tmp_path):
+    completed = run_with(tmp_path, gene_id_col="none")
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads((tmp_path / "out" / "result.json").read_text())
+    assert result["gene_id_col"] == "none"
+    de = pd.read_csv(tmp_path / "out" / "tables" / "de_results.tsv", sep="\t")
+    assert de["gene_id"].isna().all()
 
 
 def test_output_contract(demo_out):
@@ -139,9 +170,10 @@ def test_cell_type_col_none_tests_all_cells(tmp_path, demo_out):
     assert (tmp_path / "out" / table).read_bytes() == (demo_out / table).read_bytes()
 
 
-def test_missing_argument_fails_without_demo(tmp_path):
+@pytest.mark.parametrize("arg", ["--seed", "--context", "--gene-id-col"])
+def test_missing_argument_fails_without_demo(tmp_path, arg):
     assert is_error(
-        run_with(tmp_path, drop=["--seed"]), "missing required arguments: --seed"
+        run_with(tmp_path, drop=[arg]), f"missing required arguments: {arg}"
     )
 
 
@@ -161,6 +193,7 @@ def test_demo_conflict(tmp_path):
         ),
         ({"adata": "/no/such.h5ad"}, "input file not found: /no/such.h5ad"),
         ({"layer": "counts"}, "layer not found in the h5ad: counts"),
+        ({"gene_id_col": "gene_id"}, "gene id column not found in var: gene_id"),
         ({"design": "~ batch + condition"}, "obs column not found: batch"),
         ({"donor_col": "donor"}, "obs column not found: donor"),
         (
@@ -206,7 +239,14 @@ def test_missing_reference(tmp_path):
 
 @pytest.mark.parametrize(
     ("axis", "message"),
-    [("var", "duplicate gene names: G001"), ("obs", "duplicate cell ids: cell0001")],
+    [
+        (
+            "var",
+            "1 gene symbol(s) map to several gene ids: "
+            "G001 -> ENSG90000000001.1, ENSG90000000002.1",
+        ),
+        ("obs", "duplicate cell ids: cell0001"),
+    ],
 )
 def test_duplicate_ids(tmp_path, axis, message):
     adata = ad.read_h5ad(DEMO)
@@ -285,7 +325,7 @@ def test_r_engine_matches_python(tmp_path, demo_out):
     assert result["n_significant"] == N_SIGNIFICANT
     truth = set(ad.read_h5ad(DEMO).var.query("true_de").index)
     de = pd.read_csv(tmp_path / "r" / "tables" / "de_results.tsv", sep="\t")
-    assert set(de.loc[de["significant"], "gene"]) <= truth
+    assert set(de.loc[de["significant"], "gene_symbol"]) <= truth
     env = (tmp_path / "r" / "reproducibility" / "environment.txt").read_text()
     assert "DESeq2 " in env
 
@@ -304,16 +344,19 @@ def test_dreamlet_demo(tmp_path):
     truth = set(ad.read_h5ad(DEMO).var.query("true_de").index)
     de = pd.read_csv(out / "tables" / "de_results.tsv", sep="\t")
     assert list(de.columns) == [
-        "gene",
+        "gene_symbol",
+        "gene_id",
         "base_mean",
         "log2_fc",
         "lfc_se",
         "stat",
         "pvalue",
         "padj",
+        "status",
         "significant",
     ]
-    assert len(set(de.loc[de["significant"], "gene"]) & truth) == DREAMLET_TRUE_HITS
+    hits = set(de.loc[de["significant"], "gene_symbol"])
+    assert len(hits & truth) == DREAMLET_TRUE_HITS
     assert (de["lfc_se"] - de["log2_fc"] / de["stat"]).abs().max() < 1e-9
     for rel in contract_paths():
         assert (out / rel).stat().st_size > 0, rel

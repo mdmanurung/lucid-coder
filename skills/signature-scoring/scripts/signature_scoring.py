@@ -34,6 +34,7 @@ from skillkit import (  # noqa: E402
     parse_required,
     run,
     seed_everything,
+    with_status,
     write_report,
     write_reproducibility,
     write_result,
@@ -52,6 +53,7 @@ REQUIRED = [
     "n_random",
     "reference",
     "seed",
+    "context",
 ]
 ENGINE_ARGS = {"score_genes": ["ctrl_size", "n_bins"], "aucell": ["n_up"]}
 OPTIONAL = ["ctrl_size", "n_bins", "n_up"]
@@ -70,6 +72,7 @@ DEMO = {
     "n_random": 50,
     "reference": "synthetic demo genes, no genome build",
     "seed": 0,
+    "context": "synthetic demo: 8 samples, healthy vs disease, no real tissue",
 }
 
 ERRORS = {
@@ -110,6 +113,7 @@ def parse_args(argv):
     parser.add_argument("--n-random", type=int)
     parser.add_argument("--reference")
     parser.add_argument("--seed", type=int)
+    parser.add_argument("--context")
     p = parse_required(parser, REQUIRED, DEMO, argv, optional=OPTIONAL)
     used = ENGINE_ARGS[p["method"]]
     missing = [flag(k) for k in OPTIONAL if k in used and p[k] is None]
@@ -190,8 +194,9 @@ def load(p):
         n_listed=("gene", "size"), n_found=("found", "sum")
     )
     found = found.join(missing.rename("missing")).fillna("").reset_index()
+    # Sets under --min-genes are kept as not_tested rows; stop only if none is left.
     small = found[found["n_found"] < p["min_genes"]]
-    if not small.empty:
+    if len(small) == len(found):
         sets = ", ".join(
             f"{s} ({n})" for s, n in zip(small["set"], small["n_found"], strict=True)
         )
@@ -199,6 +204,7 @@ def load(p):
     sets = {
         name: sorted(d.loc[d["found"], "gene"])
         for name, d in listed.groupby("set", sort=True)
+        if name not in set(small["set"])
     }
     return adata, sets, found, set(listed["gene"])
 
@@ -304,7 +310,7 @@ def draw_figures(figures, adata, scores, means, control, draws, p):
     for name in scores.columns:
         rows = means[means["set"] == name].copy()
         rows[group] = rows[group].astype(str)
-        fig = plot_box(
+        plot = plot_box(
             rows,
             group,
             "value",
@@ -313,11 +319,9 @@ def draw_figures(figures, adata, scores, means, control, draws, p):
             seed=p["seed"],
             value_label=f"{name} score, sample mean ({SCORE_UNIT[p['method']]})",
         )
-        fig.set_layout_engine("tight")
         # 20 mm per box keeps "(n = 12)" tick labels apart.
         width = min(183, 40 + 20 * len(levels))
-        save_panel(fig, rows, figures, f"score_by_group_{name}", width, PANEL_MM)
-        plt.close(fig)
+        save_panel(plot, rows, figures, f"score_by_group_{name}", width, PANEL_MM)
 
     if "X_umap" in adata.obsm:
         for name in scores.columns:
@@ -404,7 +408,10 @@ def analyse(argv, full_argv):
         tables / "sample_scores.tsv", sep="\t", index=False
     )
     found.to_csv(tables / "genes_found.tsv", sep="\t", index=False)
-    control.to_csv(tables / "random_control.tsv", sep="\t", index=False)
+    untested = dict.fromkeys(sorted(set(found["set"]) - set(sets)), "not_tested")
+    control_all = with_status(control, found["set"], "set", untested).sort_values("set")
+    control_all.to_csv(tables / "random_control.tsv", sep="\t", index=False)
+    status_counts = control_all["status"].value_counts().sort_index().to_dict()
 
     plt.switch_backend("Agg")
     draw_figures(figures, adata, scores, means, control, draws, p)
@@ -447,6 +454,9 @@ def analyse(argv, full_argv):
         f"{adata.n_obs} cells in {n_samples} samples and "
         f"{len(adata.obs[group].cat.categories)} groups of {group}; "
         f"{len(sets)} gene sets scored ({engine}).",
+        f"Sets not tested (fewer than {p['min_genes']} genes in the data): "
+        + (", ".join(untested) or "none")
+        + ".",
         "Genes not in the data (not scored; not evidence of absence): "
         + ("; ".join(f"{s}: {m}" for s, m in missing.items()) or "none")
         + ".",
@@ -469,6 +479,7 @@ def analyse(argv, full_argv):
             "n_found": found.set_index("set")["n_found"].astype(int).to_dict(),
             "missing_genes": {s: m.split(",") for s, m in missing.items()},
             "beats_random": beats,
+            "status_counts": status_counts,
             "p_empirical": control.set_index("set")["p_empirical"].to_dict(),
             "method": p["method"],
             "seed": p["seed"],
@@ -476,6 +487,7 @@ def analyse(argv, full_argv):
         },
         summary,
         ["report.md", "tables/sample_scores.tsv", "figures/random_control.png"],
+        context=p["context"],
         reference=p["reference"],
     )
     write_reproducibility(

@@ -35,6 +35,10 @@ metadata:
         - tsv
       description: long table with columns set, gene
       required: true
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
   outputs:
     - name: report
       type: file
@@ -56,6 +60,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
   demo_data:
     - path: examples/demo.h5ad
       description: synthetic, 2 groups x 4 samples x 50 cells, 300 genes, X_umap
@@ -122,6 +127,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--n-random` | random sets per signature | How many size-matched random gene sets per signature? | `50` |
 | `--reference` | genome build and annotation release of the gene names | Which genome build and annotation were the genes counted against (e.g. `GRCh38, GENCODE 44`)? | `synthetic demo genes, no genome build` |
 | `--seed` | seed | Which seed? Fixes score_genes control genes, random sets and jitter. | `0` |
+| `--context` | what the data are; opens the report and `chat_summary_lines` | Species, tissue or cell type, condition and dataset? | `synthetic demo: 8 samples, healthy vs disease, no real tissue` |
 | `--outdir` | new output directory | Which new directory gets the outputs? It must not exist. | given by the user |
 
 The last column is **demo-only, not defaults**. `--demo` alone pins all of them;
@@ -134,12 +140,13 @@ python scripts/signature_scoring.py \
   --gene-sets data/hallmark_ifn.tsv --sample-col donor --group-col condition \
   --method score_genes --ctrl-size 1000 --n-bins 25 --min-genes 5 \
   --n-random 100 --reference "GRCh38, GENCODE 44" --seed 0 \
+  --context "human PBMC, IFN-beta vs control, Kang 2018" \
   --outdir results/2026-10-27_ifn-score
 
 python scripts/signature_scoring.py --adata embedded.h5ad --gene-sets sets.tsv \
   --sample-col donor --group-col condition --method aucell --n-up 500 \
   --min-genes 5 --n-random 100 --reference "GRCh38, GENCODE 44" --seed 0 \
-  --outdir results/ifn-aucell
+  --context "human PBMC, IFN-beta vs control, Kang 2018" --outdir results/ifn-aucell
 
 # Demo (only when the user asks for one)
 python scripts/signature_scoring.py --demo --outdir demo_out
@@ -151,7 +158,8 @@ python scripts/signature_scoring.py --demo --outdir demo_out
    names and cell ids must be unique.
 2. **Check** the matrix is log-normalised, each sample sits in one group, and
    there are 2 to 6 groups. Match each set's genes to `var_names`; record
-   missing genes per set; stop if any set has fewer than `--min-genes` found.
+   missing genes per set. A set with fewer than `--min-genes` found is not
+   scored and kept as a `not_tested` row; stop only if every set is short.
    `result.json` reports `n_matched` distinct set genes found out of
    `n_in_resource` distinct genes listed (demo: 20 of 21).
 3. **Score** each set per cell on found genes only.
@@ -172,7 +180,10 @@ python scripts/signature_scoring.py --demo --outdir demo_out
 ## Output structure
 
 `cell_scores.tsv` is sorted by cell; `sample_scores.tsv` by feature, then
-subject; `genes_found.tsv` and `random_control.tsv` by set. `sample_scores.tsv`
+subject; `genes_found.tsv` and `random_control.tsv` by set.
+`random_control.tsv` has one row per listed set with a `status` column:
+`tested`, or `not_tested` (fewer than `--min-genes` genes in the data, NA
+statistics, no figures); `result.json` counts them in `status_counts`. `sample_scores.tsv`
 uses group-tests' input names: `feature` is the set, `subject` the sample, and
 the group column keeps its obs name. Figures are named per set; the tree lists
 the demo's sets `sig_null` and `sig_up`.
@@ -180,14 +191,14 @@ the demo's sets `sig_null` and `sig_up`.
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_cells, n_samples, n_sets, n_matched, n_in_resource, n_found, missing_genes, beats_random, p_empirical, method, seed, params, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # n_cells, n_samples, n_sets, n_matched, n_in_resource, n_found, missing_genes, beats_random, status_counts, p_empirical, method, seed, params, context, reference, chat_summary_lines, preferred_artifacts
 ├── data/
 │   └── scored.h5ad            # input plus obs <method>_<set>; not checksummed
 ├── tables/
 │   ├── cell_scores.tsv        # cell, sample col, group col, one column per set
 │   ├── sample_scores.tsv      # feature, subject, group col, value, n_cells
 │   ├── genes_found.tsv        # set, n_listed, n_found, missing
-│   └── random_control.tsv     # set, n_genes, n_random, observed_spread, random_mean, random_max, p_empirical, beats_random
+│   └── random_control.tsv     # set, n_genes, n_random, observed_spread, random_mean, random_max, p_empirical, beats_random, status
 ├── figures/
 │   ├── score_by_group_sig_null.pdf
 │   ├── score_by_group_sig_null.png
@@ -218,7 +229,11 @@ outdir/
 - **The model will want to call a score a probability, or say every gene in the
   set moved.** Do not. A score_genes value is a log-expression difference and
   an AUCell value is a rank-based AUC; neither is the chance a cell "has" the
-  programme. A set that separates groups is not a change in every member gene.
+  programme. A set that separates groups is not a change in every member gene
+  (house-style `claims.strength`).
+- **The model will want to say a signature that beats random "drives" or
+  "marks the mechanism of" the group difference.** Do not. The score is
+  associated with the group; say "scored higher in", not "drives".
 - **The model will want to call a gene in `missing` "not expressed".** Do not.
   Non-detection is not absence: a gene not in `var_names` was filtered or named
   differently, so it is "not tested".
@@ -231,8 +246,8 @@ outdir/
 - **The model will want to fill in `--ctrl-size 1000 --n-bins 25`** because the
   corpus uses them, or let AUCell pick its 5% `n_up`. Do not. Ask; the corpus
   values go in the grill question, not the command.
-- **The model will want to lower `--min-genes`** or drop the set when a set
-  fails it. Do not. Report the error and the missing genes; the user fixes the
+- **The model will want to lower `--min-genes`** to score a `not_tested` set,
+  or drop its row. Do not. Report it and its missing genes; the user fixes the
   symbols (case, aliases, Ensembl IDs) or chooses the threshold.
 - **The model will want to compare score_genes and AUCell values** across runs
   or sets as if on one scale. Do not. score_genes is a log-expression

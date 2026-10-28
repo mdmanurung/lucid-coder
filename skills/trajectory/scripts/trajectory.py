@@ -22,6 +22,7 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import scanpy as sc  # noqa: E402
 from matplotlib.colors import to_hex  # noqa: E402
+from plotnine import element_text, theme  # noqa: E402
 from plots import FEW_POINTS, plot_box  # noqa: E402
 from scipy import sparse, stats  # noqa: E402
 from skillkit import (  # noqa: E402
@@ -46,6 +47,7 @@ REQUIRED = [
     "paga_threshold",
     "genes",
     "reference",
+    "context",
     "seed",
 ]
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
@@ -57,6 +59,8 @@ DEMO = {
     "paga_threshold": 0.1,
     "genes": "G00,G01,G02",
     "reference": "synthetic demo, no genome build",
+    "context": "synthetic demo: 600 cells, 4 stages along one simulated path, "
+    "no real tissue",
     "seed": 0,
     "outdir": "trajectory_demo",
 }
@@ -93,6 +97,7 @@ def parse_args(argv):
     parser.add_argument("--paga-threshold", type=float)
     parser.add_argument("--genes")
     parser.add_argument("--reference")
+    parser.add_argument("--context")
     parser.add_argument("--seed", type=int)
     return parse_required(parser, REQUIRED, DEMO, argv)
 
@@ -250,7 +255,7 @@ def draw_figures(figures, adata, p, levels, pal, cells, edges_long, trend, genes
     plt.close(fig)
 
     box = cells[np.isfinite(cells[PSEUDOTIME])][[col, PSEUDOTIME]]
-    fig = plot_box(
+    plot = plot_box(
         box,
         col,
         PSEUDOTIME,
@@ -259,10 +264,8 @@ def draw_figures(figures, adata, p, levels, pal, cells, edges_long, trend, genes
         seed=p["seed"],
         value_label=PSEUDOTIME_LABEL,
     )
-    fig.axes[0].tick_params(axis="x", labelrotation=45)
-    fig.set_layout_engine("constrained")
-    save_panel(fig, box, figures, "pseudotime_by_group", 89, 70)
-    plt.close(fig)
+    plot += theme(axis_text_x=element_text(rotation=45, ha="right"))
+    save_panel(plot, box, figures, "pseudotime_by_group", 89, 70)
 
     ncols = min(3, len(genes))
     nrows = -(-len(genes) // ncols)
@@ -413,7 +416,14 @@ def analyse(argv, full_argv):
         "seed": p["seed"],
     }
     artifacts = ["report.md", "tables/pseudotime.tsv", "figures/umap_pseudotime.png"]
-    write_result(outdir, result, summary, artifacts, reference=p["reference"])
+    write_result(
+        outdir,
+        result,
+        summary,
+        artifacts,
+        context=p["context"],
+        reference=p["reference"],
+    )
     write_reproducibility(outdir, __file__, p, keys, full_argv, PACKAGES)
     return outdir
 

@@ -32,7 +32,7 @@ for contrast, shift in [("T", SHIFT), ("Mono", 0.0)]:
     lfc_se = rng.uniform(0.3, 0.6, N_GENES)
     de = pd.DataFrame(
         {
-            "gene": genes,
+            "gene_symbol": genes,
             "base_mean": rng.lognormal(5, 1, N_GENES),
             "log2_fc": stat * lfc_se,
             "lfc_se": lfc_se,
@@ -41,7 +41,7 @@ for contrast, shift in [("T", SHIFT), ("Mono", 0.0)]:
             "padj": padj,
         }
     )
-    de.sort_values(["padj", "gene"], na_position="last").to_csv(
+    de.sort_values(["padj", "gene_symbol"], na_position="last").to_csv(
         OUT / f"demo_{contrast}.tsv", sep="\t", index=False, float_format="%.6g"
     )
 

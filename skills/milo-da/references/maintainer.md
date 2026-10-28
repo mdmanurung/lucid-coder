@@ -57,7 +57,7 @@ From `skills/milo-da`:
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with pertpy,pydeseq2,pytest \
+  uv run --python 3.12 --with pertpy,pydeseq2,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
@@ -124,3 +124,11 @@ of `templates/`; a test fails when they drift.
 - Heumos et al. (2025). Pertpy: an end-to-end framework for perturbation
   analysis. Nature Methods.
 - Muzellec et al. (2023). PyDESeq2. Bioinformatics 39:btad547.
+
+## Biology-core checks (2026-10-28)
+
+- `--context` is required and opens the report and `chat_summary_lines`.
+- A gotcha keeps claims at "associated with" (house-style `claims.strength`).
+- No `status` column: neighbourhoods are built by the run, not input features,
+  and pertpy tests every one. Gene ids and `check_compatible` do not apply: no gene tables,
+  one input.

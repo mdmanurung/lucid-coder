@@ -112,13 +112,25 @@ IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 F-03 (demo when no input) is replaced on purpose: the demo runs only when the
 user asks for it.
 
+## Biology-core checks (2026-10-28)
+
+- Context applies: required `--context`, first line of `chat_summary_lines` and
+  of `report.md`.
+- Status column does not apply: no per-feature result table. `pseudotime.tsv`
+  is per cell, `paga_connectivities.tsv` per group pair, and the gene trends
+  cover only the genes the user named; a missing gene stops the run.
+- Gene ids do not apply for the same reason: no gene-keyed result table.
+- Compatible inputs do not apply: one h5ad.
+- Claim wording: a gotcha says trends are associated with the predicted
+  ordering, not drivers of it; pseudotime and PAGA edges are predictions.
+
 ## Running and testing
 
 From `skills/trajectory`:
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with scanpy,igraph,pytest \
+  uv run --python 3.12 --with scanpy,igraph,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 

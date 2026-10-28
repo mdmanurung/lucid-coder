@@ -23,6 +23,14 @@ metadata:
     - cNMF
     - structure plot
   inputs:
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
+    - name: gene_id_col
+      type: string
+      description: var column of Ensembl gene ids, or none when the source has none
+      required: true
     - name: adata
       type: file
       format:
@@ -50,6 +58,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
   demo_data:
     - path: examples/demo.h5ad
       description: synthetic counts, 3 groups x 60 cells, 300 genes, 3 planted programs of 10 genes
@@ -83,7 +92,7 @@ argument it names. Do not work around it.
 
 | Input | Format | Required content | Example |
 |---|---|---|---|
-| `--adata` | `.h5ad` | raw integer counts in `X`, or in `--layer`; QC-filtered cells; no cell with zero counts over the HVGs | sc-qc's filtered h5ad; `examples/demo.h5ad` |
+| `--adata` | `.h5ad` | raw integer counts in `X`, or in `--layer`; QC-filtered cells; no cell with zero counts over the HVGs; `var_names` are gene symbols, `--gene-id-col` names the Ensembl id column | sc-qc's filtered h5ad; `examples/demo.h5ad` |
 | `--groupby` | obs column | at least 2 groups, for the program-by-group summary | `leiden`, `cell_type`; demo `group` |
 
 The script refuses negative or non-integer values (log-normalised data). A
@@ -98,6 +107,8 @@ Each row is a grill question. Ask the user; never fill one in.
 |---|---|---|---|
 | `--adata` | input h5ad | Which h5ad holds the raw counts? | `examples/demo.h5ad` |
 | `--layer` (optional) | count matrix | Which layer holds the raw counts? Absent means `X`. | absent (`X`) |
+| `--context` | species, tissue or cell type, condition, dataset | Species, tissue or cell type, condition and dataset? | `synthetic demo: 3 groups x 60 cells, 300 genes, 3 planted programs, no real tissue` |
+| `--gene-id-col` | `var` column of Ensembl gene ids, or `none` | Which `var` column holds the Ensembl gene ids? (`none` if the source has symbols only; `gene_id` is then NA, never guessed.) | `gene_ids` |
 | `--groupby` | obs column of groups | Which obs column holds the clusters or labels to summarise programs by? | `group` |
 | `--reference` | genome build and annotation | Which genome build and annotation release name the genes (for example `GRCh38, GENCODE 44`)? | `synthetic demo, no genome build` |
 | `--k` | number of programs | How many programs (k)? Choose it before the run; this skill does not sweep k. | `3` |
@@ -154,17 +165,19 @@ python scripts/gene_programs.py --demo --outdir demo_out
 ## Output structure
 
 Sort keys: `usage.tsv` by program then cell; `gene_loadings.tsv` by program,
-score descending, gene; `top_genes.tsv` likewise with a 1-based `rank`;
+score descending, gene, then one row per gene with no counts (`status`
+`not_detected`, NA program and score; scored rows are `tested`);
+`top_genes.tsv` likewise with a 1-based `rank`, scored genes only;
 `program_by_group.tsv` and `stability.tsv` by program then group order.
 
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_cells, n_genes, n_hvg, n_genes_scored, k, n_components_kept, n_components_total, mean_silhouette, top_genes, seed, params, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # n_cells, n_genes, n_hvg, n_genes_scored, status_counts (per gene), gene_id_col, k, n_components_kept, n_components_total, mean_silhouette, top_genes, seed, params, context, reference, chat_summary_lines (first: "Context: ..."), preferred_artifacts
 ├── tables/
 │   ├── usage.tsv              # cell, <groupby>, program, usage (cell sums to 1), usage_max_scaled, active
-│   ├── gene_loadings.tsv      # program, gene, score (z-score units), hvg; expressed genes only
-│   ├── top_genes.tsv          # program, rank, gene, score
+│   ├── gene_loadings.tsv      # program, gene, gene_id, score (z-score units), hvg, status
+│   ├── top_genes.tsv          # program, rank, gene, gene_id, score
 │   ├── program_by_group.tsv   # program, <groupby>, n_cells, mean_usage, frac_active, auc
 │   └── stability.tsv          # program, n_components, n_replicates, silhouette (mean over its components)
 ├── figures/
@@ -236,7 +249,12 @@ Display constants, not analysis parameters: heatmaps saturate at ±2
   the chance that a cell is in a program or a group.
 - **The model will want to say an unexpressed gene is "not in the program".**
   Do not. A gene with no counts gets no score: it is not tested, so absence
-  from `gene_loadings.tsv` says nothing about it.
+  is not tested: its `status` in `gene_loadings.tsv` is `not_detected`, which
+  says nothing about it.
+- **The model will want to say a program regulates its top genes**, or that a
+  program drives a group's phenotype. Do not. A score is a fitted loading and
+  usage is associated with the group; regulation needs a perturbation
+  (house-style `claims.strength`).
 - **The model will want to guess `--reference`** from the gene names. Do not.
   The build and annotation release are the user's answer.
 - **The model will want to add the `cnmf` package or another NMF library.** Do

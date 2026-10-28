@@ -7,6 +7,7 @@ Notes:   3 cell types x 40 cells (sender, receiver, bystander), 2 samples
          8-fold up in sender, receptors 8-fold up in receiver. The other 18
          resource pairs use background genes at the same level in every type.
          Raw counts in layers["counts"]; X = normalize_total + log1p.
+         var["gene_ids"] holds made-up Ensembl-like ids.
 """
 
 from pathlib import Path
@@ -51,7 +52,10 @@ adata = ad.AnnData(
         },
         index=[f"cell{i:03d}" for i in range(n_cells)],
     ),
-    var=pd.DataFrame(index=genes),
+    # Ensembl-like ids so --gene-id-col gene_ids has a column to read.
+    var=pd.DataFrame(
+        {"gene_ids": [f"ENSG9{i:010d}.1" for i in range(len(genes))]}, index=genes
+    ),
 )
 adata.layers["counts"] = counts
 sc.pp.normalize_total(adata, target_sum=1e4)

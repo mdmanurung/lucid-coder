@@ -61,7 +61,7 @@ From `skills/sc-embed`:
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with scanpy,harmonypy,igraph,scikit-misc,pytest \
+  uv run --python 3.12 --with scanpy,harmonypy,igraph,scikit-misc,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
@@ -124,3 +124,11 @@ of `templates/`; a test fails when they drift.
 - Korsunsky et al. (2019). Harmony. Nature Methods 16:1289-1296.
 - Traag, Waltman, van Eck (2019). From Louvain to Leiden. Scientific Reports 9:5233.
 - McInnes, Healy, Melville (2018). UMAP. arXiv:1802.03426.
+
+## Biology-core checks (2026-10-28)
+
+- `--context` is required and opens the report and `chat_summary_lines`.
+- A gotcha keeps a mixed batch UMAP at "mixed in the embedding" (house-style
+  `claims.strength`); the report lines and captions had no causal wording.
+- The status column and gene ids do not apply: the HVG flag stays in the h5ad
+  `var`, and every table is keyed by cell or cluster, none by gene.

@@ -35,6 +35,7 @@ ARGS = {
     "--engine": "celltypist",
     "--seed": "0",
     "--reference": "synthetic demo genes, no genome build",
+    "--context": "synthetic demo, no real tissue",
     "--reference-adata": str(REFERENCE),
     "--reference-label": "cell_type",
     "--majority-voting": "yes",
@@ -106,6 +107,8 @@ def test_demo_golden_values(demo_out):
     assert result["n_shared_genes"] == result["n_matched"] == 158
     assert result["n_in_resource"] == 158  # trained model features: shared genes
     assert result["reference"] == "synthetic demo genes, no genome build"
+    assert result["context"].startswith("synthetic demo")
+    assert result["chat_summary_lines"][0].startswith("Context: ")
     assert result["label_counts"] == LABEL_COUNTS
     assert result["seed"] == 0 and result["engine"] == "celltypist"
     assert 2 <= len(result["chat_summary_lines"]) <= 3
@@ -154,9 +157,10 @@ def test_output_contract(demo_out):
     assert "--seed 0" in (demo_out / "reproducibility" / "commands.sh").read_text()
 
 
-def test_missing_argument_fails_without_demo(tmp_path):
-    completed = run_with(tmp_path, drop=["--seed"])
-    assert is_error(completed, "missing required arguments: --seed")
+@pytest.mark.parametrize("flag", ["--seed", "--context"])
+def test_missing_argument_fails_without_demo(tmp_path, flag):
+    completed = run_with(tmp_path, drop=[flag])
+    assert is_error(completed, f"missing required arguments: {flag}")
 
 
 def test_missing_reference_fails(tmp_path):
