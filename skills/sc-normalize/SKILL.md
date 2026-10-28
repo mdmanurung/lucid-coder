@@ -260,6 +260,14 @@ of `templates/`; a test fails when they drift.
 - **The model will want to feed normalised values back in** to fix
   `counts in X ... must be non-negative integers`. Do not. Ask where the raw
   counts are; this skill normalises them itself.
+- **The model will want to copy between `.raw` and `.X`** to "restore" counts
+  or stash a normalised copy. Do not. Raw counts live in `layers["counts"]`
+  only; a log-normalised `X` cannot give counts back without its size factors.
+- **The model will want to guess what an unknown h5ad holds.** Do not. Check a
+  few rows first: integers mean counts; `np.expm1(X[:5]).sum(1)` near one total
+  means log1p-normalised; negative values mean residuals or scaled data. Then
+  ask for the raw counts if `X` is not counts (source: kai,
+  davidfischerlab/kai `prompt_manager.py`).
 - **The model will want to call a dropped all-zero feature "not expressed".**
   Do not. Non-detection is not absence: the feature was not measured above
   zero in these cells, so downstream it is "not tested".
