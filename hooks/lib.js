@@ -112,12 +112,19 @@ function setMode(mode) {
   try { fs.unlinkSync(flagPath()); } catch (e) {}
 }
 
+// core.md is the persona (judgement, with its why); house.md is the user-decided
+// conventions as flat rules. Both are injected together, before the language tiers.
 function readCore() {
+  let core;
   try {
-    return fs.readFileSync(path.join(__dirname, '..', 'rules', 'core.md'), 'utf8').trim();
+    core = fs.readFileSync(path.join(__dirname, '..', 'rules', 'core.md'), 'utf8').trim();
   } catch (e) {
     return FALLBACK_CORE;
   }
+  try {
+    core += '\n\n' + fs.readFileSync(path.join(__dirname, '..', 'rules', 'house.md'), 'utf8').trim();
+  } catch (e) {}
+  return core;
 }
 
 // Language tiers: rules/<lang>.md, injected after core for the languages

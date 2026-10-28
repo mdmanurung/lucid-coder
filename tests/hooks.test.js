@@ -181,6 +181,7 @@ test('rule files fit their budgets', () => {
   // Design cap 2,500; the user-decided Checks section is ~930 and every old
   // rule must land somewhere, so the measured floor is ~3,300.
   assert.ok(size('core.md') <= 3350, `core ${size('core.md')}`);
+  assert.ok(size('house.md') <= 1200, `house ${size('house.md')}`);
   assert.ok(size('r.md') <= 1500, `r ${size('r.md')}`);
   assert.ok(size('python.md') <= 1500, `python ${size('python.md')}`);
 });
