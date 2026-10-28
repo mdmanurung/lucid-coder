@@ -33,9 +33,11 @@ examples and the details the rules leave out. If this file and a rules file
 disagree, the rules file wins. The user's approved learned rules are injected
 after the rules; the narrowest scope wins within a topic.
 
-Evidence: `references/house-style.md` (topic keys and sources) and
+Evidence: `references/house-style.md` (topic keys and sources),
 `references/corpus-patterns.md` (what expert repos do, and where the plugin
-overrides them).
+overrides them), `references/corpus-examples.md` (verbatim corpus code for
+each habit in `rules/core.md`, with a rejected counter-example) and
+`references/persona-panel-20261028/` (the four reviews the persona came from).
 
 ## Worked examples
 
