@@ -82,7 +82,9 @@ function armPanels(resultsDir, rep, arms, onlyTasks, whole) {
     // A script without banners puts everything in setup, so its other columns would be empty:
     // compare that task as whole scripts instead.
     const bannerless = taskRuns.some(run => Object.keys(pieces[run]).filter(k => k !== 'setup' && SECTIONS.some(([id]) => id === k)).length === 0);
-    const steps = (whole || bannerless) ? [['whole', 'Whole script', 'r']] : [
+    // Whole-script mode still shows the notebook and SKILL.md workflow as their own panels.
+    const extras = [['notebook', 'Report notebook', 'r'], ['workflow', 'SKILL.md: Workflow section', 'markdown']];
+    const steps = (whole || bannerless) ? [['whole', 'Whole script', 'r'], ...extras] : [
       // Script order, not the keyword priority of SECTIONS.
       ...['setup', 'load', 'prep', 'fit', 'figure', 'write', 'report'].map(id => [id, SECTIONS.find(s => s[0] === id)[1], 'r']),
       ['notebook', 'Report notebook', 'r'],
