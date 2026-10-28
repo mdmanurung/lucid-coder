@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import skillkit
+from plotnine import aes, geom_text
 from plots import diverging, plot_heatmap
 from scipy import stats
 from theme import save_panel
@@ -38,6 +39,7 @@ REQUIRED = [
     "limit",
     "seed",
     "reference",
+    "context",
 ]
 METHOD_ARGS = {
     "fgsea": ["rank_col", "n_perm_simple"],
@@ -61,6 +63,8 @@ DEMO = {
     "limit": 2.5,
     "seed": 0,
     "reference": "synthetic demo, no genome build",
+    "context": "synthetic demo: 1000 genes, planted T contrast and null Mono "
+    "contrast, no real tissue",
 }
 # `--demo --method ora` swaps the fgsea-only values for these demo-only ones.
 DEMO_ORA = {
@@ -102,7 +106,7 @@ ERRORS = {
 N_SETS = 20
 MAX_DOT_MM = 4
 CURVE_COLOUR = "darkred"
-PACKAGES = ["numpy", "pandas", "scipy", "matplotlib"]
+PACKAGES = ["numpy", "pandas", "scipy", "matplotlib", "plotnine"]
 
 
 def fail(key, **fields):
@@ -126,6 +130,7 @@ def parse_args(argv):
     parser.add_argument("--limit", type=float)
     parser.add_argument("--seed", type=int)
     parser.add_argument("--reference")
+    parser.add_argument("--context")
     p = skillkit.parse_required(
         parser,
         REQUIRED,
@@ -191,10 +196,12 @@ def read_de(path, cols):
     """Step 2: one DE table and its count of rows dropped for an NA in `cols`."""
     if not path.is_file():
         fail("missing_file", path=path)
-    de = pd.read_csv(path, sep="\t", dtype={"gene": str})
-    for col in ["gene", *cols]:
+    de = pd.read_csv(path, sep="\t", dtype={"gene_symbol": str})
+    for col in ["gene_symbol", *cols]:
         if col not in de.columns:
             fail("missing_column", col=col, path=path)
+    # Gene sets name genes by symbol, so the symbol is the join key.
+    de = de.rename(columns={"gene_symbol": "gene"})
     for col in cols:
         values = pd.to_numeric(de[col], errors="coerce")
         if (values.isna() & de[col].notna()).any() or np.isinf(values).any():
@@ -314,6 +321,31 @@ def bh(pvalues):
     return padj
 
 
+def with_status(table, sets, tables, names):
+    """Step 7b: every set in the file per contrast; untested sets keep NA stats.
+
+    A set outside --min-size/--max-size in a contrast (too few or too many of its
+    genes found there) is `not_tested`; `size` still says how many were found.
+    """
+    every = sets["set"].unique()
+    parts = []
+    for name in names:
+        tested = table[table["contrast"] == name]
+        reasons = dict.fromkeys(set(every) - set(tested["set"]), "not_tested")
+        part = skillkit.with_status(tested, every, "set", reasons)
+        found = sets[sets["gene"].isin(tables[name]["gene"])].groupby("set").size()
+        part["contrast"] = name
+        part["size"] = part["size"].fillna(part["set"].map(found).fillna(0))
+        parts.append(part)
+    full = pd.concat(parts, ignore_index=True)
+    full["set_size"] = full["set"].map(sets.groupby("set").size())
+    full["contrast"] = pd.Categorical(full["contrast"], categories=names)
+    full = full.sort_values(["contrast", "padj", "set"], na_position="last")
+    return full.assign(
+        contrast=full["contrast"].astype(str), size=full["size"].astype(int)
+    )
+
+
 def running_es(ranks, members):
     """GSEA running score (weight 1, as fgsea::plotEnrichment) along the ranking."""
     ranked = ranks.sort_values(["rank", "gene"], ascending=[False, True])
@@ -372,14 +404,12 @@ def draw_figures(figures, table, p, contrasts, effect, label, ranks, sets):
     heat = shown[["set", "contrast", effect, "significant"]].rename(
         columns={effect: label}
     )
-    fig = plot_heatmap(heat, "set", "contrast", label, limit=p["limit"])
-    for row in heat[heat["significant"]].itertuples():
-        x, y = contrasts.index(row.contrast) + 0.5, top.tolist().index(row.set) + 0.5
-        fig.axes[0].text(x, y, "*", ha="center", va="center")
-    # Constrained layout cannot adopt a colorbar added before it; tight can.
-    fig.set_layout_engine("tight")
-    save_panel(fig, heat, figures, "heatmap", 89 + 6 * len(contrasts), height)
-    plt.close(fig)
+    stars = heat.loc[heat["significant"], ["set", "contrast"]].astype(str)
+    stars = stars.rename(columns={"set": "row", "contrast": "col"}).assign(star="*")
+    plot = plot_heatmap(heat, "set", "contrast", label, limit=p["limit"]) + geom_text(
+        aes("col", "row", label="star"), data=stars, inherit_aes=False
+    )
+    save_panel(plot, heat, figures, "heatmap", 89 + 6 * len(contrasts), height)
 
     captions = {
         "dotplot": f"Dot plot of {label} for the {len(top)} gene sets with the lowest "
@@ -486,10 +516,11 @@ def analyse(argv, argv_as_run):
     table["set_size"] = table["set"].map(set_size)
     columns = ["contrast", "set", "set_size", "size"]
     columns += ["nes"] if p["method"] == "fgsea" else ["overlap", "odds_ratio"]
-    columns += ["pvalue", "padj", "significant", "leading_edge"]
+    columns += ["pvalue", "padj", "significant", "leading_edge", "status"]
+    full = with_status(table, sets, tables, names)
 
     outdir = skillkit.make_outdir(p["outdir"])
-    table[columns].to_csv(
+    full[columns].to_csv(
         outdir / "tables" / "enrichment.tsv",
         sep="\t",
         index=False,
@@ -527,7 +558,8 @@ def analyse(argv, argv_as_run):
     summary = [
         f"{p['method']} on {len(names)} contrasts ({', '.join(names)}), {tested}; "
         f"{sets['set'].nunique()} sets in {Path(p['gene_sets']).name}, those with "
-        f"{p['min_size']}-{p['max_size']} genes tested. Set genes found in each DE "
+        f"{p['min_size']}-{p['max_size']} genes tested, the rest kept as not_tested. "
+        "Set genes found in each DE "
         "table (a missing gene was not tested): "
         + "; ".join(
             f"{c['contrast']} {c['n_matched']} of {c['n_in_resource']}, "
@@ -560,6 +592,7 @@ def analyse(argv, argv_as_run):
         "n_sets_in_file": int(sets["set"].nunique()),
         "contrasts": per_contrast,
         "dropped_per_group": dropped,
+        "status_counts": full["status"].value_counts().to_dict(),
         "params": p,
         "seed": p["seed"],
     }
@@ -568,7 +601,14 @@ def analyse(argv, argv_as_run):
         "tables/enrichment.tsv",
         *[f"figures/{n}.png" for n in captions],
     ]
-    skillkit.write_result(outdir, result, summary, artifacts, reference=p["reference"])
+    skillkit.write_result(
+        outdir,
+        result,
+        summary,
+        artifacts,
+        context=p["context"],
+        reference=p["reference"],
+    )
     skillkit.write_reproducibility(
         outdir, __file__, p, keys, argv_as_run, PACKAGES, r_versions
     )

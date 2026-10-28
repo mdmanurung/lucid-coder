@@ -30,6 +30,14 @@ metadata:
         - h5ad
       description: cell-level AnnData with raw integer counts in X or a layer
       required: true
+    - name: gene_id_col
+      type: string
+      description: var column of Ensembl gene ids, or none when the source has none
+      required: true
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
   outputs:
     - name: report
       type: file
@@ -49,6 +57,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
       - pydeseq2
   demo_data:
     - path: examples/demo.h5ad
@@ -89,7 +98,8 @@ argument it names. Do not work around it.
 | `--adata` | `.h5ad` | raw counts (non-negative integers) in `X`, or in `--layer` | `examples/demo.h5ad` |
 | cell-level `obs` | columns | `--cell-type-col`, `--sample-col`, `--donor-col`, every `--design` term | `cell_type`, `sample`, `patient`, `condition` |
 | design terms, donor | obs columns | constant within each sample (sample-level) | `patient`, `condition` |
-| ids | `var_names`, `obs_names` | unique | `G000`, `cell0000` |
+| ids | `obs_names` | unique | `cell0000` |
+| gene ids | `var_names` (symbols), var `--gene-id-col` (Ensembl ids) | one id per symbol, no duplicate ids (`skillkit.check_gene_ids`, house-style `data.ids`); `none` writes `gene_id` as NA, never a guessed id | `G000`, `gene_ids` |
 | contrast factor | obs column | a `--design` term holding both contrast levels | `condition` with `stim`, `ctrl` |
 
 Code a categorical factor as strings in `obs`. A numeric column enters the
@@ -105,6 +115,7 @@ Each row is a grill question. Ask the user; never fill one in.
 |---|---|---|
 | `--adata` | Which h5ad holds the cells? | `examples/demo.h5ad` |
 | `--layer` (optional) | Which layer holds the raw counts? Absent means `X`. | absent (`X`) |
+| `--gene-id-col` | Which var column holds the Ensembl gene ids (or `none` if the source has none)? | `gene_ids` |
 | `--cell-type-col` | Which obs column holds the cell-type labels? `none` when the input is already one population: all cells are tested, no subset. | `cell_type` |
 | `--cell-type` | Which cell type do we test? With `--cell-type-col none`, the label the report gives that population. | `T` |
 | `--sample-col` | Which obs column names the sample (one library per donor and condition)? | `sample` |
@@ -118,6 +129,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--seed` | Which seed? (Recorded; neither DESeq2 path draws random numbers.) | `0` |
 | `--engine` | PyDESeq2 (`python`), R DESeq2 (`r`) or dreamlet (`dreamlet`)? Omit only with a `(1|x)` design, which selects dreamlet. | `python` |
 | `--reference` | Which genome build and annotation release were the counts made with (e.g. `GRCh38, GENCODE 44`)? Never guess it. | `synthetic demo, no genome` |
+| `--context` | Species, tissue or cell type, condition and dataset? Printed first in the report and summary. | `synthetic demo: 7 patients, ctrl vs stim T cells, no real tissue` |
 | `--outdir` | Which new directory gets the outputs? It must not exist. | `pseudobulk_de_demo` |
 
 The last column is **demo-only, not defaults**. `--demo` alone pins all of them.
@@ -147,17 +159,24 @@ analysis argument is an error. `--demo --engine dreamlet` swaps the design to
 
 ## Output structure
 
-`n_genes_tested` is the number of rows in `de_results.tsv`, the genes passing
-step 6. A gene the engine could not fit stays as a row with NA statistics. Tables and results are sorted by `padj`, then gene, NA last.
+`de_results.tsv` has one row per input gene, `gene_id` beside `gene_symbol`.
+`status` (house-style `data.status`) is `tested` for the genes passing step 6,
+which went to the engine; `n_genes_tested` counts them. A gene the engine could
+not fit stays `tested` with NA statistics. A gene filtered by `--min-frac` keeps
+NA statistics with `not_detected` (zero in every cell of the kept samples) or
+`not_tested`; `status_counts` in `result.json` counts each. Plots use tested
+genes only. Tables and results are sorted by `padj`, then gene, NA last.
+`pseudobulk_counts.tsv` starts with `gene_id` and `gene_symbol`, the
+`--counts` form variance-partition reads; the R engines get a symbol-keyed copy.
 
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_samples, n_donors, dropped_samples, dropped_by_level, reference, n_genes_tested, n_significant, top_genes, params, engine, seed, chat_summary_lines, preferred_artifacts
+├── result.json                # n_samples, n_donors, dropped_samples, dropped_by_level, context, reference, n_genes_tested, status_counts, gene_id_col, n_significant, top_genes, params, engine, seed, chat_summary_lines, preferred_artifacts
 ├── tables/
-│   ├── pseudobulk_counts.tsv  # genes x kept samples, summed raw counts
+│   ├── pseudobulk_counts.tsv  # gene_id, gene_symbol, then kept samples: summed raw counts of tested genes
 │   ├── sample_meta.tsv        # one row per kept sample, design terms
-│   └── de_results.tsv         # gene, base_mean, log2_fc, lfc_se, stat, pvalue, padj, significant
+│   └── de_results.tsv         # gene_symbol, gene_id, base_mean, log2_fc, lfc_se, stat, pvalue, padj, status, significant
 ├── figures/
 │   ├── sample_pca.pdf
 │   ├── sample_pca.png
@@ -214,9 +233,13 @@ outdir/
   not. A pseudobulk change is a bulk change: a shift in subtype mix within the
   cell type gives the same signal. Run `composition` next before calling it
   cell-intrinsic.
-- **The model will want to call a gene absent** because it is missing from
-  `de_results.tsv`. Do not. Non-detection is not absence: a gene below
-  `--min-frac` was filtered and is "not tested".
+- **The model will want to call a gene absent** because its `status` is not
+  `tested`. Do not. Non-detection is not absence: a gene below `--min-frac` was
+  filtered and is "not tested".
+- **The model will want to say the condition "drives" or "regulates" a DE
+  gene.** Do not. A DE call is an association between the gene's pseudobulk
+  expression and the contrast in this design; without a perturbation it is not a
+  mechanism (house-style `claims.strength`).
 - **The model will want to drop `--donor-col` or the donor term** to get past
   the `more than one sample` error. Do not. Samples from one donor are not
   independent; ask the user for a fixed or `(1|donor)` term.
@@ -272,6 +295,7 @@ python scripts/pseudobulk_de.py \
   --cell-type-col cell_type --cell-type "CD14 Mono" --sample-col sample --donor-col patient \
   --design "~ patient + condition" --contrast condition,stim,ctrl \
   --min-cells 10 --min-frac 0.1 --padj-max 0.05 --lfc-min 1 \
+  --gene-id-col gene_ids --context "human PBMC, IFN-beta vs control, 8 donors" \
   --seed 0 --engine python --reference "GRCh38, GENCODE 44" --outdir results/2026-10-27_mono-de
 
 # Repeated measures: (1|patient) selects dreamlet

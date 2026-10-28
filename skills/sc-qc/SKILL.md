@@ -21,6 +21,10 @@ metadata:
     - Scrublet
     - scanpy
   inputs:
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
     - name: adata
       type: file
       format:
@@ -53,6 +57,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
   demo_data:
     - path: examples/demo.h5ad
       description: synthetic, 3 samples x 345 cells, planted low-quality cells and doublets
@@ -115,6 +120,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--doublet-threshold` | Let Scrublet pick a cutoff per sample (`auto`), or one fixed score in (0, 1)? | `auto` |
 | `--seed` | Which seed for Scrublet? | `0` |
 | `--reference` | Which genome build and annotation release named the genes (e.g. `GRCh38, GENCODE 44`)? Recorded in `result.json`. | `synthetic demo genes, no genome build` |
+| `--context` | Species, tissue or cell type, condition and dataset? | `synthetic demo: 3 samples of 5 populations, planted low-quality cells and doublets, no real tissue` |
 | `--outdir` | Which new directory gets the outputs? It must not exist. | `sc_qc_demo` |
 
 The four fixed-mode flags are required with `--mode fixed` and refused with
@@ -152,7 +158,7 @@ The four fixed-mode flags are required with `--mode fixed` and refused with
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_cells_before, n_cells_after, n_failed_qc, n_doublets, cells_after_per_sample, failed_qc_per_sample, doublets_per_sample, doublet_thresholds, mode, seed, params, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # n_cells_before, n_cells_after, n_failed_qc, n_doublets, cells_after_per_sample, failed_qc_per_sample, doublets_per_sample, doublet_thresholds, mode, seed, params, reference, context, chat_summary_lines (first: "Context: ..."), preferred_artifacts
 ├── data/
 │   └── qc_filtered.h5ad       # kept cells; X and layers as input; obs gains the QC columns
 ├── tables/
@@ -205,6 +211,9 @@ composition) sums `failed_qc_per_sample` and `doublets_per_sample` per condition
 - **The model will want to read the doublet score as a probability** ("82%
   likely a doublet"). Do not. A Scrublet score is a kNN fraction of simulated
   doublets; only the per-sample threshold turns it into a call.
+- **The model will want to call a `predicted_doublet` cell a doublet** ("83
+  doublets in S1"). Do not. It is a Scrublet call on a score, so write
+  "predicted doublets" (house-style `claims.strength`).
 - **The model will want to guess `--reference`** from the gene names. Do not.
   Ask for the build and annotation release; it is recorded, never inferred.
 - **The model will want to feed normalised or log values** to clear a
@@ -218,13 +227,15 @@ python scripts/sc_qc.py \
   --adata data/raw_cells.h5ad --layer counts --sample-col sample \
   --mito-prefix MT- --mode mad --mads-counts 5 --mads-genes 5 --mads-mito 3 \
   --expected-doublet-rate 0.06 --doublet-threshold auto \
-  --seed 0 --reference 'GRCh38, GENCODE 44' --outdir results/2026-10-27_qc
+  --seed 0 --reference 'GRCh38, GENCODE 44' \
+  --context 'human PBMC, IFN-beta vs control, Kang 2018' --outdir results/2026-10-27_qc
 
 python scripts/sc_qc.py \
   --adata data/raw_cells.h5ad --sample-col sample --mito-prefix MT- \
   --mode fixed --min-genes 200 --max-genes 5000 --min-counts 500 --max-pct-mito 10 \
   --expected-doublet-rate 0.06 --doublet-threshold auto \
-  --seed 0 --reference 'GRCh38, GENCODE 44' --outdir results/2026-10-27_qc-fixed
+  --seed 0 --reference 'GRCh38, GENCODE 44' \
+  --context 'human PBMC, IFN-beta vs control, Kang 2018' --outdir results/2026-10-27_qc-fixed
 
 # Demo (only when the user asks for one)
 python scripts/sc_qc.py --demo --outdir demo_out

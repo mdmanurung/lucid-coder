@@ -6,7 +6,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
-rows from `mycelium-extra/plans/clawbio-determinism/parts/`.
+rows from `docs/clawbio-determinism/parts/`.
 
 | Row | What it gave | Source |
 |---|---|---|
@@ -37,7 +37,7 @@ ULM/MLM activity; this skill does not run it.
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|
@@ -76,7 +76,7 @@ From `skills/enrichment` (fgsea tests skip without Rscript):
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with numpy,pandas,scipy,matplotlib,pytest \
+  uv run --python 3.12 --with numpy,pandas,scipy,matplotlib,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
@@ -89,3 +89,16 @@ UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
   Systems 1:417.
 - Benjamini, Hochberg (1995). Controlling the false discovery rate. JRSS B
   57:289-300.
+
+## Biology-core checks (2026-10-28)
+
+- `--context` is required and opens the report and `chat_summary_lines`.
+- `enrichment.tsv` keeps every set in the file per contrast with a `status`
+  column: a set outside `--min-size`/`--max-size` is `not_tested` with NA
+  statistics; `result.json` has `status_counts`. Figures use tested rows only.
+- Gotchas keep claims at "enriched among" or "associated with" (house-style
+  `claims.strength`) and say a `not_tested` set is not "not enriched".
+- Gene ids do not apply: the output is keyed by gene set, and sets join the DE
+  table on the `gene` column as given. If pseudobulk-de renames `gene` to
+  `gene_symbol`, `read_de` and the input contract must follow.
+- `check_compatible` does not apply: each `--de` table is tested on its own.

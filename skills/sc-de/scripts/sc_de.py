@@ -19,15 +19,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import skillkit
+from plotnine import labs
 from plots import plot_box, plot_scatter_fit, plot_volcano
 from scipy import sparse, stats
 from theme import save_panel
 
 SCRIPTS = Path(__file__).resolve().parent
 SKILL_DIR = SCRIPTS.parent
-REQUIRED = ["mode", "formula", "padj_max", "lfc_min", "seed", "reference"]
+REQUIRED = ["mode", "formula", "padj_max", "lfc_min", "seed", "reference", "context"]
 MAST_ARGS = [
     "adata",
+    "gene_id_col",
     "cell_type_col",
     "cell_type",
     "donor_col",
@@ -52,6 +54,8 @@ DEMO = {
         **DEMO_COMMON,
         "mode": "mast",
         "adata": str(SKILL_DIR / "examples" / "demo.h5ad"),
+        "gene_id_col": "gene_ids",
+        "context": "synthetic demo: 6 donors, ctrl vs stim T cells, no real tissue",
         "cell_type_col": "cell_type",
         "cell_type": "T",
         "donor_col": "donor",
@@ -70,6 +74,7 @@ DEMO = {
         "input": str(SKILL_DIR / "examples" / "demo_npx.tsv"),
         "formula": "~ status + age + sex",
         "term": "status,disease,healthy",
+        "context": "synthetic demo: 40 samples, disease vs healthy NPX, no real cohort",
         **dict.fromkeys(MAST_ARGS),
     },
 }
@@ -83,6 +88,7 @@ ERRORS = {
     "term_not_in_formula": "{arg} column {col!r} is not in --formula",
     "missing_file": "input file not found: {path}",
     "missing_layer": "layer not found in h5ad: {layer}",
+    "missing_gene_id_col": "gene id column not found in var: {col}",
     "missing_column": "input column not found: {col}",
     "cell_type_absent": "cell type {cell_type!r} not found in column {col!r}",
     "level_absent": "level {level!r} not found in column {col!r}",
@@ -120,7 +126,9 @@ def parse_args(argv):
     parser.add_argument("--lfc-min", type=float)
     parser.add_argument("--seed", type=int)
     parser.add_argument("--reference")
+    parser.add_argument("--context")
     parser.add_argument("--adata")
+    parser.add_argument("--gene-id-col")
     parser.add_argument("--layer")
     parser.add_argument("--cell-type-col")
     parser.add_argument("--cell-type")
@@ -220,7 +228,13 @@ def read_cells(p, columns, term):
     if not path.is_file():
         fail("missing_file", path=path)
     adata = ad.read_h5ad(path)
-    skillkit.check_unique(adata.var_names, "gene names")
+    # var_names are the symbols; --gene-id-col none: the source has no gene ids.
+    ids = None
+    if p["gene_id_col"] != "none":
+        if p["gene_id_col"] not in adata.var.columns:
+            fail("missing_gene_id_col", col=p["gene_id_col"])
+        ids = adata.var[p["gene_id_col"]].astype(str).tolist()
+    gene_ids = skillkit.check_gene_ids(ids, adata.var_names.tolist())
     skillkit.check_unique(adata.obs_names, "cell ids")
     if p["layer"] is not None and p["layer"] not in adata.layers:
         fail("missing_layer", layer=p["layer"])
@@ -267,7 +281,12 @@ def read_cells(p, columns, term):
         index=adata.var_names[genes],
         columns=obs.index,
     )
-    return expr, obs
+    # Why an untested gene has no result: never detected, or under --min-frac.
+    reasons = {
+        g: "not_detected" if f == 0 else "not_tested"
+        for g, f in zip(adata.var_names, frac, strict=True)
+    }
+    return expr, obs, gene_ids, reasons
 
 
 def read_long(p, columns, term):
@@ -285,6 +304,8 @@ def read_long(p, columns, term):
     lost = data[data.isna().any(axis=1)]
     by = lost[term[0]].fillna("missing") if len(term) == 3 else ["all"] * len(lost)
     dropped = pd.Series(1, index=lost.index).groupby(by).sum().sort_index()
+    # A feature whose rows all drop, or whose term is not estimable, is not tested.
+    reasons = dict.fromkeys(sorted(data["feature"].dropna().unique()), "not_tested")
     data = data.dropna()
     value = pd.to_numeric(data["value"], errors="coerce")
     if value.isna().any():
@@ -294,9 +315,11 @@ def read_long(p, columns, term):
     repeated = int(data.duplicated(["feature", "sample"], keep=False).sum())
     if repeated:
         fail("duplicate_rows", n=repeated)
-    return data.sort_values(["feature", "sample"]), {
-        str(k): int(v) for k, v in dropped.items()
-    }
+    return (
+        data.sort_values(["feature", "sample"]),
+        {str(k): int(v) for k, v in dropped.items()},
+        reasons,
+    )
 
 
 def run_r(script, files, args, tmp):
@@ -322,17 +345,16 @@ def draw_figures(figures, table, data, p, term, effect):
     """Step 9: volcano, and the top feature by group (or against a numeric term)."""
     captions = {}
     tested = table.dropna(subset=["padj"])
-    fig = plot_volcano(
+    plot = plot_volcano(
         tested, effect, "padj", padj_max=p["padj_max"], lfc_min=p["lfc_min"]
     )
-    fig.set_layout_engine("constrained")
-    save_panel(fig, tested, figures, "volcano", PANEL_MM, PANEL_MM)
-    plt.close(fig)
+    save_panel(plot, tested, figures, "volcano", PANEL_MM, PANEL_MM)
     unit = "cells" if p["mode"] == "mast" else "samples"
     captions["volcano"] = (
         f"Volcano plot of {len(tested)} features: {effect} against -log10 BH-adjusted "
-        f"p; dark red marks padj < {p['padj_max']} and |{effect}| > {p['lfc_min']} "
-        f"(dashed lines). P-values treat {unit} as independent replicates."
+        f"p; red (up) and blue (down) mark padj < {p['padj_max']} and "
+        f"|{effect}| > {p['lfc_min']} (dashed lines), grey the rest. "
+        f"P-values treat {unit} as independent replicates."
     )
     if tested.empty:
         return captions
@@ -347,7 +369,7 @@ def draw_figures(figures, table, data, p, term, effect):
     )
     if len(term) == 3:
         pal = {term[2]: LEVEL_COLOURS[0], term[1]: LEVEL_COLOURS[1]}
-        fig = plot_box(
+        plot = plot_box(
             rows,
             term[0],
             feature,
@@ -358,13 +380,11 @@ def draw_figures(figures, table, data, p, term, effect):
         )
         shown = f"Box plot of {feature} per {term[0]} ({term[1]} vs {term[2]})"
     else:
-        fig = plot_scatter_fit(rows, term[0], feature)
-        fig.axes[0].set_xlabel(f"{term[0]} (units of --input)")
-        fig.axes[0].set_ylabel(value_label)
+        plot = plot_scatter_fit(rows, term[0], feature) + labs(
+            x=f"{term[0]} (units of --input)", y=value_label
+        )
         shown = f"Scatter plot of {feature} against {term[0]} with a least-squares line"
-    fig.set_layout_engine("constrained")
-    save_panel(fig, rows, figures, "top_feature", PANEL_MM, PANEL_MM)
-    plt.close(fig)
+    save_panel(plot, rows, figures, "top_feature", PANEL_MM, PANEL_MM)
     captions["top_feature"] = (
         f"{shown}, the feature with the lowest padj; each point is {unit_note}. "
         f"{effect} {top[effect]:.3g}, padj {top['padj']:.2g} (BH across "
@@ -381,7 +401,7 @@ def analyse(argv, argv_as_run):
     formula = p["formula"]
     with tempfile.TemporaryDirectory() as tmp:
         if mode == "mast":
-            expr, obs = read_cells(p, columns, term)
+            expr, obs, gene_ids, reasons = read_cells(p, columns, term)
             if p["cdr"] == "yes":
                 formula = f"{formula} + cngeneson"
                 fixed = [*fixed, "cngeneson"]
@@ -395,7 +415,8 @@ def analyse(argv, argv_as_run):
             n_units = {"n_cells": len(obs), "n_donors": obs[p["donor_col"]].nunique()}
             dropped = {}
         else:
-            data, dropped = read_long(p, columns, term)
+            data, dropped, reasons = read_long(p, columns, term)
+            gene_ids = None
             check_rank(data, fixed)
             data.to_csv(Path(tmp) / "long.tsv", sep="\t", index=False)
             args = [formula, *term_args(term)]
@@ -415,10 +436,19 @@ def analyse(argv, argv_as_run):
     table["significant"] = (table["padj"] < p["padj_max"]) & (
         table[effect].abs() > p["lfc_min"]
     )
+    # Every input feature keeps a row; untested ones have NA statistics.
+    table = skillkit.with_status(table[tested], list(reasons), "feature", reasons)
+    table["significant"] = table["significant"].eq(True)
+    if gene_ids is not None:
+        table.insert(1, "gene_id", table["feature"].map(gene_ids))
     table = table.sort_values(["padj", "feature"], na_position="last")
 
     outdir = skillkit.make_outdir(p["outdir"])
-    table.to_csv(
+    # Mast features are genes: gene_symbol, gene_id (the names mashr-sharing reads).
+    shown = (
+        table.rename(columns={"feature": "gene_symbol"}) if mode == "mast" else table
+    )
+    shown.to_csv(
         outdir / "tables" / "de_results.tsv", sep="\t", index=False, float_format="%.6g"
     )
     plt.switch_backend("Agg")
@@ -466,6 +496,7 @@ def analyse(argv, argv_as_run):
         "dropped_by_level": dropped,
         "n_features": len(table),
         "n_tested": n_tested,
+        "status_counts": {k: int(v) for k, v in table["status"].value_counts().items()},
         "n_significant": n_sig,
         "significant_features": sig,
         "params": p,
@@ -476,8 +507,17 @@ def analyse(argv, argv_as_run):
         "tables/de_results.tsv",
         *[f"figures/{n}.png" for n in captions],
     ]
-    skillkit.write_result(outdir, result, summary, artifacts, p["reference"])
-    packages = ["anndata", "numpy", "pandas", "scipy", "matplotlib"]
+    if mode == "mast":
+        result["gene_id_col"] = p["gene_id_col"]
+    skillkit.write_result(
+        outdir,
+        result,
+        summary,
+        artifacts,
+        context=p["context"],
+        reference=p["reference"],
+    )
+    packages = ["anndata", "numpy", "pandas", "scipy", "matplotlib", "plotnine"]
     skillkit.write_reproducibility(
         outdir, __file__, p, keys, argv_as_run, packages, extra=r_env
     )

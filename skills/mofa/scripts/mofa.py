@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import skillkit  # noqa: E402
+from plotnine import coord_cartesian, geom_point, labs, theme_bw  # noqa: E402
 from plots import grey_to_red, plot_box, plot_embedding  # noqa: E402
 from scipy import stats  # noqa: E402
 from theme import save_panel  # noqa: E402
@@ -30,6 +31,7 @@ from theme import save_panel  # noqa: E402
 SKILL_DIR = Path(__file__).resolve().parents[1]
 LIKELIHOODS = ("gaussian", "bernoulli", "poisson")
 REQUIRED = [
+    "context",
     "view",
     "metadata",
     "group_col",
@@ -45,6 +47,7 @@ REQUIRED = [
 EXAMPLES = SKILL_DIR / "examples"
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
+    "context": "synthetic demo: 60 samples, healthy vs disease, no real tissue",
     "view": [f"{v}={EXAMPLES / f'demo_{v}.tsv'}" for v in ("rna", "adt", "tf")],
     "metadata": str(EXAMPLES / "demo_meta.tsv"),
     "group_col": "group",
@@ -94,6 +97,7 @@ def fail(key, **fields):
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--context")
     parser.add_argument("--view", action="append")
     parser.add_argument("--metadata")
     parser.add_argument("--group-col")
@@ -353,9 +357,10 @@ def draw_figures(figures, p, factors, weights, r2_long, meta, levels, active, as
     thr = p["min_var_explained"]
 
     def save(fig, data, name, width, height, caption):
-        fig.set_layout_engine("tight")
+        if isinstance(fig, plt.Figure):
+            fig.set_layout_engine("tight")
         save_panel(fig, data, figures, name, width, height)
-        plt.close(fig)
+        plt.close("all")
         captions[name] = caption
 
     # Sequential, not plots.plot_heatmap's diverging scale: R2 is never negative.
@@ -383,17 +388,21 @@ def draw_figures(figures, p, factors, weights, r2_long, meta, levels, active, as
 
     group_pal = dict(zip(levels, COLOURS, strict=False))
     scores = factors.join(meta[p["group_col"]]).reset_index()
-    fig = plot_embedding(
+    # Factor scores, not a UMAP: restore axes, ticks and a free aspect. Drop the
+    # tiny points and corner arrows; the axis titles name the factors.
+    plot = plot_embedding(
         scores, "Factor1", "Factor2", p["group_col"], group_pal, axis_name="Factor"
     )
-    ax = fig.axes[0]
-    ax.collections[0].set_sizes([6])
-    ax.set_aspect("auto")
-    ax.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
-    ax.xaxis.set_major_locator(plt.AutoLocator())
-    ax.yaxis.set_major_locator(plt.AutoLocator())
+    del plot.layers[:]
+    plot = (
+        plot
+        + geom_point(size=1)
+        + coord_cartesian()
+        + theme_bw(base_size=8)
+        + labs(x="Factor1", y="Factor2")
+    )
     save(
-        fig,
+        plot,
         scores,
         "factor1_vs_factor2",
         PANEL_MM + 20,
@@ -455,6 +464,10 @@ def analyse(argv, argv_as_run):
     views, liks = check_values(p)
     skillkit.seed_everything(p["seed"])
     tables = read_views(views, liks)
+    # Views are joined on samples, not features; no shared sample stops the run.
+    n_shared = skillkit.check_compatible(
+        {v: t.index for v, t in tables.items()}, "sample ids"
+    )
     meta, levels, dropped = read_metadata(p, tables)
     samples = list(meta.index)
 
@@ -531,6 +544,7 @@ def analyse(argv, argv_as_run):
         "device": "cpu",
         "threads": threads,
         "dropped_per_group": dropped,
+        "n_shared_ids": n_shared,
         "params": p,
         "seed": p["seed"],
     }
@@ -540,7 +554,14 @@ def analyse(argv, argv_as_run):
         "tables/factor_vs_metadata.tsv",
         *[f"figures/{n}.png" for n in captions],
     ]
-    skillkit.write_result(outdir, result, summary, artifacts, reference=p["reference"])
+    skillkit.write_result(
+        outdir,
+        result,
+        summary,
+        artifacts,
+        context=p["context"],
+        reference=p["reference"],
+    )
     skillkit.write_reproducibility(
         outdir, __file__, p, REQUIRED, argv_as_run, PACKAGES, ["device cpu", *threads]
     )

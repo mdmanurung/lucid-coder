@@ -5,6 +5,7 @@ Run:     python examples/make_demo.py
 Notes:   7 patients; P1-P6 have ctrl and stim samples, P7 has one ctrl sample
          with 5 T cells so --min-cells 10 drops it. 30 of 300 genes are truly DE
          in T cells (var["true_de"]); 40 genes are near-silent so --min-frac drops them.
+         var["gene_ids"] holds Ensembl-like ids (ENSG90000000000.1, ...).
 """
 
 from pathlib import Path
@@ -60,6 +61,13 @@ obs.index = [f"cell{i:04d}" for i in range(len(obs))]
 adata = ad.AnnData(
     X=sparse.csr_matrix(np.vstack(blocks).astype(np.int32)),
     obs=obs.astype("category"),
-    var=pd.DataFrame({"true_de": np.arange(N_GENES) < N_TRUE_DE}, index=genes),
+    # Ensembl-like ids for --gene-id-col; var_names are the symbols.
+    var=pd.DataFrame(
+        {
+            "true_de": np.arange(N_GENES) < N_TRUE_DE,
+            "gene_ids": [f"ENSG9{i:010d}.1" for i in range(N_GENES)],
+        },
+        index=genes,
+    ),
 )
 adata.write_h5ad(Path(__file__).resolve().parent / "demo.h5ad", compression="gzip")

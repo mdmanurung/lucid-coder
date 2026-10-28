@@ -30,6 +30,7 @@ PLANTED = {
 ARGS = {
     "--adata": str(DEMO),
     "--groupby": "cluster",
+    "--gene-id-col": "gene_ids",
     "--method": "wilcoxon",
     "--padj-max": "0.05",
     "--lfc-min": "1",
@@ -37,6 +38,7 @@ ARGS = {
     "--n-top": "5",
     "--limit": "2",
     "--reference": "synthetic demo genes, no genome build",
+    "--context": "synthetic demo: 3 clusters x 50 cells, no real tissue",
     "--seed": "0",
 }
 
@@ -111,16 +113,55 @@ def test_demo_golden_values(demo_out):
     assert result["reference"] == "synthetic demo genes, no genome build"
     markers = pd.read_csv(demo_out / "tables" / "markers.tsv", sep="\t")
     assert len(markers) == 600
-    passing = markers[markers["passes"]].groupby("group")["gene"].agg(set)
+    passing = markers[markers["passes"]].groupby("group")["gene_symbol"].agg(set)
     assert passing.to_dict() == PLANTED
     top = pd.read_csv(demo_out / "tables" / "top_markers.tsv", sep="\t")
     assert top["rank"].tolist() == [1, 2, 3, 4, 5] * 3
 
 
+def test_biology_core_fields(demo_out):
+    result = json.loads((demo_out / "result.json").read_text())
+    assert result["context"] == ARGS["--context"]
+    assert result["chat_summary_lines"][0].startswith("Context: ")
+    assert result["status_counts"] == {"tested": 600}
+    assert result["gene_id_col"] == "gene_ids"
+    markers = pd.read_csv(demo_out / "tables" / "markers.tsv", sep="\t")
+    g000 = markers.loc[markers["gene_symbol"] == "G000", "gene_id"]
+    assert set(g000) == {"ENSG90000000000.1"}
+    top = pd.read_csv(demo_out / "tables" / "top_markers.tsv", sep="\t")
+    assert list(top.columns[2:4]) == ["gene_symbol", "gene_id"]
+
+
+def test_gene_id_col_none_writes_na(tmp_path):
+    completed = run_with(tmp_path, gene_id_col="none")
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads((tmp_path / "out" / "result.json").read_text())
+    assert result["gene_id_col"] == "none"
+    markers = pd.read_csv(tmp_path / "out" / "tables" / "markers.tsv", sep="\t")
+    assert markers["gene_id"].isna().all()
+
+
+def test_ambiguous_gene_ids(tmp_path):
+    def two_ids_one_symbol(adata):
+        adata.var_names = ["G000", "G000", *adata.var_names[2:]]
+
+    completed = run_with(tmp_path, adata=edited_demo(tmp_path, two_ids_one_symbol))
+    assert is_error(
+        completed,
+        "1 gene symbol(s) map to several gene ids: "
+        "G000 -> ENSG90000000000.1, ENSG90000000001.1",
+    )
+
+
+def test_missing_gene_id_col(tmp_path):
+    completed = run_with(tmp_path, gene_id_col="gene_id")
+    assert is_error(completed, "gene id column not found in var: gene_id")
+
+
 def test_markers_sorted_by_group_then_score(demo_out):
     markers = pd.read_csv(demo_out / "tables" / "markers.tsv", sep="\t")
     resorted = markers.sort_values(
-        ["group", "score", "gene"], ascending=[True, False, True]
+        ["group", "score", "gene_symbol"], ascending=[True, False, True]
     )
     assert markers.index.equals(resorted.index)
 
@@ -149,9 +190,10 @@ def test_output_contract(demo_out):
     assert "--seed 0" in (demo_out / "reproducibility" / "commands.sh").read_text()
 
 
-def test_missing_argument_fails_without_demo(tmp_path):
-    completed = run_with(tmp_path, drop=["--limit"])
-    assert is_error(completed, "missing required arguments: --limit")
+@pytest.mark.parametrize("arg", ["--limit", "--context", "--gene-id-col"])
+def test_missing_argument_fails_without_demo(tmp_path, arg):
+    completed = run_with(tmp_path, drop=[arg])
+    assert is_error(completed, f"missing required arguments: {arg}")
 
 
 def test_demo_conflict(tmp_path):
@@ -208,15 +250,29 @@ def test_small_group(tmp_path):
     assert is_error(completed, "groups with fewer than 2 cells in cluster: c4")
 
 
-@pytest.mark.parametrize(("axis", "what"), [("var", "gene names"), ("obs", "cell ids")])
-def test_duplicate_ids(tmp_path, axis, what):
+def test_duplicate_cell_ids(tmp_path):
     def duplicate(adata):
-        names = list(getattr(adata, f"{axis}_names"))
-        names[1] = names[0]
-        setattr(adata, f"{axis}_names", names)
+        adata.obs_names = ["cell000", *adata.obs_names[1:-1], "cell000"]
 
     completed = run_with(tmp_path, adata=edited_demo(tmp_path, duplicate))
-    assert is_error(completed, f"duplicate {what}: ")
+    assert is_error(completed, "duplicate cell ids: cell000")
+
+
+def test_duplicate_gene_ids(tmp_path):
+    def duplicate(adata):
+        adata.var["gene_ids"] = ["ENSG1", "ENSG1", *adata.var["gene_ids"][2:]]
+
+    completed = run_with(tmp_path, adata=edited_demo(tmp_path, duplicate))
+    assert is_error(completed, "duplicate gene ids: ENSG1")
+
+
+def test_duplicate_symbols_without_ids(tmp_path):
+    def duplicate(adata):
+        adata.var_names = ["G000", "G000", *adata.var_names[2:]]
+
+    path = edited_demo(tmp_path, duplicate)
+    completed = run_with(tmp_path, adata=path, gene_id_col="none")
+    assert is_error(completed, "duplicate gene symbols: G000")
 
 
 @pytest.mark.skipif(not TEMPLATES.is_dir(), reason="no templates/ beside the skill")

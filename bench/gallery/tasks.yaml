@@ -1,0 +1,473 @@
+# Figure gallery: one figure per task, drawn with and without the lucid-coder skill; see ../README.md.
+# Each prompt describes the input and what to show, and says nothing about style. The answer is
+# always `done`; the figure files are the output. Reproducers tasks/<id>-<split>.py draw the
+# house-style reference (reference.pdf/.png) through tasks/_gallery.py.
+
+tasks:
+  # rule: few points (n < 10 per group): points plus a median, no box (fig.wilke)
+  - id: box_few
+    train:
+      data: [box_few.tsv]
+      prompt: >-
+        `box_few.tsv` (tab-separated) holds Kang et al. 2018 PBMCs (`ctrl` or `stim`,
+        interferon-beta), one row per sample, cell type and gene. Columns: `sample` (donor id; each
+        donor appears in one condition only), `condition`, `cell_type`, `gene` and `mean_expr`, the
+        mean log-normalised expression (log1p of counts per 10,000) over that sample's cells of that
+        type. Compare `mean_expr` of ISG15 in CD14+ Monocytes between the ctrl and stim samples. Use
+        R (Rscript is on PATH). Save the figure as `figure.pdf` and `figure.png` in the working
+        directory, and the code you used as `figure.R`. Report only the word done.
+      answer: "done"
+    valid:
+      data: [box_few.tsv]
+      prompt: >-
+        `box_few.tsv` (tab-separated) holds Kang et al. 2018 PBMCs (`ctrl` or `stim`,
+        interferon-beta), one row per sample, cell type and gene. Columns: `sample` (donor id; each
+        donor appears in one condition only), `condition`, `cell_type`, `gene` and `mean_expr`, the
+        mean log-normalised expression (log1p of counts per 10,000) over that sample's cells of that
+        type. Compare `mean_expr` of IFI6 in B cells between the ctrl and stim samples. Use R
+        (Rscript is on PATH). Save the figure as `figure.pdf` and `figure.png` in the working
+        directory, and the code you used as `figure.R`. Report only the word done.
+      answer: "done"
+    test:
+      data: [box_few.tsv]
+      prompt: >-
+        `box_few.tsv` (tab-separated) holds Kang et al. 2018 PBMCs (`ctrl` or `stim`,
+        interferon-beta), one row per sample, cell type and gene. Columns: `sample` (donor id; each
+        donor appears in one condition only), `condition`, `cell_type`, `gene` and `mean_expr`, the
+        mean log-normalised expression (log1p of counts per 10,000) over that sample's cells of that
+        type. Compare `mean_expr` of MX1 in NK cells between the ctrl and stim samples. Use R
+        (Rscript is on PATH). Save the figure as `figure.pdf` and `figure.png` in the working
+        directory, and the code you used as `figure.R`. Report only the word done.
+      answer: "done"
+  # rule: paired donors get a slopegraph (fig.wilke)
+  - id: slope
+    train:
+      data: [sample_means.tsv]
+      prompt: >-
+        `sample_means.tsv` (tab-separated) holds Kang et al. 2018 PBMCs (`ctrl` or `stim`,
+        interferon-beta), one row per donor, condition, cell type and gene. Columns: `replicate`
+        (donor id), `label` (condition), `cell_type`, `gene` and `mean_expr`, the mean
+        log-normalised expression (log1p of counts per 10,000) over that sample's cells of that
+        type. Every donor was measured in both conditions. Show how `mean_expr` of IFIT3 in NK cells
+        changes from ctrl to stim for each donor. Use R (Rscript is on PATH). Save the figure as
+        `figure.pdf` and `figure.png` in the working directory, and the code you used as `figure.R`.
+        Report only the word done.
+      answer: "done"
+    valid:
+      data: [sample_means.tsv]
+      prompt: >-
+        `sample_means.tsv` (tab-separated) holds Kang et al. 2018 PBMCs (`ctrl` or `stim`,
+        interferon-beta), one row per donor, condition, cell type and gene. Columns: `replicate`
+        (donor id), `label` (condition), `cell_type`, `gene` and `mean_expr`, the mean
+        log-normalised expression (log1p of counts per 10,000) over that sample's cells of that
+        type. Every donor was measured in both conditions. Show how `mean_expr` of ISG20 in CD8 T
+        cells changes from ctrl to stim for each donor. Use R (Rscript is on PATH). Save the figure
+        as `figure.pdf` and `figure.png` in the working directory, and the code you used as
+        `figure.R`. Report only the word done.
+      answer: "done"
+    test:
+      data: [sample_means.tsv]
+      prompt: >-
+        `sample_means.tsv` (tab-separated) holds Kang et al. 2018 PBMCs (`ctrl` or `stim`,
+        interferon-beta), one row per donor, condition, cell type and gene. Columns: `replicate`
+        (donor id), `label` (condition), `cell_type`, `gene` and `mean_expr`, the mean
+        log-normalised expression (log1p of counts per 10,000) over that sample's cells of that
+        type. Every donor was measured in both conditions. Show how `mean_expr` of IFI6 in CD14+
+        Monocytes changes from ctrl to stim for each donor. Use R (Rscript is on PATH). Save the
+        figure as `figure.pdf` and `figure.png` in the working directory, and the code you used as
+        `figure.R`. Report only the word done.
+      answer: "done"
+  # rule: effects with intervals: forest plot, reference line at 0, ordered by value (fig.wilke)
+  - id: forest
+    train:
+      data: [de.tsv]
+      prompt: >-
+        `de.tsv` (tab-separated) holds pseudobulk differential expression, stim vs ctrl, for Kang et
+        al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta), per cell type: a paired t-test across 8
+        donors on log2 CPM of summed counts. Columns: `cell_type`, `gene`, `log2fc` (stim minus
+        ctrl), `se` (standard error of `log2fc`), `pvalue` and `padj` (Benjamini-Hochberg within
+        cell type). For the 15 genes with the smallest `padj` in B cells, show each gene's log2 fold
+        change with its 95% confidence interval, log2fc ± 1.96·se. Use R (Rscript is on PATH). Save
+        the figure as `figure.pdf` and `figure.png` in the working directory, and the code you used
+        as `figure.R`. Report only the word done.
+      answer: "done"
+    valid:
+      data: [de.tsv]
+      prompt: >-
+        `de.tsv` (tab-separated) holds pseudobulk differential expression, stim vs ctrl, for Kang et
+        al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta), per cell type: a paired t-test across 8
+        donors on log2 CPM of summed counts. Columns: `cell_type`, `gene`, `log2fc` (stim minus
+        ctrl), `se` (standard error of `log2fc`), `pvalue` and `padj` (Benjamini-Hochberg within
+        cell type). For the 15 genes with the smallest `padj` in NK cells, show each gene's log2
+        fold change with its 95% confidence interval, log2fc ± 1.96·se. Use R (Rscript is on PATH).
+        Save the figure as `figure.pdf` and `figure.png` in the working directory, and the code you
+        used as `figure.R`. Report only the word done.
+      answer: "done"
+    test:
+      data: [de.tsv]
+      prompt: >-
+        `de.tsv` (tab-separated) holds pseudobulk differential expression, stim vs ctrl, for Kang et
+        al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta), per cell type: a paired t-test across 8
+        donors on log2 CPM of summed counts. Columns: `cell_type`, `gene`, `log2fc` (stim minus
+        ctrl), `se` (standard error of `log2fc`), `pvalue` and `padj` (Benjamini-Hochberg within
+        cell type). For the 15 genes with the smallest `padj` in CD14+ Monocytes, show each gene's
+        log2 fold change with its 95% confidence interval, log2fc ± 1.96·se. Use R (Rscript is on
+        PATH). Save the figure as `figure.pdf` and `figure.png` in the working directory, and the
+        code you used as `figure.R`. Report only the word done.
+      answer: "done"
+  # rule: row-scaled heatmap: diverging palette centred at 0, symmetric squished limits, stated order (fig.heatmap)
+  - id: heatmap
+    train:
+      data: [heatmap_expr.tsv]
+      prompt: >-
+        `heatmap_expr.tsv` (tab-separated) holds pseudobulk expression of 30 differentially
+        expressed genes in Kang et al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta). Columns:
+        `cell_type`, `replicate` (donor id), `label` (`ctrl` or `stim`), `gene` and `log2cpm` (log2
+        counts per million of the counts summed per donor, condition and cell type). Draw a heatmap
+        of the 30 genes across the 16 samples (donor x condition) of NK cells, each gene converted
+        to z-scores across those samples. Use R (Rscript is on PATH). Save the figure as
+        `figure.pdf` and `figure.png` in the working directory, and the code you used as `figure.R`.
+        Report only the word done.
+      answer: "done"
+    valid:
+      data: [heatmap_expr.tsv]
+      prompt: >-
+        `heatmap_expr.tsv` (tab-separated) holds pseudobulk expression of 30 differentially
+        expressed genes in Kang et al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta). Columns:
+        `cell_type`, `replicate` (donor id), `label` (`ctrl` or `stim`), `gene` and `log2cpm` (log2
+        counts per million of the counts summed per donor, condition and cell type). Draw a heatmap
+        of the 30 genes across the 16 samples (donor x condition) of B cells, each gene converted to
+        z-scores across those samples. Use R (Rscript is on PATH). Save the figure as `figure.pdf`
+        and `figure.png` in the working directory, and the code you used as `figure.R`. Report only
+        the word done.
+      answer: "done"
+    test:
+      data: [heatmap_expr.tsv]
+      prompt: >-
+        `heatmap_expr.tsv` (tab-separated) holds pseudobulk expression of 30 differentially
+        expressed genes in Kang et al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta). Columns:
+        `cell_type`, `replicate` (donor id), `label` (`ctrl` or `stim`), `gene` and `log2cpm` (log2
+        counts per million of the counts summed per donor, condition and cell type). Draw a heatmap
+        of the 30 genes across the 16 samples (donor x condition) of CD4 T cells, each gene
+        converted to z-scores across those samples. Use R (Rscript is on PATH). Save the figure as
+        `figure.pdf` and `figure.png` in the working directory, and the code you used as `figure.R`.
+        Report only the word done.
+      answer: "done"
+  # rule: ComplexHeatmap: colorRamp2 centred at 0 with symmetric limits, stated clustering, annotation legends (fig.heatmap)
+  - id: complexheatmap
+    train:
+      data: [heatmap_expr.tsv]
+      prompt: >-
+        `heatmap_expr.tsv` (tab-separated) holds pseudobulk expression of 30 differentially
+        expressed genes in Kang et al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta). Columns:
+        `cell_type`, `replicate` (donor id), `label` (`ctrl` or `stim`), `gene` and `log2cpm` (log2
+        counts per million of the counts summed per donor, condition and cell type). Draw a heatmap
+        of the 30 genes across the samples of B cells and NK cells (32 columns, one per donor,
+        condition and cell type), each gene converted to z-scores across those 32 columns, with
+        column annotations for condition and cell type. Use R with the ComplexHeatmap package
+        (Rscript is on PATH). Save the figure as `figure.pdf` and `figure.png` in the working
+        directory, and the code you used as `figure.R`. Report only the word done.
+      answer: "done"
+    valid:
+      data: [heatmap_expr.tsv]
+      prompt: >-
+        `heatmap_expr.tsv` (tab-separated) holds pseudobulk expression of 30 differentially
+        expressed genes in Kang et al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta). Columns:
+        `cell_type`, `replicate` (donor id), `label` (`ctrl` or `stim`), `gene` and `log2cpm` (log2
+        counts per million of the counts summed per donor, condition and cell type). Draw a heatmap
+        of the 30 genes across the samples of CD4 T cells and CD8 T cells (32 columns, one per
+        donor, condition and cell type), each gene converted to z-scores across those 32 columns,
+        with column annotations for condition and cell type. Use R with the ComplexHeatmap package
+        (Rscript is on PATH). Save the figure as `figure.pdf` and `figure.png` in the working
+        directory, and the code you used as `figure.R`. Report only the word done.
+      answer: "done"
+    test:
+      data: [heatmap_expr.tsv]
+      prompt: >-
+        `heatmap_expr.tsv` (tab-separated) holds pseudobulk expression of 30 differentially
+        expressed genes in Kang et al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta). Columns:
+        `cell_type`, `replicate` (donor id), `label` (`ctrl` or `stim`), `gene` and `log2cpm` (log2
+        counts per million of the counts summed per donor, condition and cell type). Draw a heatmap
+        of the 30 genes across the samples of CD14+ Monocytes and B cells (32 columns, one per
+        donor, condition and cell type), each gene converted to z-scores across those 32 columns,
+        with column annotations for condition and cell type. Use R with the ComplexHeatmap package
+        (Rscript is on PATH). Save the figure as `figure.pdf` and `figure.png` in the working
+        directory, and the code you used as `figure.R`. Report only the word done.
+      answer: "done"
+  # rule: PCA axes carry the variance explained; colour carries condition, donors paired
+  - id: pseudobulk_pca
+    train:
+      data: [pb_logcpm_b_cells.tsv]
+      prompt: >-
+        `pb_logcpm_b_cells.tsv` (tab-separated) holds pseudobulk log2 CPM for B cells from Kang et
+        al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta): first column `gene`, then one column per
+        sample named `<donor>_<condition>`, for example `patient_101_ctrl`. Run a PCA of the samples
+        on the 500 genes with the highest variance across samples (centred, not scaled) and plot the
+        samples on PC1 and PC2, showing condition and donor. Use R (Rscript is on PATH). Save the
+        figure as `figure.pdf` and `figure.png` in the working directory, and the code you used as
+        `figure.R`. Report only the word done.
+      answer: "done"
+    valid:
+      data: [pb_logcpm_nk_cells.tsv]
+      prompt: >-
+        `pb_logcpm_nk_cells.tsv` (tab-separated) holds pseudobulk log2 CPM for NK cells from Kang et
+        al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta): first column `gene`, then one column per
+        sample named `<donor>_<condition>`, for example `patient_101_ctrl`. Run a PCA of the samples
+        on the 500 genes with the highest variance across samples (centred, not scaled) and plot the
+        samples on PC1 and PC2, showing condition and donor. Use R (Rscript is on PATH). Save the
+        figure as `figure.pdf` and `figure.png` in the working directory, and the code you used as
+        `figure.R`. Report only the word done.
+      answer: "done"
+    test:
+      data: [pb_logcpm_cd14_monocytes.tsv]
+      prompt: >-
+        `pb_logcpm_cd14_monocytes.tsv` (tab-separated) holds pseudobulk log2 CPM for CD14+ Monocytes
+        from Kang et al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta): first column `gene`, then
+        one column per sample named `<donor>_<condition>`, for example `patient_101_ctrl`. Run a PCA
+        of the samples on the 500 genes with the highest variance across samples (centred, not
+        scaled) and plot the samples on PC1 and PC2, showing condition and donor. Use R (Rscript is
+        on PATH). Save the figure as `figure.pdf` and `figure.png` in the working directory, and the
+        code you used as `figure.R`. Report only the word done.
+      answer: "done"
+  # rule: stacked bars per sample: palette keyed by label, percent axis, samples in a natural order (fig.wilke)
+  - id: composition
+    train:
+      data: [celltype_counts.tsv]
+      prompt: >-
+        `celltype_counts.tsv` (tab-separated) holds cell counts from Kang et al. 2018 PBMCs (`ctrl`
+        or `stim`, interferon-beta). Columns: `sample` (`<donor>_<condition>`), `replicate` (donor
+        id), `label` (`ctrl` or `stim`), `cell_type` and `n_cells` (cells of that type in the
+        sample). Draw stacked bars of cell-type composition, one bar per sample, each segment the
+        share of that sample's cells in one cell type. Use the ctrl samples only. Use Python. Save
+        the figure as `figure.pdf` and `figure.png` in the working directory, and the code you used
+        as `figure.py`. Report only the word done.
+      answer: "done"
+    valid:
+      data: [celltype_counts.tsv]
+      prompt: >-
+        `celltype_counts.tsv` (tab-separated) holds cell counts from Kang et al. 2018 PBMCs (`ctrl`
+        or `stim`, interferon-beta). Columns: `sample` (`<donor>_<condition>`), `replicate` (donor
+        id), `label` (`ctrl` or `stim`), `cell_type` and `n_cells` (cells of that type in the
+        sample). Draw stacked bars of cell-type composition, one bar per sample, each segment the
+        share of that sample's cells in one cell type. Use the stim samples only. Use Python. Save
+        the figure as `figure.pdf` and `figure.png` in the working directory, and the code you used
+        as `figure.py`. Report only the word done.
+      answer: "done"
+    test:
+      data: [celltype_counts.tsv]
+      prompt: >-
+        `celltype_counts.tsv` (tab-separated) holds cell counts from Kang et al. 2018 PBMCs (`ctrl`
+        or `stim`, interferon-beta). Columns: `sample` (`<donor>_<condition>`), `replicate` (donor
+        id), `label` (`ctrl` or `stim`), `cell_type` and `n_cells` (cells of that type in the
+        sample). Draw stacked bars of cell-type composition, one bar per sample, each segment the
+        share of that sample's cells in one cell type. Use all 16 samples. Use Python. Save the
+        figure as `figure.pdf` and `figure.png` in the working directory, and the code you used as
+        `figure.py`. Report only the word done.
+      answer: "done"
+  # rule: overlapping distributions: alpha on fills, unit on the axis, palette by label (fig.wilke)
+  - id: density
+    train:
+      data: [cell_qc.tsv]
+      prompt: >-
+        `cell_qc.tsv` (tab-separated) holds one row per cell of Kang et al. 2018 PBMCs (`ctrl` or
+        `stim`, interferon-beta). Columns: `cell_type`, `label` (`ctrl` or `stim`), `total_counts`
+        (UMI counts) and `n_genes` (genes detected). Show the distribution of UMI counts per cell in
+        CD4 T cells, B cells, CD14+ Monocytes and NK cells, all in one panel. Use Python. Save the
+        figure as `figure.pdf` and `figure.png` in the working directory, and the code you used as
+        `figure.py`. Report only the word done.
+      answer: "done"
+    valid:
+      data: [cell_qc.tsv]
+      prompt: >-
+        `cell_qc.tsv` (tab-separated) holds one row per cell of Kang et al. 2018 PBMCs (`ctrl` or
+        `stim`, interferon-beta). Columns: `cell_type`, `label` (`ctrl` or `stim`), `total_counts`
+        (UMI counts) and `n_genes` (genes detected). Show the distribution of genes detected per
+        cell in CD8 T cells, NK cells and FCGR3A+ Monocytes, all in one panel. Use Python. Save the
+        figure as `figure.pdf` and `figure.png` in the working directory, and the code you used as
+        `figure.py`. Report only the word done.
+      answer: "done"
+    test:
+      data: [cell_qc.tsv]
+      prompt: >-
+        `cell_qc.tsv` (tab-separated) holds one row per cell of Kang et al. 2018 PBMCs (`ctrl` or
+        `stim`, interferon-beta). Columns: `cell_type`, `label` (`ctrl` or `stim`), `total_counts`
+        (UMI counts) and `n_genes` (genes detected). Show the distribution of genes detected per
+        cell in CD4 T cells, B cells, CD14+ Monocytes and NK cells, all in one panel. Use Python.
+        Save the figure as `figure.pdf` and `figure.png` in the working directory, and the code you
+        used as `figure.py`. Report only the word done.
+      answer: "done"
+  # rule: volcano: dashed cut-off lines at the stated thresholds, no title (fig.text)
+  - id: volcano
+    train:
+      data: [de.tsv]
+      prompt: >-
+        `de.tsv` (tab-separated) holds pseudobulk differential expression, stim vs ctrl, for Kang et
+        al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta), per cell type: a paired t-test across 8
+        donors on log2 CPM of summed counts. Columns: `cell_type`, `gene`, `log2fc` (stim minus
+        ctrl), `se` (standard error of `log2fc`), `pvalue` and `padj` (Benjamini-Hochberg within
+        cell type). Draw a volcano plot for B cells. A gene is significant when padj < 0.05 and
+        |log2fc| > 1; highlight the significant genes. Use Python. Save the figure as `figure.pdf`
+        and `figure.png` in the working directory, and the code you used as `figure.py`. Report only
+        the word done.
+      answer: "done"
+    valid:
+      data: [de.tsv]
+      prompt: >-
+        `de.tsv` (tab-separated) holds pseudobulk differential expression, stim vs ctrl, for Kang et
+        al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta), per cell type: a paired t-test across 8
+        donors on log2 CPM of summed counts. Columns: `cell_type`, `gene`, `log2fc` (stim minus
+        ctrl), `se` (standard error of `log2fc`), `pvalue` and `padj` (Benjamini-Hochberg within
+        cell type). Draw a volcano plot for NK cells. A gene is significant when padj < 0.05 and
+        |log2fc| > 1; highlight the significant genes. Use Python. Save the figure as `figure.pdf`
+        and `figure.png` in the working directory, and the code you used as `figure.py`. Report only
+        the word done.
+      answer: "done"
+    test:
+      data: [de.tsv]
+      prompt: >-
+        `de.tsv` (tab-separated) holds pseudobulk differential expression, stim vs ctrl, for Kang et
+        al. 2018 PBMCs (`ctrl` or `stim`, interferon-beta), per cell type: a paired t-test across 8
+        donors on log2 CPM of summed counts. Columns: `cell_type`, `gene`, `log2fc` (stim minus
+        ctrl), `se` (standard error of `log2fc`), `pvalue` and `padj` (Benjamini-Hochberg within
+        cell type). Draw a volcano plot for CD4 T cells. A gene is significant when padj < 0.05 and
+        |log2fc| > 1; highlight the significant genes. Use Python. Save the figure as `figure.pdf`
+        and `figure.png` in the working directory, and the code you used as `figure.py`. Report only
+        the word done.
+      answer: "done"
+  # rule: dot size maps to area (scale_size_area), legend titles carry units
+  - id: dotplot
+    train:
+      data: [marker_summary.tsv]
+      prompt: >-
+        `marker_summary.tsv` (tab-separated) holds one row per cell type and gene for Kang et al.
+        2018 PBMCs (`ctrl` or `stim`, interferon-beta). Columns: `cell_type`, `gene`, `mean_expr`
+        (mean log1p of counts per 10,000 over the cell type's cells) and `frac_expressing` (fraction
+        of those cells with a count above 0). Draw a dot plot of the genes CD3E, IL7R, CD8A, NKG7,
+        GNLY, MS4A1, CD79A (in that order) across the 8 cell types, with dot size for
+        `frac_expressing` and colour for `mean_expr`. Use Python. Save the figure as `figure.pdf`
+        and `figure.png` in the working directory, and the code you used as `figure.py`. Report only
+        the word done.
+      answer: "done"
+    valid:
+      data: [marker_summary.tsv]
+      prompt: >-
+        `marker_summary.tsv` (tab-separated) holds one row per cell type and gene for Kang et al.
+        2018 PBMCs (`ctrl` or `stim`, interferon-beta). Columns: `cell_type`, `gene`, `mean_expr`
+        (mean log1p of counts per 10,000 over the cell type's cells) and `frac_expressing` (fraction
+        of those cells with a count above 0). Draw a dot plot of the genes CD14, LYZ, FCGR3A, MS4A7,
+        FCER1A, CST3, PPBP, PF4 (in that order) across the 8 cell types, with dot size for
+        `frac_expressing` and colour for `mean_expr`. Use Python. Save the figure as `figure.pdf`
+        and `figure.png` in the working directory, and the code you used as `figure.py`. Report only
+        the word done.
+      answer: "done"
+    test:
+      data: [marker_summary.tsv]
+      prompt: >-
+        `marker_summary.tsv` (tab-separated) holds one row per cell type and gene for Kang et al.
+        2018 PBMCs (`ctrl` or `stim`, interferon-beta). Columns: `cell_type`, `gene`, `mean_expr`
+        (mean log1p of counts per 10,000 over the cell type's cells) and `frac_expressing` (fraction
+        of those cells with a count above 0). Draw a dot plot of the genes CD3E, IL7R, CD8A, NKG7,
+        GNLY, MS4A1, CD79A, CD14, LYZ, FCGR3A, MS4A7, FCER1A, CST3, PPBP (in that order) across the
+        8 cell types, with dot size for `frac_expressing` and colour for `mean_expr`. Use Python.
+        Save the figure as `figure.pdf` and `figure.png` in the working directory, and the code you
+        used as `figure.py`. Report only the word done.
+      answer: "done"
+  # rule: embedding: axes UMAP 1/2, palette by label, rasterised points, equal aspect
+  - id: umap
+    train:
+      data: [pbmc3k_umap.tsv]
+      prompt: >-
+        `pbmc3k_umap.tsv` (tab-separated) holds the 10x PBMC 3k cells as processed in the scanpy
+        tutorial. Columns: `cell` (barcode), `umap_1` and `umap_2` (UMAP coordinates) and
+        `cell_type` (annotated cluster). Plot the CD4 T, CD8 T and NK cells on the UMAP, coloured by
+        cell type. Use Python. Save the figure as `figure.pdf` and `figure.png` in the working
+        directory, and the code you used as `figure.py`. Report only the word done.
+      answer: "done"
+    valid:
+      data: [pbmc3k_umap.tsv]
+      prompt: >-
+        `pbmc3k_umap.tsv` (tab-separated) holds the 10x PBMC 3k cells as processed in the scanpy
+        tutorial. Columns: `cell` (barcode), `umap_1` and `umap_2` (UMAP coordinates) and
+        `cell_type` (annotated cluster). Plot the B cells, CD14+ Monocytes and FCGR3A+ Monocytes on
+        the UMAP, coloured by cell type. Use Python. Save the figure as `figure.pdf` and
+        `figure.png` in the working directory, and the code you used as `figure.py`. Report only the
+        word done.
+      answer: "done"
+    test:
+      data: [pbmc3k_umap.tsv]
+      prompt: >-
+        `pbmc3k_umap.tsv` (tab-separated) holds the 10x PBMC 3k cells as processed in the scanpy
+        tutorial. Columns: `cell` (barcode), `umap_1` and `umap_2` (UMAP coordinates) and
+        `cell_type` (annotated cluster). Plot all cells on the UMAP, coloured by cell type. Use
+        Python. Save the figure as `figure.pdf` and `figure.png` in the working directory, and the
+        code you used as `figure.py`. Report only the word done.
+      answer: "done"
+  # rule: feature plot: sequential colour scale, unit in the legend, rasterised, equal aspect
+  - id: marker_feature
+    train:
+      data: [pbmc3k_markers.tsv]
+      prompt: >-
+        `pbmc3k_markers.tsv` (tab-separated) holds the 10x PBMC 3k cells as processed in the scanpy
+        tutorial. Columns: `cell` (barcode), `umap_1` and `umap_2` (UMAP coordinates), then one
+        column per marker gene (`CD14`, `MS4A1`, `NKG7`, `LYZ`, `CD3E`, `FCGR3A`, `PPBP`) holding
+        log1p of counts per 10,000. Show expression of NKG7 on the UMAP. Use Python. Save the figure
+        as `figure.pdf` and `figure.png` in the working directory, and the code you used as
+        `figure.py`. Report only the word done.
+      answer: "done"
+    valid:
+      data: [pbmc3k_markers.tsv]
+      prompt: >-
+        `pbmc3k_markers.tsv` (tab-separated) holds the 10x PBMC 3k cells as processed in the scanpy
+        tutorial. Columns: `cell` (barcode), `umap_1` and `umap_2` (UMAP coordinates), then one
+        column per marker gene (`CD14`, `MS4A1`, `NKG7`, `LYZ`, `CD3E`, `FCGR3A`, `PPBP`) holding
+        log1p of counts per 10,000. Show expression of MS4A1 on the UMAP. Use Python. Save the
+        figure as `figure.pdf` and `figure.png` in the working directory, and the code you used as
+        `figure.py`. Report only the word done.
+      answer: "done"
+    test:
+      data: [pbmc3k_markers.tsv]
+      prompt: >-
+        `pbmc3k_markers.tsv` (tab-separated) holds the 10x PBMC 3k cells as processed in the scanpy
+        tutorial. Columns: `cell` (barcode), `umap_1` and `umap_2` (UMAP coordinates), then one
+        column per marker gene (`CD14`, `MS4A1`, `NKG7`, `LYZ`, `CD3E`, `FCGR3A`, `PPBP`) holding
+        log1p of counts per 10,000. Show expression of CD14 on the UMAP. Use Python. Save the figure
+        as `figure.pdf` and `figure.png` in the working directory, and the code you used as
+        `figure.py`. Report only the word done.
+      answer: "done"
+  # rule: QC distributions with medians and the named threshold lines, units on axes
+  - id: qc_violin
+    train:
+      data: [qc_metrics.tsv]
+      prompt: >-
+        `qc_metrics.tsv` (tab-separated) holds per-cell QC metrics of three unfiltered 10x PBMC
+        libraries. Columns: `sample` (`pbmc_1k_v3`, `pbmc3k` or `pbmc_10k_v3`), `cell` (barcode),
+        `n_genes` (genes detected), `total_counts` (UMI counts) and `pct_mito` (percent of counts
+        from MT- genes). Show the distribution of genes detected per cell and percent mitochondrial
+        counts per sample, with these QC thresholds marked: genes detected per cell (200 and 2500);
+        percent mitochondrial counts (5). Use Python. Save the figure as `figure.pdf` and
+        `figure.png` in the working directory, and the code you used as `figure.py`. Report only the
+        word done.
+      answer: "done"
+    valid:
+      data: [qc_metrics.tsv]
+      prompt: >-
+        `qc_metrics.tsv` (tab-separated) holds per-cell QC metrics of three unfiltered 10x PBMC
+        libraries. Columns: `sample` (`pbmc_1k_v3`, `pbmc3k` or `pbmc_10k_v3`), `cell` (barcode),
+        `n_genes` (genes detected), `total_counts` (UMI counts) and `pct_mito` (percent of counts
+        from MT- genes). Show the distribution of UMI counts per cell and percent mitochondrial
+        counts per sample, with these QC thresholds marked: UMI counts per cell (500); percent
+        mitochondrial counts (10). Use Python. Save the figure as `figure.pdf` and `figure.png` in
+        the working directory, and the code you used as `figure.py`. Report only the word done.
+      answer: "done"
+    test:
+      data: [qc_metrics.tsv]
+      prompt: >-
+        `qc_metrics.tsv` (tab-separated) holds per-cell QC metrics of three unfiltered 10x PBMC
+        libraries. Columns: `sample` (`pbmc_1k_v3`, `pbmc3k` or `pbmc_10k_v3`), `cell` (barcode),
+        `n_genes` (genes detected), `total_counts` (UMI counts) and `pct_mito` (percent of counts
+        from MT- genes). Show the distribution of genes detected per cell and percent mitochondrial
+        counts per sample, with these QC thresholds marked: genes detected per cell (200 and 5000);
+        percent mitochondrial counts (15). Use Python. Save the figure as `figure.pdf` and
+        `figure.png` in the working directory, and the code you used as `figure.py`. Report only the
+        word done.
+      answer: "done"

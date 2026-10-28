@@ -41,6 +41,7 @@ ARGS = {
     "--n-top": "5",
     "--max-cancor": "0.9",
     "--reference": "synthetic demo genes, no genome build",
+    "--context": "synthetic demo: 12 donors, ctrl vs stim pseudobulk, no real tissue",
     "--seed": "0",
 }
 
@@ -90,7 +91,7 @@ def write_cells(path, cells_per_sample, rin_varies=False):
     """Split each demo sample's counts over its cells; the sums stay exact."""
     import anndata as ad
 
-    counts = pd.read_csv(COUNTS, sep="\t", index_col=0)
+    counts = pd.read_csv(COUNTS, sep="\t", index_col=[0, 1])
     meta = pd.read_csv(META, sep="\t", index_col=0)
     rng = np.random.default_rng(0)
     blocks, obs = [], []
@@ -105,16 +106,18 @@ def write_cells(path, cells_per_sample, rin_varies=False):
     if rin_varies:
         obs["rin"] = np.arange(len(obs), dtype=float)
     obs.index = [f"cell{i:04d}" for i in range(len(obs))]
+    ids, symbols = zip(*counts.index, strict=True)
     adata = ad.AnnData(
         X=np.vstack(blocks).astype(np.float32),
         obs=obs,
-        var=pd.DataFrame(index=counts.index),
+        var=pd.DataFrame({"gene_ids": ids}, index=list(symbols)),
     )
     adata.write_h5ad(path)
     return path
 
 
 ADATA_ARGS = {
+    "--gene-id-col": "gene_ids",
     "--sample-col": "sample",
     "--donor-col": "donor",
     "--min-cells": "3",
@@ -147,11 +150,50 @@ def test_demo_golden_values(demo_out):
         assert set(result["top_genes"][term]) <= planted, term
     assert result["seed"] == 0 and result["n_donors"] is None
     assert result["reference"] == "synthetic demo genes, no genome build"
-    assert 2 <= len(result["chat_summary_lines"]) <= 3
+    assert 3 <= len(result["chat_summary_lines"]) <= 4  # Context line first
     fractions = pd.read_csv(demo_out / "tables" / "variance_fractions.tsv", sep="\t")
-    assert list(fractions.columns) == ["gene", "donor", "condition", "rin", "Residuals"]
-    total = fractions.drop(columns="gene").sum(axis=1)
+    assert list(fractions.columns) == [
+        "gene_symbol",
+        "gene_id",
+        "donor",
+        "condition",
+        "rin",
+        "Residuals",
+        "status",
+    ]
+    total = fractions[["donor", "condition", "rin", "Residuals"]].sum(axis=1)
     assert np.allclose(total, 1)
+
+
+def test_biology_core_fields(demo_out):
+    result = json.loads((demo_out / "result.json").read_text())
+    assert result["context"] == ARGS["--context"]
+    assert result["chat_summary_lines"][0].startswith("Context: ")
+    assert result["status_counts"] == {"tested": 120}
+    assert "gene_id_col" not in result
+    fractions = pd.read_csv(demo_out / "tables" / "variance_fractions.tsv", sep="\t")
+    g000 = fractions.loc[fractions["gene_symbol"] == "G000", "gene_id"]
+    assert g000.tolist() == ["ENSG90000000000.1"]
+
+
+@needs_r
+def test_untested_genes_keep_rows(tmp_path):
+    """Two silent genes: not_detected rows with NA fractions, out of the figures."""
+    counts = pd.read_csv(COUNTS, sep="\t", index_col=[0, 1])
+    counts.iloc[:2] = 0
+    counts.to_csv(tmp_path / "silent.tsv", sep="\t")
+    completed = run_with(tmp_path, counts=str(tmp_path / "silent.tsv"))
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads((tmp_path / "out" / "result.json").read_text())
+    assert result["status_counts"] == {"tested": 118, "not_detected": 2}
+    assert result["n_genes"] == 118
+    out = tmp_path / "out"
+    fractions = pd.read_csv(out / "tables" / "variance_fractions.tsv", sep="\t")
+    silent = fractions[fractions["status"] == "not_detected"]
+    assert silent["gene_symbol"].tolist() == ["G000", "G001"]
+    assert silent["donor"].isna().all()
+    violin = pd.read_csv(out / "figures" / "variance_violin.csv")
+    assert not violin["gene"].isin(["G000", "G001"]).any()
 
 
 def test_output_contract(demo_out):
@@ -185,6 +227,20 @@ def test_adata_input_matches_counts(tmp_path, demo_out):
     got = pd.read_csv(tmp_path / "out" / "tables" / "variance_fractions.tsv", sep="\t")
     want = pd.read_csv(demo_out / "tables" / "variance_fractions.tsv", sep="\t")
     pd.testing.assert_frame_equal(got, want, rtol=1e-6)
+    assert result["gene_id_col"] == "gene_ids"
+
+
+@needs_r
+def test_adata_gene_id_col_none(tmp_path):
+    adata = write_cells(tmp_path / "cells.h5ad", {})
+    completed = run_with(
+        tmp_path, args=ADATA_ARGS, adata=str(adata), gene_id_col="none"
+    )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads((tmp_path / "out" / "result.json").read_text())
+    assert result["gene_id_col"] == "none"
+    got = pd.read_csv(tmp_path / "out" / "tables" / "variance_fractions.tsv", sep="\t")
+    assert got["gene_id"].isna().all()
 
 
 @needs_r
@@ -198,16 +254,19 @@ def test_collinear(tmp_path):
     assert not (tmp_path / "out").exists()
 
 
-def test_missing_argument_fails_without_demo(tmp_path):
+@pytest.mark.parametrize("arg", ["--seed", "--context"])
+def test_missing_argument_fails_without_demo(tmp_path, arg):
     assert is_error(
-        run_with(tmp_path, drop=["--seed"]), "missing required arguments: --seed"
+        run_with(tmp_path, drop=[arg]), f"missing required arguments: {arg}"
     )
 
 
 def test_missing_adata_arguments(tmp_path):
     completed = run_with(tmp_path, drop=["--counts", "--meta"], adata="x.h5ad")
     assert is_error(
-        completed, "missing required arguments: --sample-col --donor-col --min-cells"
+        completed,
+        "missing required arguments: --gene-id-col --sample-col --donor-col "
+        "--min-cells",
     )
 
 
@@ -234,7 +293,7 @@ def test_input_errors(tmp_path, changes, message):
 
 
 def test_bad_counts(tmp_path):
-    counts = pd.read_csv(COUNTS, sep="\t", index_col=0) * 0.5
+    counts = pd.read_csv(COUNTS, sep="\t", index_col=[0, 1]) * 0.5
     counts.to_csv(tmp_path / "half.tsv", sep="\t")
     completed = run_with(tmp_path, counts=str(tmp_path / "half.tsv"))
     assert is_error(completed, f"counts in {tmp_path / 'half.tsv'} must be")
@@ -242,7 +301,7 @@ def test_bad_counts(tmp_path):
 
 def test_no_genes(tmp_path):
     """One silent sample: no gene is detected in every sample."""
-    counts = pd.read_csv(COUNTS, sep="\t", index_col=0)
+    counts = pd.read_csv(COUNTS, sep="\t", index_col=[0, 1])
     counts.iloc[:, 0] = 0
     counts.to_csv(tmp_path / "zero.tsv", sep="\t")
     completed = run_with(tmp_path, counts=str(tmp_path / "zero.tsv"), min_frac="1")
@@ -250,7 +309,7 @@ def test_no_genes(tmp_path):
 
 
 def test_too_few_count_samples(tmp_path):
-    counts = pd.read_csv(COUNTS, sep="\t", index_col=0).iloc[:, :2]
+    counts = pd.read_csv(COUNTS, sep="\t", index_col=[0, 1]).iloc[:, :2]
     meta = pd.read_csv(META, sep="\t").iloc[:2]
     counts.to_csv(tmp_path / "c.tsv", sep="\t")
     meta.to_csv(tmp_path / "m.tsv", sep="\t", index=False)
@@ -261,17 +320,47 @@ def test_too_few_count_samples(tmp_path):
 
 
 def test_duplicate_ids(tmp_path):
-    counts = pd.read_csv(COUNTS, sep="\t", index_col=0)
+    counts = pd.read_csv(COUNTS, sep="\t", index_col=[0, 1])
     dup_gene = pd.concat([counts, counts.head(1)])
     dup_gene.to_csv(tmp_path / "g.tsv", sep="\t")
     completed = run_with(tmp_path, counts=str(tmp_path / "g.tsv"))
-    assert is_error(completed, "duplicate gene names: G000")
+    assert is_error(completed, "duplicate gene ids: ENSG90000000000.1")
     lines = (COUNTS.read_text()).splitlines()
     header = lines[0].split("\t")
-    header[2] = header[1]
+    header[3] = header[2]
     (tmp_path / "s.tsv").write_text("\n".join(["\t".join(header), *lines[1:]]) + "\n")
     completed = run_with(tmp_path, counts=str(tmp_path / "s.tsv"))
-    assert is_error(completed, f"duplicate sample ids: {header[1]}")
+    assert is_error(completed, f"duplicate sample ids: {header[2]}")
+
+
+def test_ambiguous_gene_ids(tmp_path):
+    counts = pd.read_csv(COUNTS, sep="\t")
+    counts.loc[1, "gene_symbol"] = "G000"
+    counts.to_csv(tmp_path / "a.tsv", sep="\t", index=False)
+    completed = run_with(tmp_path, counts=str(tmp_path / "a.tsv"))
+    assert is_error(
+        completed,
+        "1 gene symbol(s) map to several gene ids: "
+        "G000 -> ENSG90000000000.1, ENSG90000000001.1",
+    )
+
+
+def test_counts_without_ids_need_unique_symbols(tmp_path):
+    """An empty gene_id column means no ids: symbols alone must be unique."""
+    counts = pd.read_csv(COUNTS, sep="\t").assign(gene_id="")
+    counts.loc[1, "gene_symbol"] = "G000"
+    counts.to_csv(tmp_path / "n.tsv", sep="\t", index=False)
+    completed = run_with(tmp_path, counts=str(tmp_path / "n.tsv"))
+    assert is_error(completed, "duplicate gene symbols: G000")
+
+
+def test_counts_need_id_columns(tmp_path):
+    counts = pd.read_csv(COUNTS, sep="\t").drop(columns="gene_id")
+    counts.to_csv(tmp_path / "c.tsv", sep="\t", index=False)
+    completed = run_with(tmp_path, counts=str(tmp_path / "c.tsv"))
+    assert is_error(
+        completed, "--counts must start with gene_id and gene_symbol columns"
+    )
 
 
 def test_rank_deficient(tmp_path):
@@ -306,6 +395,7 @@ def test_adata_errors(tmp_path):
     cases = [
         ({"layer": "counts"}, "layer not found in the h5ad: counts"),
         ({"min_cells": "5"}, "0 samples left after --min-cells 5; need at least 3"),
+        ({"gene_id_col": "gene_id"}, "gene id column not found in var: gene_id"),
     ]
     for i, (changes, message) in enumerate(cases):
         sub = tmp_path / str(i)

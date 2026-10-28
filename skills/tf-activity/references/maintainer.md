@@ -9,7 +9,7 @@ Reference skills checked against (`docs/pipeline-skills.md`): `decoupler`
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
-row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`. The corpus
+row IDs from `docs/clawbio-determinism/parts/*.md`. The corpus
 uses decoupler 1.x names; the 2.x calls here are `dc.op.collectri`,
 `dc.op.progeny`, `dc.mt.ulm`, `dc.mt.mlm`, `dc.pp.get_obsm` and
 `dc.tl.rankby_group`.
@@ -25,7 +25,7 @@ uses decoupler 1.x names; the 2.x calls here are `dc.op.collectri`,
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|
@@ -61,9 +61,23 @@ From `skills/tf-activity`:
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with "decoupler>=2",matplotlib,pytest \
+  uv run --python 3.12 --with "decoupler>=2",matplotlib,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
+
+## Biology-core checks (2026-10-28)
+
+- Context: applied; required `--context`, first in the report and
+  `chat_summary_lines`.
+- Status column: applied to `activity.tsv`; the features are network sources,
+  and sources under `--tmin` are `not_tested` rows with NA statistics
+  (`skillkit.with_status`); `status_counts` in `result.json`.
+- Gene ids: not applied. The output tables are keyed by source, not by gene,
+  and genes join the network by symbol (the network's `target` names), so an
+  Ensembl id would join nothing.
+- Compatible inputs: not applied; one data input per run.
+- Claim wording: summary lines say "inferred activity"; a gotcha bars "drives",
+  "causes" and "regulates".
 
 ## Fixed plot spec
 

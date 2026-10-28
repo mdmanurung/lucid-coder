@@ -7,7 +7,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`
 (`FB` = `repos_new/skin_fibroblast_atlas`); row IDs from
-`mycelium-extra/plans/clawbio-determinism/parts/A_skin.md:37,38,68`.
+`docs/clawbio-determinism/parts/A_skin.md:37,38,68`.
 
 - A-an-29, scVelo merge, moments, velocity, velocity pseudotime:
   `FB/integration/prep_velocity_a.ipynb:922,1342,1429,1439`;
@@ -26,7 +26,7 @@ Checked against the installed reference skill `cellrank`
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|
@@ -53,7 +53,7 @@ From `skills/velocity`:
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with 'scvelo,cellrank,numpy<2.4,pandas<3,pytest' \
+  uv run --python 3.12 --with 'scvelo,cellrank,numpy<2.4,pandas<3,plotnine-extra,pytest' \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
@@ -115,3 +115,19 @@ of `templates/`; a test fails when they drift.
 - Bergen et al. (2020). scVelo. Nature Biotechnology 38:1408-1414.
 - Weiler et al. (2024). CellRank 2. Nature Methods 21:1196-1205.
 - La Manno et al. (2018). RNA velocity of single cells. Nature 560:494-498.
+
+## Biology-core checks (2026-10-28)
+
+- Applied: required `--context` (first `chat_summary_lines` entry, report
+  header); `status` on `velocity_genes.tsv` via `skillkit.with_status`
+  (`tested` = HVG subset fit by scVelo, `not_detected` = zero spliced and
+  unspliced counts, `not_tested` = filtered), counted in `status_counts`;
+  required `--gene-id-col` with `gene_id` beside `gene_symbol`
+  (`check_gene_ids` in step 1); fate caption and summary say "predicted".
+- Not applied: `check_compatible` (one input). Per-cell tables
+  (`velocity_pseudotime.tsv`, `fate_probabilities.tsv`) and the per-group
+  `fate_by_group.tsv` get no status column: they are not per-feature.
+- A symbol with two ids cannot reach `check_gene_ids` here: unique
+  `var_names` are checked first, so the ambiguity test duplicates an id.
+- `examples/make_demo.py` adds `var["gene_ids"]` (`ENSG9<10 digits>.1`); the
+  regenerated file matched the old X, layers, obs and `X_umap` exactly.

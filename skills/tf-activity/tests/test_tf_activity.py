@@ -28,6 +28,7 @@ COMMON = {
     "--tmin": "5",
     "--n-top": "2",
     "--reference": "synthetic demo genes, no genome build",
+    "--context": "synthetic demo",
     "--seed": "0",
 }
 ARGS = {
@@ -128,6 +129,7 @@ def test_demo_golden_values(demo_out):
     assert (res["n_matched"], res["n_in_resource"]) == (93, 99)
     assert res["reference"] == "synthetic demo genes, no genome build"
     table = pd.read_csv(demo_out / "tables" / "activity.tsv", sep="\t")
+    table = table[table["status"] == "tested"]
     assert len(table) == 18 and set(table["n_targets"]) == {15}
     hits = table[(table["padj"] < 0.05) & (table["stat"] > 0)]
     assert sorted(zip(hits["source"], hits["group"], strict=True)) == [
@@ -136,6 +138,23 @@ def test_demo_golden_values(demo_out):
     ]
     dropped = pd.read_csv(demo_out / "tables" / "sources_dropped.tsv", sep="\t")
     assert dropped.to_dict("list") == {"source": ["TF7", "TF8"], "n_targets": [3, 0]}
+
+
+@pytest.mark.parametrize("mode", ["cells", "contrast"])
+def test_status_rows_for_dropped_sources(demo_out, contrast_out, mode):
+    out = demo_out if mode == "cells" else contrast_out
+    table = pd.read_csv(out / "tables" / "activity.tsv", sep="\t")
+    untested = table[table["status"] == "not_tested"]
+    assert untested["source"].tolist() == ["TF7", "TF8"]
+    assert untested[["score", "pvalue", "padj"]].isna().all().all()
+    assert result(out)["status_counts"] == {"not_tested": 2, "tested": 6}
+
+
+def test_context_leads_summary(demo_out):
+    res = result(demo_out)
+    assert res["context"].startswith("synthetic demo")
+    assert res["chat_summary_lines"][0].startswith("Context: ")
+    assert "Context: synthetic demo" in (demo_out / "report.md").read_text()
 
 
 def test_activity_sorted_by_group_then_stat(demo_out):
@@ -152,6 +171,7 @@ def test_contrast_golden_values(contrast_out):
     assert (res["n_genes"], res["n_sources_scored"]) == (300, 6)
     assert (res["n_matched"], res["n_in_resource"]) == (93, 99)
     table = pd.read_csv(contrast_out / "tables" / "activity.tsv", sep="\t")
+    table = table[table["status"] == "tested"]
     assert table["score"].is_monotonic_decreasing
     assert table["source"].iloc[[0, -1]].tolist() == ["TF1", "TF2"]
 
@@ -162,6 +182,7 @@ def test_contrast_padj_is_bh_of_pvalue(tmp_path, method):
     completed = run_with(tmp_path, "contrast", method=method)
     assert completed.returncode == 0, completed.stderr
     table = pd.read_csv(tmp_path / "out" / "tables" / "activity.tsv", sep="\t")
+    table = table[table["status"] == "tested"]
     bh = stats.false_discovery_control(table["pvalue"], method="bh")
     np.testing.assert_allclose(table["padj"], bh, rtol=1e-5)
     assert set(result(tmp_path / "out")["top_sources"]) == {"TF1", "TF2"}
@@ -192,9 +213,10 @@ def test_output_contract(demo_out, contrast_out, mode):
     assert "--seed 0" in (out / "reproducibility" / "commands.sh").read_text()
 
 
-def test_missing_argument_fails_without_demo(tmp_path):
-    completed = run_with(tmp_path, drop=["--tmin"])
-    assert is_error(completed, "missing required arguments: --tmin")
+@pytest.mark.parametrize("arg", ["--tmin", "--context"])
+def test_missing_argument_fails_without_demo(tmp_path, arg):
+    completed = run_with(tmp_path, drop=[arg])
+    assert is_error(completed, f"missing required arguments: {arg}")
 
 
 def test_demo_conflict(tmp_path):

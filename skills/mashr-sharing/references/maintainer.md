@@ -22,7 +22,7 @@ of `templates/`; a test fails when they drift.
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
-row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`.
+row IDs from `docs/clawbio-determinism/parts/*.md`.
 
 | ID | What | Source |
 |---|---|---|
@@ -40,7 +40,7 @@ does not fit.
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|
@@ -60,6 +60,18 @@ IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 F-03 (demo when no input) is replaced on purpose: the demo runs only when the
 user asks for it.
+
+## Biology-core checks (2026-10-28)
+
+All five apply. `--context` is required. `posterior.tsv` gains `status` via
+`skillkit.with_status`: genes `--align intersect` drops stay as `not_tested`
+rows; a gene a table never held gets no row there. `--gene-col` is gone: tables
+need `gene_id` and `gene_symbol`, `check_gene_ids` runs on the union id map, and
+an all-NA `gene_id` (pseudobulk-de `--gene-id-col none`) joins on symbols.
+`check_compatible` replaces the old `no_genes` error and adds `n_shared_ids`.
+The demo tables gained made-up `ENSG9...` ids from `examples/make_demo.py`; the
+numeric columns are byte-identical, so the goldens hold. Ceiling: one id with
+different symbols in two tables keeps the first table's symbol.
 
 ## Running and testing
 
@@ -83,7 +95,7 @@ without Rscript):
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with numpy,pandas,scipy,matplotlib,pytest \
+  uv run --python 3.12 --with numpy,pandas,scipy,matplotlib,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 

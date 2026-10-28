@@ -22,6 +22,10 @@ metadata:
     - kNN graph
     - SpatialFDR
   inputs:
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
     - name: adata
       type: file
       format:
@@ -56,6 +60,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
       - threadpoolctl
   demo_data:
     - path: examples/demo.h5ad
@@ -103,6 +108,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | Argument | Grill question | Demo-only value |
 |---|---|---|
 | `--adata` | Which embedded h5ad holds the cells and graph? | `examples/demo.h5ad` |
+| `--context` | Species, tissue or cell type, condition and dataset? | `synthetic demo: 6 samples, condition B vs A, 4 Gaussian-blob cell types, no real tissue` |
 | `--sample-col` | Which obs column is the replicate (sample, donor)? | `sample` |
 | `--donor-col` | Which obs column is the donor? A donor with several samples needs it in `--design`. | `donor` |
 | `--design` | Which design formula, with the test variable last (`~batch + condition`)? | `~condition` |
@@ -155,7 +161,7 @@ over all CPUs; each neighbourhood is fitted alone, so results do not change.
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_cells, n_samples, n_donors, n_nhoods, n_significant, n_up, n_down, dominant_annotation, significant_by_annotation, graph_rebuilt, solver, seed, params, chat_summary_lines, preferred_artifacts
+├── result.json                # n_cells, n_samples, n_donors, n_nhoods, n_significant, n_up, n_down, dominant_annotation, significant_by_annotation, graph_rebuilt, solver, seed, params, context, chat_summary_lines (first: "Context: ..."), preferred_artifacts
 ├── data/
 │   └── milo.h5mu              # "rna": cells, obsm nhoods, obs nhood_ixs_*; "milo": samples x nhoods counts, var logFC, PValue, SpatialFDR, nhood_annotation(_frac), Nhood_size
 ├── tables/
@@ -196,6 +202,10 @@ outdir/
   normalised per sample, so one population's expansion pushes others down. The
   report names the contrast direction; an absolute change needs cell counts
   per volume.
+- **The model will want to say the contrast drives cells into a state** or that
+  a neighbourhood's shift causes the phenotype. Do not. A DA neighbourhood is a
+  relative abundance associated with the contrast; a mechanism needs a
+  perturbation (house-style `claims.strength`).
 - **The model will want to loosen `--spatial-fdr-max`** or switch to raw
   PValue when nothing is significant. Do not. The cutoff is the user's call;
   report zero hits as zero.

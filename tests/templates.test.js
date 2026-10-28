@@ -91,7 +91,7 @@ test('R example runs into a new run dir', { timeout: rTimeout }, (t) => {
 });
 
 const uvTimeout = 600000; // first call downloads a Python and the wheels
-const uvPython = ['run', '--python', '3.12', '--with', 'matplotlib,pandas,scipy', 'python'];
+const uvPython = ['run', '--python', '3.12', '--with', 'plotnine-extra,pandas,scipy', 'python'];
 
 test('palettes.py self-check passes', { timeout: uvTimeout }, (t) => {
   if (!has('uv')) return t.skip('uv not installed');

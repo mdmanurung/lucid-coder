@@ -35,6 +35,14 @@ metadata:
         - tsv
       description: long table, one value per feature and sample (lm mode)
       required: false
+    - name: gene_id_col
+      type: string
+      description: var column of Ensembl gene ids, or none (mast mode)
+      required: false
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
   outputs:
     - name: report
       type: file
@@ -54,6 +62,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
     r:
       - MAST
       - lme4
@@ -108,13 +117,17 @@ the user wants cluster markers (`sc-markers`); the test has no covariates
 | Input | Format | Required content | Example |
 |---|---|---|---|
 | `--adata` (mast) | `.h5ad` | log-normalised expression (`normalize_total` + `log1p`, or log2) in `X` or `--layer`; non-negative, not all integers | `examples/demo.h5ad` |
+| `--gene-id-col` (mast) | var column | Ensembl gene ids (versioned as the source gives them); `var_names` are the symbols | `gene_ids`; `none` when the source has no ids |
 | cell `obs` (mast) | columns | `--cell-type-col`, `--donor-col`, every `--formula` column | `cell_type`, `donor`, `condition` |
 | `--input` (lm) | TSV, long | columns `sample`, `feature`, `value` (numeric) and every `--formula` column | `examples/demo_npx.tsv` |
 
 Raw counts and scaled (negative) data are refused. A categorical column must
 hold non-numeric labels; a numeric column enters as a continuous covariate.
 In lm mode a row with a missing value is dropped and counted; one row per
-(feature, sample).
+(feature, sample). Mast: each symbol must map to one gene id
+(`skillkit.check_gene_ids`, house-style `data.ids`), checked before anything
+else; `--gene-id-col none` writes `gene_id` as NA, never a guessed id. Lm
+features are proteins or assays named by the input, so lm takes no gene ids.
 
 ## Parameters (all required, no defaults)
 
@@ -128,8 +141,10 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--padj-max` | Which BH-adjusted p cutoff marks a feature significant? | `0.05` |
 | `--lfc-min` | Which absolute effect (log2FC, or NPX for lm) must a significant feature exceed? | `0.5` |
 | `--seed` | Which seed fixes downsampling and plot jitter? | `0` |
+| `--context` | Species, tissue or cell type, condition and dataset? Printed first in the report and summary. | `synthetic demo: 6 donors, ctrl vs stim T cells, no real tissue` / `synthetic demo: 40 samples, disease vs healthy NPX, no real cohort` |
 | `--reference` | Which genome build and annotation release name the features, e.g. `GRCh38, GENCODE 44` (or the Olink panel version)? Recorded in `result.json`; never guessed. | `synthetic demo, no genome` |
 | `--adata` (mast) | Which h5ad holds the cells? | `examples/demo.h5ad` |
+| `--gene-id-col` (mast) | Which var column holds the Ensembl gene ids (or `none` if the source has none)? | `gene_ids` |
 | `--layer` (mast, optional) | Which layer holds the log-normalised values? Absent means `X`. | absent |
 | `--log-base` (mast) | Is the expression natural log (`e`, scanpy `log1p`) or `2`? | `e` |
 | `--cell-type-col`, `--cell-type` (mast) | Which obs column and which cell type? | `cell_type`, `T` |
@@ -164,8 +179,8 @@ values; `--demo --mode lm` pins the lm values. Beside `--demo` only `--mode` and
    (discrete + continuous) likelihood-ratio test, log2_fc and se come from
    `getLogFC`. Lm: `lm(value ~ formula)` per feature; estimate, se, t and p of
    the term coefficient. A factor term is relevelled so the reference is the
-   given one. An unestimable term gives NA. Before the fit, gene names and
-   cell ids must be unique (mast), and `skillkit.check_design_rank` runs on the
+   given one. An unestimable term gives NA. Before the fit, cell ids must be
+   unique and each gene symbol must map to one gene id (mast), and `skillkit.check_design_rank` runs on the
    fixed-effect columns of the fitted rows (the formula without `(1|x)`, plus
    `cngeneson`); an aliased design stops the run.
 7. **Adjust**: BH across the features with a p-value; NA stays NA.
@@ -181,14 +196,18 @@ dependency.
 
 ## Output structure
 
-`de_results.tsv` has one row per tested feature: mast `feature, log2_fc, se,
-stat, pvalue, padj, significant`; lm `feature, estimate, se, stat, pvalue, padj,
-significant`. Sorted by padj, then feature, NA last.
+`de_results.tsv` has one row per input feature: mast `gene_symbol,
+gene_id, log2_fc, se, stat, pvalue, padj, significant, status`; lm
+`feature, estimate, se, stat, pvalue, padj, significant, status`. Sorted by padj,
+then feature, NA last. `status` (house-style `data.status`) is `tested` for a
+feature with a p-value; an untested feature keeps NA statistics and says why:
+`not_detected` (mast: zero in every kept cell), `not_tested` (mast: under
+`--min-frac`; lm: every row dropped or the term not estimable).
 
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # mode, formula_fitted, n_cells + n_donors (mast) or n_samples (lm), dropped_by_level (lm rows lost to a missing value, per term level), reference, n_features, n_tested, n_significant, significant_features, params, seed, chat_summary_lines, preferred_artifacts
+├── result.json                # mode, formula_fitted, n_cells + n_donors (mast) or n_samples (lm), dropped_by_level (lm rows lost to a missing value, per term level), context, reference, n_features, n_tested, status_counts, gene_id_col (mast), n_significant, significant_features, params, seed, chat_summary_lines, preferred_artifacts
 ├── tables/
 │   └── de_results.tsv
 ├── figures/
@@ -237,6 +256,10 @@ is blue, the other red, jitter ±0.2 box widths with `--seed`. `skillkit.py`,
 - **The model will want to read an lm coefficient as causal** or omit a
   covariate the user named. Do not. The estimate is adjusted only for the
   formula's covariates.
+- **The model will want to say the condition "drives" or "regulates" a
+  significant gene.** Do not. A DE call says the gene's expression is associated
+  with the term in this design; without a perturbation it is not a mechanism
+  (house-style `claims.strength`).
 
 ## Maintainer notes
 

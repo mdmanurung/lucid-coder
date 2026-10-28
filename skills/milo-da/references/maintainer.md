@@ -6,7 +6,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`.
-Row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`.
+Row IDs from `docs/clawbio-determinism/parts/*.md`.
 
 | Row | Step | Source |
 |---|---|---|
@@ -30,7 +30,7 @@ agree with them:
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|
@@ -57,7 +57,7 @@ From `skills/milo-da`:
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with pertpy,pydeseq2,pytest \
+  uv run --python 3.12 --with pertpy,pydeseq2,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
@@ -124,3 +124,11 @@ of `templates/`; a test fails when they drift.
 - Heumos et al. (2025). Pertpy: an end-to-end framework for perturbation
   analysis. Nature Methods.
 - Muzellec et al. (2023). PyDESeq2. Bioinformatics 39:btad547.
+
+## Biology-core checks (2026-10-28)
+
+- `--context` is required and opens the report and `chat_summary_lines`.
+- A gotcha keeps claims at "associated with" (house-style `claims.strength`).
+- No `status` column: neighbourhoods are built by the run, not input features,
+  and pertpy tests every one. Gene ids and `check_compatible` do not apply: no gene tables,
+  one input.

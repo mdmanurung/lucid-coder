@@ -65,7 +65,7 @@ test fails when they drift.
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`.
-Row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`.
+Row IDs from `docs/clawbio-determinism/parts/*.md`.
 
 | Row | Procedure | Source |
 |---|---|---|
@@ -86,7 +86,7 @@ Row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`.
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|
@@ -107,13 +107,22 @@ IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
 F-03 (demo when no input) is replaced on purpose: the demo runs only when the
 user asks for it.
 
+## Biology-core checks (2026-10-28)
+
+Applied: required `--context` (report, `result.json`, first chat line) and a
+claim-wording gotcha (house-style `claims.strength`). Not applied: the `status`
+column, because `tests.tsv` already keeps every feature and an untested one keeps
+its `n` and medians with an NA p-value, which `with_status` would drop; gene ids,
+because features are generic (frequencies, scores, NPX); compatible inputs,
+because the skill reads one table.
+
 ## Running and testing
 
 From `skills/group-tests`:
 
 ```bash
 UV_CACHE_DIR=/tmp/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with numpy,pandas,scipy,matplotlib,pytest \
+  uv run --python 3.12 --with numpy,pandas,scipy,matplotlib,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 

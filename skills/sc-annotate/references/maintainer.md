@@ -6,7 +6,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`
-(row IDs from `mycelium-extra/plans/clawbio-determinism/CATALOGUE.md` and `parts/*.md`):
+(row IDs from `docs/clawbio-determinism/CATALOGUE.md` and `parts/*.md`):
 
 - B-an-03, C-an-07, D-an-01: CellTypist after `normalize_total(target_sum=1e4)`
   + `log1p`, `majority_voting=True` (AIFI) or off (reflex):
@@ -37,7 +37,7 @@ a CellTypist model); `S/azimuth-pbmc-markers` (Azimuth PBMC L1-L3 markers, for
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|
@@ -61,11 +61,13 @@ user asks for it.
 ## Running and testing
 
 CellTypist 1.7.1 passes `multi_class` to scikit-learn's `LogisticRegression`,
-which scikit-learn 1.8 removed; pin `scikit-learn<1.8`. From `skills/sc-annotate`:
+which scikit-learn 1.8 removed; pin `scikit-learn<1.8`. pynndescent 0.7.0 breaks
+`sc.tl.ingest` (`TypeError` in `make_forest`); pin `pynndescent<0.7`. From
+`skills/sc-annotate`:
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with celltypist,scanpy,"scikit-learn<1.8",pytest \
+  uv run --python 3.12 --with celltypist,scanpy,"scikit-learn<1.8","pynndescent<0.7",plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
@@ -138,3 +140,13 @@ of `templates/`; a test fails when they drift.
 
 - Domínguez Conde et al. (2022). CellTypist. Science 376:eabl5197.
 - Wolf, Angerer, Theis (2018). SCANPY. Genome Biology 19:15.
+
+## Biology-core checks (2026-10-28)
+
+- `--context` is required and opens the report and `chat_summary_lines`.
+- A gotcha keeps transferred labels at "predicted" (house-style
+  `claims.strength`); the report lines and captions had no causal wording.
+- The status column and gene ids do not apply: `labels.tsv` and
+  `label_by_cluster.tsv` are keyed by cell and cluster. The marker gene x label
+  frame is only a figure source, and every marker is present by construction
+  (an absent one stops the run with `marker genes not in the query`).

@@ -15,16 +15,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scanpy as sc
-from matplotlib.transforms import offset_copy
 from plots import plot_dotplot, plot_heatmap
 from scipy import sparse
 from skillkit import (
+    check_gene_ids,
     check_unique,
     fail,
     make_outdir,
     parse_required,
     run,
     seed_everything,
+    with_status,
     write_report,
     write_reproducibility,
     write_result,
@@ -36,6 +37,7 @@ SKILL_DIR = Path(__file__).resolve().parents[1]
 REQUIRED = [
     "adata",
     "groupby",
+    "gene_id_col",
     "method",
     "padj_max",
     "lfc_min",
@@ -43,13 +45,15 @@ REQUIRED = [
     "n_top",
     "limit",
     "reference",
+    "context",
     "seed",
 ]
-KEYS = [*REQUIRED[:2], "layer", *REQUIRED[2:]]
+KEYS = [*REQUIRED[:3], "layer", *REQUIRED[3:]]
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
     "adata": str(SKILL_DIR / "examples" / "demo.h5ad"),
     "groupby": "cluster",
+    "gene_id_col": "gene_ids",
     "layer": None,
     "method": "wilcoxon",
     "padj_max": 0.05,
@@ -58,6 +62,7 @@ DEMO = {
     "n_top": 5,
     "limit": 2.0,
     "reference": "synthetic demo genes, no genome build",
+    "context": "synthetic demo: 3 clusters x 50 cells, no real tissue",
     "seed": 0,
     "outdir": "sc_markers_demo",
 }
@@ -67,6 +72,7 @@ ERRORS = {
     "missing_file": "input file not found: {path}",
     "missing_layer": "layer not found in the h5ad: {layer}",
     "missing_column": "obs column not found: {col}",
+    "missing_gene_id_col": "gene id column not found in var: {col}",
     "not_lognorm": "{source} does not look log-normalised: {why}",
     "few_groups": "--groupby {col} needs at least 2 groups, found {n}",
     "small_group": "groups with fewer than 2 cells in {col}: {groups}",
@@ -75,7 +81,7 @@ ERRORS = {
 
 MARKER_COLUMNS = {
     "group": "group",
-    "names": "gene",
+    "names": "gene_symbol",
     "scores": "score",
     "logfoldchanges": "logfc",
     "pvals": "pval",
@@ -86,6 +92,7 @@ MARKER_COLUMNS = {
 # Fixed plot spec, not a grill question: the dot plot widens 4 mm per gene, so a
 # 4 mm dot at 100% expressing fills its column without touching the next one.
 DOT_MAX_SIZE = 4
+MARKER_COLUMNS_STATS = list(MARKER_COLUMNS.values())[2:]
 MEAN_LABEL = "mean log-normalised expression"
 FRAC_LABEL = "fraction expressing"
 Z_LABEL = "z-score of group mean"
@@ -95,6 +102,7 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--adata")
     parser.add_argument("--groupby")
+    parser.add_argument("--gene-id-col")
     parser.add_argument("--layer")
     parser.add_argument("--method", choices=["wilcoxon", "t-test"])
     parser.add_argument("--padj-max", type=float)
@@ -103,6 +111,7 @@ def parse_args(argv):
     parser.add_argument("--n-top", type=int)
     parser.add_argument("--limit", type=float)
     parser.add_argument("--reference")
+    parser.add_argument("--context")
     parser.add_argument("--seed", type=int)
     p = parse_required(parser, REQUIRED, DEMO, argv, optional=["layer"])
     rules = [
@@ -120,12 +129,18 @@ def parse_args(argv):
 
 
 def load(p):
-    """Step 1: read the h5ad, check the matrix is log-normalised and the groups."""
+    """Step 1: read the h5ad, check ids, the log-normalised matrix and the groups."""
     path = Path(p["adata"])
     if not path.is_file():
         fail(ERRORS, "missing_file", path=path)
     adata = ad.read_h5ad(path)
-    check_unique(adata.var_names, "gene names")
+    # var_names are the symbols; --gene-id-col none: the source has no gene ids.
+    ids = None
+    if p["gene_id_col"] != "none":
+        if p["gene_id_col"] not in adata.var.columns:
+            fail(ERRORS, "missing_gene_id_col", col=p["gene_id_col"])
+        ids = adata.var[p["gene_id_col"]].astype(str).tolist()
+    gene_ids = check_gene_ids(ids, adata.var_names.tolist())
     check_unique(adata.obs_names, "cell ids")
     if p["layer"] is not None and p["layer"] not in adata.layers:
         fail(ERRORS, "missing_layer", layer=p["layer"])
@@ -151,10 +166,10 @@ def load(p):
         fail(ERRORS, "few_groups", col=col, n=len(sizes))
     if (sizes < 2).any():
         fail(ERRORS, "small_group", col=col, groups=", ".join(sizes.index[sizes < 2]))
-    return adata
+    return adata, gene_ids
 
 
-def rank_markers(adata, p):
+def rank_markers(adata, p, gene_ids):
     """Steps 2-3: each group against the rest, then the pass rule."""
     sc.tl.rank_genes_groups(
         adata,
@@ -172,13 +187,16 @@ def rank_markers(adata, p):
     markers["group"] = pd.Categorical(
         markers["group"].astype(str), categories=adata.obs[p["groupby"]].cat.categories
     )
+    markers.insert(2, "gene_id", markers["gene_symbol"].map(gene_ids))
     markers["passes"] = (
         (markers["padj"] < p["padj_max"])
         & (markers["logfc"] > p["lfc_min"])
         & (markers["pct_in"] >= p["min_pct"])
     )
+    # Every gene is tested in every group: no filter, so every status is "tested".
+    markers = with_status(markers, adata.var_names, "gene_symbol", {})
     return markers.sort_values(
-        ["group", "score", "gene"], ascending=[True, False, True]
+        ["group", "score", "gene_symbol"], ascending=[True, False, True]
     ).reset_index(drop=True)
 
 
@@ -211,27 +229,23 @@ def group_profiles(adata, p, genes):
 
 
 def draw_figures(figures, profiles, p):
-    fig = plot_dotplot(
-        profiles, "gene", "group", MEAN_LABEL, FRAC_LABEL, max_size=DOT_MAX_SIZE
+    plot = plot_dotplot(
+        profiles,
+        "gene",
+        "group",
+        MEAN_LABEL,
+        FRAC_LABEL,
+        max_size=DOT_MAX_SIZE,
+        mean_label="Mean expression (log-normalised)",
     )
-    ax = fig.axes[0]
-    # Groups top-down as in the heatmap; the size legend clears the colorbar label.
-    ax.invert_yaxis()
-    # 36 pt clears the colorbar ticks and label at 8 pt type.
-    cbar_right = offset_copy(fig.axes[1].transAxes, fig=fig, x=36, units="points")
-    ax.get_legend().set_bbox_to_anchor((1, 1), transform=cbar_right)
-    # Tight layout adopts the colorbar and legend added inside plot_dotplot.
-    fig.set_layout_engine("tight")
     # mm: 89 single column up to 183 double; rows and columns grow with the data.
     width = min(183, max(89, 60 + 4 * profiles["gene"].nunique()))
-    height = max(60, 25 + 8 * profiles["group"].nunique())
-    save_panel(fig, profiles, figures, "marker_dotplot", width, height)
-    plt.close(fig)
+    # 85 mm floor: the colourbar and size legend stack on the right.
+    height = max(85, 25 + 8 * profiles["group"].nunique())
+    save_panel(plot, profiles, figures, "marker_dotplot", width, height)
 
-    fig = plot_heatmap(profiles, "group", "gene", Z_LABEL, limit=p["limit"])
-    fig.set_layout_engine("tight")
-    save_panel(fig, profiles, figures, "marker_heatmap", width, height)
-    plt.close(fig)
+    plot = plot_heatmap(profiles, "group", "gene", Z_LABEL, limit=p["limit"])
+    save_panel(plot, profiles, figures, "marker_heatmap", width, height)
 
 
 def analyse(argv, full_argv):
@@ -239,14 +253,14 @@ def analyse(argv, full_argv):
     seed_everything(p["seed"])
     # Neither test draws random numbers; one job keeps the run single-threaded.
     sc.settings.n_jobs = 1
-    adata = load(p)
-    markers = rank_markers(adata, p)
+    adata, gene_ids = load(p)
+    markers = rank_markers(adata, p, gene_ids)
     rule = f"padj < {p['padj_max']}, logfc > {p['lfc_min']}, pct_in >= {p['min_pct']}"
     top = markers[markers["passes"]].groupby("group", observed=False).head(p["n_top"])
     if top.empty:
         fail(ERRORS, "no_markers", rule=rule)
     top = top.assign(rank=top.groupby("group", observed=True).cumcount() + 1)
-    top = top[["group", "rank", *list(MARKER_COLUMNS.values())[1:]]]
+    top = top[["group", "rank", "gene_symbol", "gene_id", *MARKER_COLUMNS_STATS]]
 
     outdir = make_outdir(p["outdir"])
     tables, figures = outdir / "tables", outdir / "figures"
@@ -255,7 +269,7 @@ def analyse(argv, full_argv):
 
     plt.switch_backend("Agg")
     # A gene topping two groups is plotted once, in its first group's block.
-    genes = list(dict.fromkeys(top["gene"]))
+    genes = list(dict.fromkeys(top["gene_symbol"]))
     profiles = group_profiles(adata, p, genes)
     draw_figures(figures, profiles, p)
 
@@ -284,9 +298,13 @@ def analyse(argv, full_argv):
             "n_cells": adata.n_obs,
             "n_groups": n_groups,
             "n_genes_tested": adata.n_vars,
+            "status_counts": {
+                k: int(v) for k, v in markers["status"].value_counts().items()
+            },
+            "gene_id_col": p["gene_id_col"],
             "n_pass": {str(g): int(n) for g, n in n_pass.items()},
             "top_markers": {
-                str(g): d["gene"].tolist()
+                str(g): d["gene_symbol"].tolist()
                 for g, d in top.groupby("group", observed=True)
             },
             "method": p["method"],
@@ -295,6 +313,7 @@ def analyse(argv, full_argv):
         },
         summary,
         ["report.md", "tables/top_markers.tsv", "figures/marker_dotplot.png"],
+        context=p["context"],
         reference=p["reference"],
     )
     write_reproducibility(
@@ -303,7 +322,7 @@ def analyse(argv, full_argv):
         p,
         KEYS,
         full_argv,
-        ["anndata", "scanpy", "numpy", "pandas", "scipy", "matplotlib"],
+        ["anndata", "scanpy", "numpy", "pandas", "scipy", "matplotlib", "plotnine"],
     )
     return outdir
 

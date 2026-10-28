@@ -25,6 +25,10 @@ metadata:
     - pearson
     - multiple testing
   inputs:
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
     - name: input
       type: file
       format:
@@ -49,6 +53,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
   demo_data:
     - path: examples/demo.tsv
       description: synthetic, 20 donors x pre/post, 30 features with planted effects
@@ -109,6 +114,7 @@ Each row is a grill question. Ask the user; never fill one in.
 
 | Argument | Grill question | Demo-only value |
 |---|---|---|
+| `--context` | Species, tissue or cell type, condition and dataset? It opens the report and the chat summary. | `synthetic demo: 20 donors, pre vs post, 30 features, no real tissue` |
 | `--input` | Which TSV holds the values? | `examples/demo.tsv` |
 | `--test` | Two groups (`wilcoxon`), paired samples (`paired-wilcoxon`), or a trend with a continuous covariate (`spearman` rank, `pearson` linear)? | `paired-wilcoxon` |
 | `--group-col` | Which column holds the groups? (group tests only) | `visit` |
@@ -153,12 +159,13 @@ Levels are `a,b`: a is the reference, so every shift is b minus a.
 
 ```bash
 python scripts/group_tests.py \
+  --context "human PBMC, CD4 T cell frequencies, pre vs post vaccination, cohort X" \
   --input results/2026-10-27_freqs/clr_long.tsv \
   --test paired-wilcoxon --group-col visit --levels pre,post --pair-col donor \
   --value-unit CLR --adjust bh --alpha 0.05 --n-plot 6 --seed 0 \
   --outdir results/2026-10-27_freq-tests
 
-python scripts/group_tests.py --input scores.tsv --test spearman --covariate age --value-unit "score, a.u." \
+python scripts/group_tests.py --context "human serum, Olink NPX vs age, cohort X" --input scores.tsv --test spearman --covariate age --value-unit "score, a.u." \
   --adjust bh --alpha 0.05 --n-plot 6 --seed 0 --outdir results/score-age
 
 # Demo (only when the user asks for one)
@@ -181,7 +188,7 @@ Figures are named by padj rank, `top01` to `top<n-plot>`; the demo draws four.
 ```
 outdir/
 ├── report.md                  # params, summary, figures with padj captions
-├── result.json                # test, n_features, n_tested, n_significant, n_rows_dropped, n_missing_dropped_by_group, significant_features, params, seed, chat_summary_lines, preferred_artifacts
+├── result.json                # context, test, n_features, n_tested, n_significant, n_rows_dropped, n_missing_dropped_by_group, significant_features, params, seed, chat_summary_lines, preferred_artifacts
 ├── tables/
 │   └── tests.tsv
 ├── figures/
@@ -220,6 +227,10 @@ outdir/
 - **The model will want to read a correlation as an effect of the covariate.**
   Do not. rho and r are associations; a group difference can also come from a
   confounder, as F17 shows in the demo.
+- **The model will want to say a group "drives" or "causes" a feature change.**
+  Do not. A significant test is an association with the group label; say
+  "associated with" (house-style `claims.strength`). Groups differ in more than
+  the label.
 - **The model will want to read an NA p-value as "no difference".** Do not. NA
   means the feature was not tested (empty group, no non-zero paired difference,
   under 3 points); say "not tested".

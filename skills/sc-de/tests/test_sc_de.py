@@ -38,10 +38,12 @@ LM = {
     "--lfc-min": "0.5",
     "--seed": "0",
     "--reference": "GRCh38, GENCODE 44",
+    "--context": "synthetic demo: 40 samples, disease vs healthy NPX, no real cohort",
 }
 MAST = {
     "--mode": "mast",
     "--adata": str(H5AD),
+    "--gene-id-col": "gene_ids",
     "--cell-type-col": "cell_type",
     "--cell-type": "T",
     "--donor-col": "donor",
@@ -55,6 +57,7 @@ MAST = {
     "--lfc-min": "0.5",
     "--seed": "0",
     "--reference": "GRCh38, GENCODE 44",
+    "--context": "synthetic demo: 6 donors, ctrl vs stim T cells, no real tissue",
 }
 
 
@@ -77,7 +80,8 @@ def run_with(tmp_path, base, drop=(), env=None, **changes):
 
 def significant(outdir):
     table = pd.read_csv(outdir / "tables" / "de_results.tsv", sep="\t")
-    return set(table.loc[table["significant"], "feature"])
+    key = "gene_symbol" if "gene_symbol" in table.columns else "feature"
+    return set(table.loc[table["significant"], key])
 
 
 def contract_paths():
@@ -129,7 +133,16 @@ def test_mast_demo_golden(mast_out):
     # All 15 planted genes plus G141: a cell-level false positive from donor noise.
     assert significant(mast_out) == MAST_TRUTH | {"G141"}
     assert result["formula_fitted"] == "~ condition + cngeneson"
-    assert "overstate donor-level evidence" in result["chat_summary_lines"][0]
+    assert "overstate donor-level evidence" in result["chat_summary_lines"][1]
+    assert result["chat_summary_lines"][0].startswith("Context: ")
+    assert result["context"] == MAST["--context"]
+    assert result["status_counts"] == {"tested": 200}
+    assert result["gene_id_col"] == "gene_ids"
+    table = pd.read_csv(mast_out / "tables" / "de_results.tsv", sep="\t")
+    assert list(table.columns[:2]) == ["gene_symbol", "gene_id"]
+    assert set(table.loc[table["gene_symbol"] == "G000", "gene_id"]) == {
+        "ENSG90000000000.1"
+    }
     assert result["reference"] == "synthetic demo, no genome"
     assert result["dropped_by_level"] == {}
 
@@ -140,8 +153,11 @@ def test_lm_demo_golden(lm_out):
     assert (result["n_samples"], result["n_tested"]) == (40, 50)
     assert significant(lm_out) == STATUS_TRUTH
     assert result["dropped_by_level"] == {}
+    assert result["status_counts"] == {"tested": 50}
+    assert "gene_id_col" not in result
     table = pd.read_csv(lm_out / "tables" / "de_results.tsv", sep="\t")
     assert set(table["feature"].head(8)) == STATUS_TRUTH
+    assert "gene_id" not in table.columns
 
 
 @needs_r
@@ -190,9 +206,10 @@ def test_missing_argument_fails_without_demo(tmp_path):
     )
 
 
-def test_reference_is_required(tmp_path):
-    completed = run_with(tmp_path, LM, drop=["--reference"])
-    assert is_error(completed, "missing required arguments: --reference")
+@pytest.mark.parametrize("arg", ["--reference", "--context"])
+def test_required_arguments(tmp_path, arg):
+    completed = run_with(tmp_path, LM, drop=[arg])
+    assert is_error(completed, f"missing required arguments: {arg}")
 
 
 def test_demo_conflict(tmp_path):
@@ -225,6 +242,12 @@ def bad_inputs(tmp_path_factory):
     adata = ad.read_h5ad(H5AD)
     adata.var_names = ["G000", *adata.var_names[1:-1], "G000"]
     adata.write_h5ad(tmp / "dup_genes.h5ad")
+    # Low detection: the last 20 genes are zeroed in every cell (never detected).
+    adata = ad.read_h5ad(H5AD)
+    x = adata.X.toarray()
+    x[:, -20:] = 0
+    adata.X = x
+    adata.write_h5ad(tmp / "silent.h5ad")
     adata = ad.read_h5ad(H5AD)
     adata.obs["batch"] = adata.obs["condition"]
     adata.write_h5ad(tmp / "confounded.h5ad")
@@ -256,6 +279,14 @@ def bad_inputs(tmp_path_factory):
         ),
         (LM, {"term": "sex"}, (), "column 'sex' must be numeric"),
         (MAST, {"layer": "counts"}, (), "layer not found in h5ad: counts"),
+        (MAST, {}, ("--gene-id-col",), "--mode mast needs --gene-id-col"),
+        (LM, {"gene_id_col": "gene_ids"}, (), "--mode lm does not use --gene-id-col"),
+        (
+            MAST,
+            {"gene_id_col": "gene_id"},
+            (),
+            "gene id column not found in var: gene_id",
+        ),
         (MAST, {"cell_type": "B"}, (), "cell type 'B' not found in column 'cell_type'"),
         (
             MAST,
@@ -285,9 +316,39 @@ def test_duplicate_rows_refused(tmp_path, bad_inputs):
     assert is_error(completed, "2 rows repeat a (feature, sample) combination")
 
 
-def test_duplicate_genes_refused(tmp_path, bad_inputs):
+def test_ambiguous_gene_ids_refused(tmp_path, bad_inputs):
     completed = run_with(tmp_path, MAST, adata=str(bad_inputs / "dup_genes.h5ad"))
-    assert is_error(completed, "duplicate gene names: G000")
+    assert is_error(
+        completed,
+        "1 gene symbol(s) map to several gene ids: "
+        "G000 -> ENSG90000000000.1, ENSG90000000199.1",
+    )
+
+
+def test_duplicate_symbols_without_ids(tmp_path, bad_inputs):
+    path = str(bad_inputs / "dup_genes.h5ad")
+    completed = run_with(tmp_path, MAST, adata=path, gene_id_col="none")
+    assert is_error(completed, "duplicate gene symbols: G000")
+
+
+@needs_r
+def test_gene_id_none_and_untested_status(tmp_path, bad_inputs):
+    completed = run_with(
+        tmp_path,
+        MAST,
+        adata=str(bad_inputs / "silent.h5ad"),
+        gene_id_col="none",
+        n_cells_per_donor="10",
+    )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads((tmp_path / "out" / "result.json").read_text())
+    assert result["gene_id_col"] == "none"
+    assert result["status_counts"]["not_detected"] == 20
+    table = pd.read_csv(tmp_path / "out" / "tables" / "de_results.tsv", sep="\t")
+    assert table["gene_id"].isna().all() and len(table) == 200
+    silent = table[table["status"] == "not_detected"]
+    assert set(silent["gene_symbol"]) == {f"G{i:03d}" for i in range(180, 200)}
+    assert silent["pvalue"].isna().all() and not silent["significant"].any()
 
 
 def test_rank_deficient_refused(tmp_path, bad_inputs):

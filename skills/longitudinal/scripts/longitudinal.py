@@ -25,6 +25,7 @@ from theme import save_panel
 SKILL_DIR = Path(__file__).resolve().parents[1]
 ENGINE = Path(__file__).resolve().parent / "lmer.R"
 REQUIRED = [
+    "context",
     "input",
     "formula",
     "term",
@@ -39,6 +40,7 @@ REQUIRED = [
 ]
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
+    "context": "synthetic demo: 24 subjects, 3 visits, 30 features, no real tissue",
     "input": str(SKILL_DIR / "examples" / "demo.tsv"),
     "formula": "value ~ time + age + (1|subject)",
     "term": "time3",
@@ -92,6 +94,7 @@ def fail(key, **fields):
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--context")
     parser.add_argument("--input")
     parser.add_argument("--formula")
     parser.add_argument("--term")
@@ -437,8 +440,8 @@ def analyse(argv, argv_as_run):
         "figures/forest.png",
         *[f"figures/{n}.png" for n in captions if n.startswith("top")],
     ]
-    skillkit.write_result(outdir, result, summary, artifacts)
-    packages = ["numpy", "pandas", "scipy", "matplotlib"]
+    skillkit.write_result(outdir, result, summary, artifacts, context=p["context"])
+    packages = ["numpy", "pandas", "scipy", "matplotlib", "plotnine"]
     skillkit.write_reproducibility(
         outdir, __file__, p, REQUIRED, argv_as_run, packages, extra=r_versions
     )

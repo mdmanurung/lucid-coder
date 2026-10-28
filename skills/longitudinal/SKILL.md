@@ -25,6 +25,10 @@ metadata:
     - repeated measures
     - satterthwaite
   inputs:
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
     - name: input
       type: file
       format:
@@ -49,6 +53,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
     r:
       - lme4
       - lmerTest
@@ -119,6 +124,7 @@ Each row is a grill question. Ask the user; never fill one in.
 
 | Argument | Grill question | Demo-only value |
 |---|---|---|
+| `--context` | Species, tissue or cell type, condition and dataset? It opens the report and the chat summary. | `synthetic demo: 24 subjects, 3 visits, 30 features, no real tissue` |
 | `--input` | Which TSV holds the values? | `examples/demo.tsv` |
 | `--formula` | Which fixed covariates beside time? The form is `value ~ time + covariates + (1\|subject)`; `a:b` and `a*b` interactions allowed, no other random term. | `value ~ time + age + (1\|subject)` |
 | `--time-type` | Is time a set of visits (`factor`, one coefficient per visit against the reference) or a number with a linear trend (`numeric`, one slope)? | `factor` |
@@ -137,6 +143,7 @@ beside `--demo` only `--outdir` may be given.
 
 ```bash
 python scripts/longitudinal.py \
+  --context "human PBMC, CD4 T cell frequencies, pre vs post vaccination, cohort X" \
   --input results/2026-10-27_freqs/clr_long.tsv \
   --formula "value ~ time + age + sex + (1|subject)" \
   --time-type factor --reference-time pre --term timepost \
@@ -179,7 +186,7 @@ Figures are named by padj rank, `top01` to `top<n-plot>`; the demo draws four.
 ```
 outdir/
 ├── report.md                  # params, fit counts, figures with padj captions
-├── result.json                # term, n_features, n_fitted, n_significant, n_singular, n_not_converged, n_rows_dropped, n_rows_dropped_by_time, significant/singular/not_converged/failed_features, params, seed, chat_summary_lines, preferred_artifacts
+├── result.json                # context, term, n_features, n_fitted, n_significant, n_singular, n_not_converged, n_rows_dropped, n_rows_dropped_by_time, significant/singular/not_converged/failed_features, params, seed, chat_summary_lines, preferred_artifacts
 ├── tables/
 │   └── model_results.tsv
 ├── figures/
@@ -250,6 +257,10 @@ PNG and source CSV, with no title and no significance stars:
 - **The model will want to join a subject's points across a missed visit** to
   make the figure look complete. Do not. A bridged gap invents a trajectory;
   the line breaks and the caption counts the gaps.
+- **The model will want to say time or treatment "drives" or "causes" a change.**
+  Do not. The `--term` estimate is change over visits in this cohort, associated
+  with time; without a control arm it is not a treatment effect (house-style
+  `claims.strength`).
 - **The model will want to read padj as the chance the feature changed.** Do not.
   A p-value is not a probability of the hypothesis; padj bounds an error rate.
 - **The model will want to read the red mean line as the model fit.** It is the

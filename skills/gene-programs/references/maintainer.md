@@ -6,7 +6,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
-row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`.
+row IDs from `docs/clawbio-determinism/parts/*.md`.
 
 | ID | What | Source |
 |---|---|---|
@@ -33,7 +33,7 @@ are not computed here.
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|
@@ -75,7 +75,7 @@ From `skills/gene-programs`:
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with anndata,scanpy,scikit-learn,matplotlib,pytest \
+  uv run --python 3.12 --with anndata,scanpy,scikit-learn,matplotlib,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
@@ -84,3 +84,18 @@ UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
 - Kotliar et al. (2019). Identifying gene expression programs of cell-type
   identity and cellular activity with single-cell RNA-Seq. eLife 8:e43803.
 - Wolf, Angerer, Theis (2018). SCANPY. Genome Biology 19:15.
+
+## Biology-core checks (2026-10-28)
+
+- `--context` is required and opens the report and `chat_summary_lines`.
+- `gene_loadings.tsv` keeps every input gene: a gene with no counts gets one
+  `not_detected` row with NA program and score; `status_counts` (per gene) in
+  `result.json`. Figures and `top_genes.tsv` use scored genes only.
+- Gene ids: required `--gene-id-col` (or `none`); `check_gene_ids` runs before
+  any analysis and replaces the `var_names` uniqueness check, so a duplicated
+  symbol with two ids stops as ambiguous. `gene_id` sits beside `gene` in
+  `gene_loadings.tsv` and `top_genes.tsv`; the `gene` column keeps its name.
+  The demo's `var["gene_ids"]` comes from `examples/make_demo.py`; X and the
+  goldens are unchanged.
+- A gotcha keeps claims at "associated with" (house-style `claims.strength`).
+- `check_compatible` does not apply: one input.

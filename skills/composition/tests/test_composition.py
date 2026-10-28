@@ -27,6 +27,7 @@ ARGS = {
     "--sample-col": "sample",
     "--label-col": "cell_type",
     "--donor-col": "donor",
+    "--context": "synthetic demo",
     "--formula": "~ condition + (1|donor)",
     "--coef": "conditionstim",
     "--group-col": "condition",
@@ -120,8 +121,14 @@ def test_demo_golden_values(demo_out):
     assert da["label"].tolist()[:2] == ["Mono", "B"]
     assert da.columns.tolist() == [
         *["label", "logFC", "se", "t", "ci_low", "ci_high", "pvalue", "padj"],
-        "significant",
+        *["significant", "status"],
     ]
+    # The label dropped by --min-count stays, with NA statistics.
+    pdc_row = da.set_index("label").loc["pDC"]
+    assert pdc_row["status"] == "not_tested" and pd.isna(pdc_row["padj"])
+    assert result["status_counts"] == {"tested": 6, "not_tested": 1}
+    assert result["context"].startswith("synthetic demo")
+    assert result["chat_summary_lines"][0].startswith("Context: ")
     props = pd.read_csv(demo_out / "tables" / "proportions.tsv", sep="\t", index_col=0)
     assert props.sum(axis=1).round(5).eq(1).all()
 
@@ -154,6 +161,12 @@ def test_output_contract(demo_out):
 def test_missing_argument_fails_without_demo(tmp_path):
     assert is_error(
         run_with(tmp_path, drop=["--tau"]), "missing required arguments: --tau"
+    )
+
+
+def test_missing_context_fails(tmp_path):
+    assert is_error(
+        run_with(tmp_path, drop=["--context"]), "missing required arguments: --context"
     )
 
 

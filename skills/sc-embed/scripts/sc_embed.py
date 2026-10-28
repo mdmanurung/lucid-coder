@@ -46,6 +46,7 @@ ANALYSIS_ARGS = [
     "resolution",
     "seed",
     "reference",
+    "context",
 ]
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
@@ -62,6 +63,7 @@ DEMO = {
     "resolution": 0.3,
     "seed": 0,
     "reference": "synthetic demo genes, no genome build",
+    "context": "synthetic demo: 2 batches x 3 groups, 300 genes, no real tissue",
     "outdir": "sc_embed_demo",
 }
 
@@ -92,6 +94,7 @@ PACKAGES = [
     "pandas",
     "scipy",
     "matplotlib",
+    "plotnine",
     "scikit-learn",
 ]
 # Muted qualitative colours (Tol), assigned to labels in sorted order.
@@ -125,6 +128,7 @@ def parse_args(argv):
     parser.add_argument("--resolution", type=float)
     parser.add_argument("--seed", type=int)
     parser.add_argument("--reference")
+    parser.add_argument("--context")
     return parse_required(
         parser, ANALYSIS_ARGS, DEMO, argv, demo_extra=("outdir", "integration")
     )
@@ -283,15 +287,11 @@ def draw_figures(figures, adata, p, by_cluster):
     }
     for col, pal in pals.items():
         name = f"umap_{col}"
-        fig = plot_embedding(umap, "umap_1", "umap_2", col, pal, axis_name="UMAP")
-        fig.set_layout_engine("constrained")
-        save_panel(fig, umap, figures, name, 89, 75)
-        plt.close(fig)
+        plot = plot_embedding(umap, "umap_1", "umap_2", col, pal, axis_name="UMAP")
+        save_panel(plot, umap, figures, name, 89, 75)
 
-    fig = plot_composition(by_cluster, "cluster", "batch", "n_cells", pals["batch"])
-    fig.set_layout_engine("constrained")
-    save_panel(fig, by_cluster, figures, "batch_composition", 89, 60)
-    plt.close(fig)
+    plot = plot_composition(by_cluster, "cluster", "batch", "n_cells", pals["batch"])
+    save_panel(plot, by_cluster, figures, "batch_composition", 89, 60)
 
 
 def analyse(argv, argv_run):
@@ -371,6 +371,7 @@ def analyse(argv, argv_run):
         },
         summary,
         ["report.md", "figures/umap_cluster.png", "tables/cluster_sizes.tsv"],
+        context=p["context"],
         reference=p["reference"],
     )
     write_reproducibility(outdir, __file__, p, ANALYSIS_ARGS, argv_run, PACKAGES)

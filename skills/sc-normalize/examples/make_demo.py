@@ -48,7 +48,11 @@ rna = rng.poisson(rng.gamma(5.0, mean * depth / 5.0))
 ad.AnnData(
     X=sparse.csr_matrix(rna.astype(np.int32)),
     obs=obs,
-    var=pd.DataFrame(index=[f"G{i:03d}" for i in range(N_GENES)]),
+    # Ensembl-like ids beside the symbols, so --gene-id-col has a column to name.
+    var=pd.DataFrame(
+        {"gene_ids": [f"ENSG9{i:010d}.1" for i in range(N_GENES)]},
+        index=[f"G{i:03d}" for i in range(N_GENES)],
+    ),
 ).write_h5ad(here / "demo.h5ad", compression="gzip")
 
 # ADT: ambient background per protein, scaled per droplet, plus specific signal.

@@ -16,15 +16,18 @@ import anndata as ad
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from plotnine import labs
 from plots import plot_scatter_fit
 from scipy import sparse, stats
 from skillkit import (
+    check_gene_ids,
     check_unique,
     fail,
     make_outdir,
     parse_required,
     run,
     seed_everything,
+    with_status,
     write_report,
     write_reproducibility,
     write_result,
@@ -34,24 +37,36 @@ from threadpoolctl import threadpool_limits
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 EXAMPLES = SKILL_DIR / "examples"
-REQUIRED = ["adata", "method", "layer_out", "seed", "reference"]
+REQUIRED = ["adata", "method", "layer_out", "seed", "reference", "context"]
 METHOD_ARGS = {
-    "log1p": ["target_sum"],
-    "pearson": ["theta", "clip"],
+    "log1p": ["target_sum", "gene_id_col"],
+    "pearson": ["theta", "clip", "gene_id_col"],
     "dsb": ["empty_droplets", "isotype_controls"],
 }
-OPTIONAL = [k for keys in METHOD_ARGS.values() for k in keys]
+OPTIONAL = list(dict.fromkeys(k for keys in METHOD_ARGS.values() for k in keys))
+# --gene-id-col value for a source with no gene ids: gene_id is then written as NA.
+NO_IDS = "none"
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
     "method": "pearson",
     "layer_out": "normalized",
     "seed": 0,
     "reference": "synthetic demo features, no genome build",
+    "context": "synthetic demo: 3 groups x 200 cells, RNA and ADT, no real tissue",
     "outdir": "sc_normalize_demo",
 }
 DEMO_BY_METHOD = {
-    "log1p": {"adata": str(EXAMPLES / "demo.h5ad"), "target_sum": 1e4},
-    "pearson": {"adata": str(EXAMPLES / "demo.h5ad"), "theta": 100.0, "clip": 25.0},
+    "log1p": {
+        "adata": str(EXAMPLES / "demo.h5ad"),
+        "target_sum": 1e4,
+        "gene_id_col": "gene_ids",
+    },
+    "pearson": {
+        "adata": str(EXAMPLES / "demo.h5ad"),
+        "theta": 100.0,
+        "clip": 25.0,
+        "gene_id_col": "gene_ids",
+    },
     "dsb": {
         "adata": str(EXAMPLES / "demo_adt.h5ad"),
         "empty_droplets": str(EXAMPLES / "demo_empty.h5ad"),
@@ -64,6 +79,8 @@ ERRORS = {
     "method_needs": "--method {method} needs: {flags}",
     "method_unused": "--method {method} does not use: {flags}",
     "missing_file": "input file not found: {path}",
+    "missing_var_column": "var column not found in --adata: {col}; name the column "
+    "of Ensembl gene ids, or pass --gene-id-col none",
     "bad_counts": "counts in X of {path} must be non-negative integers (raw counts)",
     "empty_cells": "{n} cells have zero total counts; filter them first (sc-qc)",
     "isotype_missing": "isotype controls not in the ADT features: {names}",
@@ -103,6 +120,8 @@ def parse_args(argv):
     parser.add_argument("--layer-out")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--reference")
+    parser.add_argument("--context")
+    parser.add_argument("--gene-id-col")
     parser.add_argument("--target-sum", type=float)
     parser.add_argument("--theta", type=float)
     parser.add_argument("--clip", type=float)
@@ -155,14 +174,23 @@ def read_counts(path):
     return adata
 
 
+def read_gene_ids(adata, col):
+    """{symbol: Ensembl id} from var[col]; var_names are the symbols."""
+    if col == NO_IDS:
+        return check_gene_ids(None, list(adata.var_names))
+    if col not in adata.var.columns:
+        fail(ERRORS, "missing_var_column", col=col)
+    return check_gene_ids(adata.var[col].astype(str).tolist(), list(adata.var_names))
+
+
 def read_inputs(p):
-    """Cells (and, for dsb, empty droplets); refused before the outdir exists."""
+    """Cells, gene ids (RNA) or empty droplets (dsb); refused before the outdir."""
     adata = read_counts(p["adata"])
     n_empty_cells = int((np.asarray(adata.X.sum(axis=1)).ravel() == 0).sum())
     if n_empty_cells:
         fail(ERRORS, "empty_cells", n=n_empty_cells)
     if p["method"] != "dsb":
-        return adata, None
+        return adata, None, read_gene_ids(adata, p["gene_id_col"])
     empty = read_counts(p["empty_droplets"])
     if list(empty.var_names) != list(adata.var_names):
         fail(ERRORS, "panel_mismatch")
@@ -179,7 +207,7 @@ def read_inputs(p):
     flat = empty.var_names[(empty_counts == empty_counts[0]).all(axis=0)]
     if len(flat):
         fail(ERRORS, "flat_empty", names=", ".join(flat))
-    return adata, empty
+    return adata, empty, None
 
 
 def dense(x):
@@ -193,7 +221,7 @@ def normalise(adata, empty, p):
     import scanpy as sc
 
     keep = np.asarray(adata.X.sum(axis=0)).ravel() > 0
-    n_dropped = int((~keep).sum())
+    dropped = list(adata.var_names[~keep])
     adata._inplace_subset_var(keep)
     if empty is not None:
         empty._inplace_subset_var(keep)
@@ -224,7 +252,7 @@ def normalise(adata, empty, p):
             )
     adata.X = dense(adata.X)
     adata.layers[p["layer_out"]] = adata.X.copy()
-    return n_dropped
+    return dropped
 
 
 def tables(adata, seed):
@@ -298,12 +326,10 @@ def draw_figures(figures, adata, per_cell, per_feature, method, isotypes):
             "pc1": per_cell["pc1"],
         }
     )
-    fig = plot_scatter_fit(depth, "log10_library_size", "pc1")
-    fig.set_layout_engine("constrained")
-    fig.axes[0].set_xlabel("log10 library size (counts)")
-    fig.axes[0].set_ylabel(f"PC1 ({method})")
-    save_panel(fig, depth, figures, "depth_pc1", 89, 70)
-    plt.close(fig)
+    plot = plot_scatter_fit(depth, "log10_library_size", "pc1") + labs(
+        x="log10 library size (counts)", y=f"PC1 ({method})"
+    )
+    save_panel(plot, depth, figures, "depth_pc1", 89, 70)
 
     top = per_feature.nlargest(N_TOP_SHOWN, "var_normalised")["feature"].tolist()
     values = pd.DataFrame(adata[:, top].X, columns=top).melt(
@@ -335,26 +361,34 @@ def draw_figures(figures, adata, per_cell, per_feature, method, isotypes):
             "background_median_log": np.median(step_one[:, ~is_iso], axis=1),
         }
     )
-    fig = plot_scatter_fit(iso, "isotype_mean_log", "background_median_log")
-    fig.set_layout_engine("constrained")
-    fig.axes[0].set_xlabel(f"mean isotype log(count + {DSB_PSEUDOCOUNT})")
-    fig.axes[0].set_ylabel(f"median protein log(count + {DSB_PSEUDOCOUNT})")
-    save_panel(fig, iso, figures, "isotype_vs_background", 89, 70)
-    plt.close(fig)
+    plot = plot_scatter_fit(iso, "isotype_mean_log", "background_median_log") + labs(
+        x=f"mean isotype log(count + {DSB_PSEUDOCOUNT})",
+        y=f"median protein log(count + {DSB_PSEUDOCOUNT})",
+    )
+    save_panel(plot, iso, figures, "isotype_vs_background", 89, 70)
 
 
 def analyse(argv, argv_run):
     p = parse_args(argv)
     check_values(p)
     seed_everything(p["seed"])
-    adata, empty = read_inputs(p)
+    adata, empty, gene_ids = read_inputs(p)
+    features = list(adata.var_names)
     outdir = make_outdir(p["outdir"])
     method = p["method"]
     keys = [*REQUIRED, *METHOD_ARGS[method]]
     # One BLAS thread: dsb fits a GMM per cell and the PCA sums in a fixed order.
     with threadpool_limits(1):
-        n_dropped = normalise(adata, empty, p)
+        dropped = normalise(adata, empty, p)
         per_cell, per_feature = tables(adata, p["seed"])
+    n_dropped = len(dropped)
+    # Dropped all-zero features stay as not_detected rows with NA statistics.
+    per_feature = with_status(
+        per_feature, features, "feature", dict.fromkeys(dropped, "not_detected")
+    ).sort_values("feature", ignore_index=True)
+    if gene_ids is not None:
+        per_feature.insert(1, "gene_id", per_feature["feature"].map(gene_ids))
+    tested = per_feature[per_feature["status"] == "tested"]
 
     data = outdir / "data"
     data.mkdir()
@@ -365,7 +399,7 @@ def analyse(argv, argv_run):
     rho = abs(stats.spearmanr(per_cell["library_size"], per_cell["pc1"])[0])
     isotypes = (p["isotype_controls"] or "").split(",")
     plt.switch_backend("Agg")
-    draw_figures(outdir / "figures", adata, per_cell, per_feature, method, isotypes)
+    draw_figures(outdir / "figures", adata, per_cell, tested, method, isotypes)
 
     n_cells, n_features = adata.n_obs, adata.n_vars
     captions = {
@@ -374,7 +408,7 @@ def analyse(argv, argv_run):
         f"= mean) and {method} values (right); red lines are binned medians.",
         "depth_pc1": f"Scatter of PC1 of the {method} values against log10 library "
         f"size for {n_cells} cells, with a linear fit and 95% CI; |Spearman rho| "
-        f"= {rho:.3f}. A strong trend means depth still drives the first axis.",
+        f"= {rho:.3f}. A strong trend means PC1 still tracks depth.",
         "top_variable_values": f"Box plots of {method} values in {n_cells} cells for "
         f"the {N_TOP_SHOWN} features with the highest normalised variance; "
         "whiskers 1.5 IQR, outliers hidden.",
@@ -399,6 +433,10 @@ def analyse(argv, argv_run):
             "n_cells": n_cells,
             "n_features": n_features,
             "n_features_dropped": n_dropped,
+            "status_counts": {
+                k: int(v) for k, v in per_feature["status"].value_counts().items()
+            },
+            "gene_id_col": p["gene_id_col"],
             "pc1_depth_abs_spearman": round(float(rho), 4),
             "layer_out": p["layer_out"],
             "seed": p["seed"],
@@ -406,6 +444,7 @@ def analyse(argv, argv_run):
         },
         summary,
         ["report.md", "figures/depth_pc1.png", "figures/mean_variance.png"],
+        context=p["context"],
         reference=p["reference"],
     )
     write_reproducibility(outdir, __file__, p, keys, argv_run, PACKAGES)

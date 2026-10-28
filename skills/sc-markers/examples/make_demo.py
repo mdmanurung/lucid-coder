@@ -6,6 +6,7 @@ Notes:   3 clusters x 50 cells, 200 genes. Genes G000-G014 are planted markers,
          5 per cluster (var["marker_of"]), 8-fold up in their cluster. Background
          genes sit at a moderate level in every cell so no null gene has a near-zero
          rest mean. Raw counts in layers["counts"]; X = normalize_total + log1p.
+         var["gene_ids"] holds Ensembl-like ids (ENSG90000000000.1, ...).
 """
 
 from pathlib import Path
@@ -43,7 +44,14 @@ adata = ad.AnnData(
         {"cluster": pd.Categorical(np.repeat(CLUSTERS, N_CELLS), categories=CLUSTERS)},
         index=[f"cell{i:03d}" for i in range(len(CLUSTERS) * N_CELLS)],
     ),
-    var=pd.DataFrame({"marker_of": marker_of.astype(str)}, index=genes),
+    var=pd.DataFrame(
+        {
+            "marker_of": marker_of.astype(str),
+            # Ensembl-like ids for --gene-id-col; var_names are the symbols.
+            "gene_ids": [f"ENSG9{i:010d}.1" for i in range(N_GENES)],
+        },
+        index=genes,
+    ),
 )
 adata.layers["counts"] = counts
 sc.pp.normalize_total(adata, target_sum=1e4)

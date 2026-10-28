@@ -9,7 +9,7 @@ Reference skills checked against (`docs/pipeline-skills.md`): `decoupler` and
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
-row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`.
+row IDs from `docs/clawbio-determinism/parts/*.md`.
 
 | ID | What | Source |
 |---|---|---|
@@ -23,11 +23,11 @@ row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`.
 | A-pl-10 | score by group (violin there; box with sample points here, house-style `fig.wilke`) | `repos_new/spatial_skin_atlas/figs/revision/supp24_GWAS_all_celltyprs.ipynb:1324-1335` (`parts/A_skin.md:59`) |
 | A-pl-11 | score dot-matrix by cell type | `repos_new/spatial_skin_atlas/figs/revision/supp24_GWAS_all_celltyprs.ipynb:1236-1242` (`parts/A_skin.md:60`) |
 | B-pl-02 | UMAP feature plot, continuous colour | `repos/IHA-Figure/Extended_Figure9/02_TEAseq_CD8_T_cells_traj/01_Cleaning.ipynb:408` (`parts/B_pbmc.md:71`) |
-| PIPELINES.md | "score vs random-gene-set control", the missing standard plot | `mycelium-extra/plans/clawbio-determinism/PIPELINES.md:119` |
+| PIPELINES.md | "score vs random-gene-set control", the missing standard plot | `docs/clawbio-determinism/PIPELINES.md:119` |
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|
@@ -62,7 +62,7 @@ From `skills/signature-scoring`:
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with anndata,scanpy,decoupler,matplotlib,pytest \
+  uv run --python 3.12 --with anndata,scanpy,decoupler,matplotlib,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
@@ -88,6 +88,17 @@ titles; captions sit in `report.md`.
 
 `scripts/skillkit.py`, `plots.py`, `theme.py` and `palettes.py` are byte copies
 of `templates/`; a test fails when they drift.
+
+## Biology-core checks (2026-10-28)
+
+- `--context` is required and opens the report and `chat_summary_lines`.
+- `random_control.tsv` keeps every listed set with a `status`; sets under
+  `--min-genes` are `not_tested` rows instead of stopping the run, which now
+  stops only when every set is short. Per-cell and per-sample tables get none.
+- Gene ids do not apply: no output table is keyed by gene (sets are the
+  features), so there is no `--gene-id-col`. `--reference` stays.
+- Compatible inputs do not apply: one h5ad, one gene-set file.
+- Claim wording: a gotcha says a score is associated with a group, not a driver.
 
 ## Citations
 

@@ -6,7 +6,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`.
-Row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`
+Row IDs from `docs/clawbio-determinism/parts/*.md`
 (`C_disease.md:12,42`, `E_methods.md:11,27,46`).
 
 | Row | Step | Source |
@@ -26,7 +26,7 @@ CITE GMM/DSB); `S/scvi-tools` for the later scVI engine, not offered yet.
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|
@@ -53,7 +53,7 @@ From `skills/sc-normalize`:
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with scanpy,muon,pytest \
+  uv run --python 3.12 --with scanpy,muon,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
@@ -77,3 +77,20 @@ Rebuild the demo with `python examples/make_demo.py` under the same
 - Mulè, Martins, Tsang (2022). Normalizing and denoising protein expression data
   from droplet-based single cell profiling. Nature Communications 13:2099.
 - Bredikhin, Kats, Stegle (2022). MUON. Genome Biology 23:42.
+
+## Biology-core checks (2026-10-28)
+
+- `--context` is required and opens the report and `chat_summary_lines`.
+- `gene_mean_variance.tsv` has a `status` column: an all-zero feature stays as
+  `not_detected` with NA statistics; `result.json` has `status_counts`. Figures
+  use tested features only.
+- log1p/pearson take a required `--gene-id-col` (`none` writes NA `gene_id`);
+  `check_gene_ids` runs before normalising. dsb does not take it: its features
+  are antibodies, not genes. `examples/make_demo.py` now writes
+  `var["gene_ids"]`; X, obs and var_names are unchanged.
+- In an h5ad, `var_names` are unique, so the reachable ambiguous map is one id
+  on two symbols (`duplicate gene ids`).
+- The depth_pc1 caption says "tracks", not "drives"; a gotcha keeps |rho| at
+  "associated with" (house-style `claims.strength`).
+- `check_compatible` does not apply: the cells and empty droplets share
+  features by a fixed-order check already.

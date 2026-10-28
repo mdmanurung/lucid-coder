@@ -10,7 +10,7 @@ Reference skills checked against (`docs/pipeline-skills.md`): `liana-ccc`
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
-row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`
+row IDs from `docs/clawbio-determinism/parts/*.md`
 (`CATALOGUE.md:47`).
 
 | ID | What | Source |
@@ -23,7 +23,7 @@ row IDs from `mycelium-extra/plans/clawbio-determinism/parts/*.md`
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|
@@ -58,7 +58,7 @@ From `skills/ccc`:
 
 ```bash
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with "liana>=1.10",anndata,scanpy,matplotlib,threadpoolctl,pytest \
+  uv run --python 3.12 --with "liana>=1.10",anndata,scanpy,matplotlib,plotnine-extra,threadpoolctl,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
@@ -93,3 +93,18 @@ of `templates/`; a test fails when they drift.
   13:3224.
 - Dimitrov et al. (2024). LIANA+ provides an all-in-one framework for cell-cell
   communication inference. Nature Cell Biology 26:1613-1622.
+
+## Biology-core checks (2026-10-28)
+
+- `--context` is required and opens the report and `chat_summary_lines`.
+- `interactions.tsv` keeps every resource pair: one `status` row per pair with no
+  tested interaction (`not_measured` or `not_tested`), NA ranks; `status_counts`
+  in `result.json`. The untested universe is the resource pair, not pair x
+  source x target x sample: that grid is mostly empty and would bury the table.
+- Gene ids: required `--gene-id-col` (or `none`); `check_gene_ids` runs before
+  any analysis and replaces the `var_names` uniqueness check, so a duplicated
+  symbol with two ids stops as ambiguous. `ligand_gene_id` and
+  `receptor_gene_id` sit beside the symbols. The demo's `var["gene_ids"]` comes
+  from `examples/make_demo.py`; X and the goldens are unchanged.
+- A gotcha keeps claims at "predicted" (house-style `claims.strength`).
+- `check_compatible` does not apply: one input.

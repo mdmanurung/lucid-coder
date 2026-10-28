@@ -6,7 +6,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 
 Paths relative to
 `/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`.
-Row IDs from `mycelium-extra/plans/clawbio-determinism/parts/{B_pbmc,C_disease}.md`.
+Row IDs from `docs/clawbio-determinism/parts/{B_pbmc,C_disease}.md`.
 
 | Row | Procedure | Source |
 |---|---|---|
@@ -23,7 +23,7 @@ effect. It has no MAST path; its mixed-model track agrees with this skill's
 
 ## ClawBio mechanisms used
 
-IDs from `mycelium-extra/plans/clawbio-determinism/parts/F_clawbio_patterns.md`.
+IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 
 | ID | Mechanism | Here |
 |---|---|---|
@@ -49,11 +49,13 @@ python scripts/sc_de.py --mode mast --adata data/cells.h5ad \
   --formula "~ condition" --contrast-term condition,stim,ctrl \
   --n-cells-per-donor 1000 --min-frac 0.01 --cdr yes --log-base e \
   --padj-max 0.01 --lfc-min 0.2 --seed 0 --reference "GRCh38, GENCODE 44" \
+  --gene-id-col none --context "human PBMC, IFN-beta vs control, Kang 2018" \
   --outdir results/2026-10-27_mono-mast
 
 python scripts/sc_de.py --mode lm --input olink_long.tsv \
   --formula "~ status + age + sex + bmi" --term status,ARI,CON \
   --padj-max 0.05 --lfc-min 0 --seed 0 --reference "Olink Explore 3072" \
+  --context "human plasma, ARI vs control, Olink cohort" \
   --outdir results/2026-10-27_olink-lm
 
 python scripts/sc_de.py --demo --outdir demo_mast           # only on request
@@ -74,11 +76,30 @@ export RSCRIPT=/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2/bin/Rscri
 export R_LIBS_USER=/exports/para-lipg-hpc/mdmanurung/R/4.5
 export LD_LIBRARY_PATH=/home/mdmanurung/.local/lib/conda-gcc-runtime
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
-  uv run --python 3.12 --with anndata,numpy,pandas,scipy,matplotlib,pytest \
+  uv run --python 3.12 --with anndata,numpy,pandas,scipy,matplotlib,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
 
 Tests that need R skip when no Rscript is found.
+
+## Biology-core checks (2026-10-28)
+
+From `docs/pipeline-skills.md` "Biology-core checks". Applied:
+
+- context: required `--context` in both modes, first line of the report and
+  `chat_summary_lines` (the cell-unit warning moved to line 2).
+- status: `de_results.tsv` keeps every input feature with `status`; mast marks
+  genes never detected in the kept cells `not_detected` and genes under
+  `--min-frac` `not_tested`; lm marks features with no estimable term or no rows
+  left `not_tested`. `status_counts` in `result.json`; the volcano uses tested rows.
+- gene ids, mast only: required `--gene-id-col` (demo `gene_ids`, added to
+  `examples/make_demo.py` after the random draws; `demo_npx.tsv` is unchanged).
+  `check_gene_ids` replaces `check_unique(var_names)`. Mast writes `gene_symbol`
+  and `gene_id` (the names mashr-sharing reads); lm keeps `feature`.
+- claim wording: one gotcha says a DE call is an association, not a mechanism.
+
+Not applied: gene ids in lm mode (its features are proteins or assays named by
+the input table, not genes), compatible inputs (one input file).
 
 ## Citations
 

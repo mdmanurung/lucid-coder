@@ -22,6 +22,7 @@ from plots import plot_heatmap, plot_volcano
 from scipy import sparse
 from skillkit import (
     check_design_rank,
+    check_gene_ids,
     check_replication,
     check_unique,
     fail,
@@ -29,6 +30,7 @@ from skillkit import (
     parse_required,
     run,
     seed_everything,
+    with_status,
     write_report,
     write_reproducibility,
     write_result,
@@ -43,6 +45,7 @@ R_ENGINES = {
 
 ANALYSIS_ARGS = [
     "adata",
+    "gene_id_col",
     "cell_type_col",
     "cell_type",
     "sample_col",
@@ -56,6 +59,7 @@ ANALYSIS_ARGS = [
     "seed",
     "engine",
     "reference",
+    "context",
 ]
 KEYS = [*ANALYSIS_ARGS, "layer"]
 NAME = r"[A-Za-z_][\w.]*"
@@ -64,6 +68,7 @@ TERM = rf"(?:{NAME}|{RANDOM_TERM.pattern})"
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
     "adata": str(SKILL_DIR / "examples" / "demo.h5ad"),
+    "gene_id_col": "gene_ids",
     "cell_type_col": "cell_type",
     "cell_type": "T",
     "sample_col": "sample",
@@ -77,6 +82,7 @@ DEMO = {
     "seed": 0,
     "engine": "python",
     "reference": "synthetic demo, no genome",
+    "context": "synthetic demo: 7 patients, ctrl vs stim T cells, no real tissue",
     "layer": None,
     "outdir": "pseudobulk_de_demo",
 }
@@ -94,6 +100,7 @@ ERRORS = {
     "missing_file": "input file not found: {path}",
     "missing_layer": "layer not found in the h5ad: {layer}",
     "missing_column": "obs column not found: {col}",
+    "missing_gene_id_col": "gene id column not found in var: {col}",
     "cell_type_absent": "cell type {cell_type!r} not found in obs column {col!r}",
     "bad_counts": "counts in {source} must be non-negative integers (raw counts)",
     "contrast_not_in_design": "contrast factor {factor!r} is not a term of --design",
@@ -130,6 +137,7 @@ def parse_args(argv):
     required = [k for k in ANALYSIS_ARGS if k != "engine" or not random_terms]
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--adata")
+    parser.add_argument("--gene-id-col")
     parser.add_argument("--layer")
     parser.add_argument("--cell-type-col")
     parser.add_argument("--cell-type")
@@ -144,6 +152,7 @@ def parse_args(argv):
     parser.add_argument("--seed", type=int)
     parser.add_argument("--engine", choices=["python", "r", "dreamlet"])
     parser.add_argument("--reference")
+    parser.add_argument("--context")
     # --engine and --outdir may be set beside --demo; the analysis may not.
     p = parse_required(
         parser,
@@ -194,7 +203,13 @@ def build_pseudobulk(p, terms, factor, levels):
     if not path.is_file():
         fail(ERRORS, "missing_file", path=path)
     adata = ad.read_h5ad(path)
-    check_unique(adata.var_names, "gene names")
+    # var_names are the symbols; --gene-id-col none: the source has no gene ids.
+    ids = None
+    if p["gene_id_col"] != "none":
+        if p["gene_id_col"] not in adata.var.columns:
+            fail(ERRORS, "missing_gene_id_col", col=p["gene_id_col"])
+        ids = adata.var[p["gene_id_col"]].astype(str).tolist()
+    gene_ids = check_gene_ids(ids, adata.var_names.tolist())
     check_unique(adata.obs_names, "cell ids")
     if p["layer"] is not None and p["layer"] not in adata.layers:
         fail(ERRORS, "missing_layer", layer=p["layer"])
@@ -280,7 +295,18 @@ def build_pseudobulk(p, terms, factor, levels):
     genes = detected >= p["min_frac"]
     if not genes.any():
         fail(ERRORS, "no_genes", min_frac=p["min_frac"])
-    drops = {"dropped": dropped, "by_level": dropped_by_level, "n_donors": n_donors}
+    # Why an untested gene has no result: never detected, or under --min-frac.
+    reasons = {
+        g: "not_detected" if d == 0 else "not_tested"
+        for g, d in zip(adata.var_names, detected, strict=True)
+    }
+    drops = {
+        "dropped": dropped,
+        "by_level": dropped_by_level,
+        "n_donors": n_donors,
+        "reasons": reasons,
+        "gene_ids": gene_ids,
+    }
     return summed.loc[genes, meta.index], meta, drops, int(adata.n_vars)
 
 
@@ -309,7 +335,7 @@ def run_python(counts, meta, p, contrast):
     return res.rename_axis("gene").reset_index()[DE_COLUMNS], []
 
 
-def run_r(tables, meta, p, contrast):
+def run_r(counts, tables, meta, p, contrast):
     """deseq2.R or dreamlet.R; dreamlet also gets n_cells per sample."""
     rscript = os.environ.get("RSCRIPT") or shutil.which("Rscript")
     if not rscript or not Path(rscript).is_file():
@@ -317,6 +343,9 @@ def run_r(tables, meta, p, contrast):
     engine = R_ENGINES[p["engine"]]
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "de.tsv"
+        # The engines read a symbol-keyed matrix; the table copy also has gene_id.
+        counts_file = Path(tmp) / "pseudobulk_counts.tsv"
+        counts.rename_axis("gene").to_csv(counts_file, sep="\t")
         meta_file = tables / "sample_meta.tsv"
         if p["engine"] == "dreamlet":
             # n_cells stays out of the checksummed sample_meta.tsv.
@@ -325,7 +354,7 @@ def run_r(tables, meta, p, contrast):
         cmd = [
             rscript,
             str(engine),
-            str(tables / "pseudobulk_counts.tsv"),
+            str(counts_file),
             str(meta_file),
             p["design"],
             *contrast,
@@ -410,12 +439,10 @@ def draw_figures(figures, counts, meta, de, p, factor, num, den):
     volcano = de.dropna(subset=["padj"]).assign(
         padj=lambda d: d["padj"].clip(lower=1e-300)
     )
-    fig = plot_volcano(
+    plot = plot_volcano(
         volcano, "log2_fc", "padj", padj_max=p["padj_max"], lfc_min=p["lfc_min"]
     )
-    fig.set_layout_engine("constrained")
-    save_panel(fig, volcano, figures, "volcano", 89, 70)
-    plt.close(fig)
+    save_panel(plot, volcano, figures, "volcano", 89, 70)
 
     top = de.dropna(subset=["padj"])["gene"].head(N_HEATMAP_GENES).tolist()
     order = meta.assign(rank=meta[factor].map({den: 0, num: 1}).fillna(2))
@@ -430,11 +457,8 @@ def draw_figures(figures, counts, meta, de, p, factor, num, den):
     )
     heat["gene"] = pd.Categorical(heat["gene"], categories=top)
     heat["sample"] = pd.Categorical(heat["sample"], categories=order)
-    fig = plot_heatmap(heat, "gene", "sample", value, limit=HEATMAP_LIMIT)
-    # Constrained layout cannot adopt a colorbar added before it; tight can.
-    fig.set_layout_engine("tight")
-    save_panel(fig, heat, figures, "top_genes_heatmap", 89, 89)
-    plt.close(fig)
+    plot = plot_heatmap(heat, "gene", "sample", value, limit=HEATMAP_LIMIT)
+    save_panel(plot, heat, figures, "top_genes_heatmap", 89, 89)
     return len(top_var), len(top)
 
 
@@ -448,36 +472,51 @@ def analyse(argv, full_argv):
 
     outdir = make_outdir(p["outdir"])
     tables, figures = outdir / "tables", outdir / "figures"
-    counts.rename_axis("gene").to_csv(tables / "pseudobulk_counts.tsv", sep="\t")
+    # gene_id, gene_symbol first: variance-partition reads this table as --counts.
+    counts.set_index(
+        pd.MultiIndex.from_arrays(
+            [counts.index.map(drops["gene_ids"]), counts.index],
+            names=["gene_id", "gene_symbol"],
+        )
+    ).to_csv(tables / "pseudobulk_counts.tsv", sep="\t")
     meta.drop(columns="n_cells").to_csv(tables / "sample_meta.tsv", sep="\t")
 
     if p["engine"] == "python":
         de, r_versions = run_python(counts, meta, p, contrast)
     else:
-        de, r_versions = run_r(tables, meta, p, contrast)
-    # A gene the engine drops (dreamlet: all-zero or failed fit) stays as an NA row.
+        de, r_versions = run_r(counts, tables, meta, p, contrast)
+    # A gene the engine drops (dreamlet: all-zero or failed fit) stays as an NA row,
+    # tested; a gene filtered before the engine keeps NA with its reason.
     de = de.set_index("gene").reindex(counts.index).rename_axis("gene").reset_index()
+    reasons = drops["reasons"]
+    de = with_status(de, list(reasons), "gene", reasons)
     de["significant"] = (de["padj"] < p["padj_max"]) & (
         de["log2_fc"].abs() > p["lfc_min"]
     )
     de = de.sort_values(["padj", "gene"], na_position="last").reset_index(drop=True)
-    de.to_csv(tables / "de_results.tsv", sep="\t", index=False)
+    de.insert(1, "gene_id", de["gene"].map(drops["gene_ids"]))
+    de.rename(columns={"gene": "gene_symbol"}).to_csv(
+        tables / "de_results.tsv", sep="\t", index=False
+    )
+    n_tested = int((de["status"] == "tested").sum())
+    tested = de[de["status"] == "tested"]
 
     plt.switch_backend("Agg")
-    n_pca, n_heat = draw_figures(figures, counts, meta, de, p, factor, num, den)
+    n_pca, n_heat = draw_figures(figures, counts, meta, tested, p, factor, num, den)
     rule = f"padj < {p['padj_max']} and |log2FC| > {p['lfc_min']}"
     captions = {
         "sample_pca": f"PCA of {len(meta)} pseudobulk samples on log2 CPM of the "
         f"{n_pca} "
         f"most variable genes, coloured by {factor}; each point is one sample.",
         "pvalue_hist": "Histogram of raw p-values for "
-        f"{de['pvalue'].notna().sum()} tested "
+        f"{tested['pvalue'].notna().sum()} tested "
         "genes in 20 bins of width 0.05; a flat floor with a peak near 0 is expected.",
         "ma": f"MA plot of log2 fold change ({num} / {den}) against "
         f"{MA_X[p['engine'] == 'dreamlet']}; red genes pass {rule}, dashed lines "
         "mark the fold-change cutoff.",
         "volcano": f"Volcano plot of log2 fold change ({num} / {den}) against -log10 "
-        f"adjusted p; red genes pass {rule}, dashed lines mark both cutoffs.",
+        f"adjusted p; red genes pass {rule} and go up, blue pass it and go down, grey "
+        "do not; dashed lines mark both cutoffs.",
         "top_genes_heatmap": f"Heatmap of row z-scored log2 CPM for the {n_heat} genes "
         "with the lowest adjusted p; not clustered: rows fixed by adjusted-p rank, "
         f"columns fixed by {factor} label; colours saturate at ±{HEATMAP_LIMIT}.",
@@ -490,7 +529,7 @@ def analyse(argv, full_argv):
     )
     summary = [
         f"{len(meta)} samples from {drops['n_donors']} donors kept; dropped by "
-        f"--min-cells {p['min_cells']}: {by_level}. {len(de)} of {n_genes_in} genes "
+        f"--min-cells {p['min_cells']}: {by_level}. {n_tested} of {n_genes_in} genes "
         "tested; filtered genes are not tested, not absent.",
         f"{n_sig} genes significant ({num} vs {den}, {rule}), engine {p['engine']}.",
     ]
@@ -505,7 +544,9 @@ def analyse(argv, full_argv):
     result = {
         "n_samples": len(meta),
         "n_donors": drops["n_donors"],
-        "n_genes_tested": len(de),
+        "n_genes_tested": n_tested,
+        "status_counts": {k: int(v) for k, v in de["status"].value_counts().items()},
+        "gene_id_col": p["gene_id_col"],
         "n_significant": n_sig,
         "dropped_samples": dropped,
         "dropped_by_level": drops["by_level"],
@@ -515,8 +556,23 @@ def analyse(argv, full_argv):
         "seed": p["seed"],
     }
     artifacts = ["report.md", "tables/de_results.tsv", "figures/volcano.png"]
-    write_result(outdir, result, summary, artifacts, reference=p["reference"])
-    packages = ["anndata", "numpy", "pandas", "scipy", "matplotlib", "pydeseq2"]
+    write_result(
+        outdir,
+        result,
+        summary,
+        artifacts,
+        context=p["context"],
+        reference=p["reference"],
+    )
+    packages = [
+        "anndata",
+        "numpy",
+        "pandas",
+        "scipy",
+        "matplotlib",
+        "plotnine",
+        "pydeseq2",
+    ]
     write_reproducibility(
         outdir, __file__, p, KEYS, full_argv, packages, extra=r_versions
     )

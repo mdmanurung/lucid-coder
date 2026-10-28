@@ -28,6 +28,14 @@ metadata:
         - h5ad
       description: cell-level AnnData, log-normalised values in X or a layer
       required: true
+    - name: gene_id_col
+      type: string
+      description: var column of Ensembl gene ids, or none when the source has none
+      required: true
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
   outputs:
     - name: report
       type: file
@@ -48,6 +56,7 @@ metadata:
       - pandas
       - scipy
       - matplotlib
+      - plotnine-extra
   demo_data:
     - path: examples/demo.h5ad
       description: synthetic, 3 clusters x 50 cells, 200 genes, 5 planted markers each
@@ -83,12 +92,15 @@ argument it names. Do not work around it.
 |---|---|---|---|
 | `--adata` | `.h5ad` | log-normalised values (`normalize_total` + `log1p`) in `X`, or in `--layer`; not raw counts, not scaled | sc-embed's `data/embedded.h5ad`; `examples/demo.h5ad` |
 | `--groupby` | obs column | at least 2 groups, each with at least 2 cells | `leiden`, `cell_type`; demo `cluster` |
+| `--gene-id-col` | var column | Ensembl gene ids (versioned as the source gives them); `var_names` are the symbols | `gene_ids`; `none` when the source has no ids |
 
 The script refuses a matrix with negative values (scaled) or only integers (raw
 counts). A categorical `--groupby` keeps its category order; any other column
 is cast to strings and sorted. An h5ad `.raw` is ignored (`use_raw=False`).
-Gene names and cell ids must be unique (`skillkit.check_unique`); a duplicate
-stops the run before any test.
+Cell ids and gene ids must be unique, and each symbol must map to one gene id
+(`skillkit.check_gene_ids`, house-style `data.ids`); a duplicate or an ambiguous
+map stops the run before any test. `--gene-id-col none` keeps symbols only:
+`gene_id` is written as NA, never guessed.
 
 ## Parameters (all required, no defaults)
 
@@ -99,6 +111,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--adata` | input h5ad | Which h5ad holds the log-normalised cells? | `examples/demo.h5ad` |
 | `--layer` (optional) | matrix to test | Which layer holds the log-normalised values? Absent means `X`. | absent (`X`) |
 | `--groupby` | obs column of groups | Which obs column holds the clusters or labels? | `cluster` |
+| `--gene-id-col` | var column of Ensembl ids, or `none` | Which var column holds the Ensembl gene ids (or `none` if the source has none)? | `gene_ids` |
 | `--method` | `wilcoxon` or `t-test` | Wilcoxon rank-sum or Welch t-test? | `wilcoxon` |
 | `--padj-max` | adjusted-p cutoff | Which BH-adjusted p cutoff marks a marker? | `0.05` |
 | `--lfc-min` | log2 fold change floor | Which log2 fold change (group vs rest) must a marker exceed? | `1.0` |
@@ -106,6 +119,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--n-top` | markers per group in the figures | How many top markers per group go in the figures? | `5` |
 | `--limit` | heatmap colour saturation | At which absolute z-score should the heatmap colours saturate? | `2.0` |
 | `--reference` | genome build and annotation release of the gene names | Which genome build and annotation were the genes counted against (e.g. `GRCh38, GENCODE 44`)? | `synthetic demo genes, no genome build` |
+| `--context` | biological context, printed first in the report and summary | Species, tissue or cell type, condition and dataset? | `synthetic demo: 3 clusters x 50 cells, no real tissue` |
 | `--seed` | seed | Which seed? (Recorded; neither test draws random numbers.) | `0` |
 | `--outdir` | new output directory | Which new directory gets the outputs? It must not exist. | `sc_markers_demo` |
 
@@ -115,6 +129,7 @@ With `--demo`, only `--outdir` may also be given; any other argument is an error
 ```bash
 python scripts/sc_markers.py \
   --adata results/2026-10-27_embed/data/embedded.h5ad --groupby leiden \
+  --gene-id-col gene_ids --context "human PBMC, healthy donors, Leiden clusters" \
   --method wilcoxon --padj-max 0.05 --lfc-min 1 --min-pct 0.25 \
   --n-top 5 --limit 2 --reference "GRCh38, GENCODE 44" --seed 0 \
   --outdir results/2026-10-27_markers
@@ -126,7 +141,7 @@ python scripts/sc_markers.py --demo --outdir demo_out
 ## Workflow (fixed order)
 
 1. **Validate** arguments and input; bad input gives `ERROR: <message>`, exit 2.
-   Gene names and cell ids must be unique.
+   Cell ids must be unique; `check_gene_ids` stops on an ambiguous symbol-to-id map.
 2. **Check** the matrix is log-normalised and `--groupby` has at least 2 groups
    of at least 2 cells.
 3. **Test** each group against the rest with `sc.tl.rank_genes_groups`
@@ -145,16 +160,19 @@ python scripts/sc_markers.py --demo --outdir demo_out
 ## Output structure
 
 `markers.tsv` holds every gene for every group, sorted by group (category
-order), then score descending, then gene. `top_markers.tsv` keeps the same order
-with a 1-based `rank` per group.
+order), then score descending, then gene symbol. `top_markers.tsv` keeps the same
+order with a 1-based `rank` per group. `gene_id` sits beside `gene_symbol` (NA with
+`--gene-id-col none`). `status` (house-style `data.status`) is `tested` for every
+row: each group tests every gene, with no filter; `result.json` counts it in
+`status_counts`.
 
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_cells, n_groups, n_genes_tested, n_pass, top_markers, method, seed, params, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # n_cells, n_groups, n_genes_tested, status_counts, gene_id_col, n_pass, top_markers, method, seed, params, context, reference, chat_summary_lines, preferred_artifacts
 ├── tables/
-│   ├── markers.tsv            # group, gene, score, logfc, pval, padj, pct_in, pct_out, passes
-│   └── top_markers.tsv        # group, rank, gene, score, logfc, pval, padj, pct_in, pct_out
+│   ├── markers.tsv            # group, gene_symbol, gene_id, score, logfc, pval, padj, pct_in, pct_out, passes, status
+│   └── top_markers.tsv        # group, rank, gene_symbol, gene_id, score, logfc, pval, padj, pct_in, pct_out
 ├── figures/
 │   ├── marker_dotplot.pdf
 │   ├── marker_dotplot.png
@@ -182,6 +200,10 @@ outdir/
 - **The model will want to call a gene with `pct_in = 0` "absent" from a group.**
   Do not. Non-detection is not absence: the gene was not detected in those cells.
   `score` is a test statistic, not a probability.
+- **The model will want to say a marker "defines", "drives" or "regulates" its
+  cluster.** Do not. A marker is a gene associated with the group by a test of
+  that group against the rest, in this dataset; it is not a mechanism or a cell
+  identity (house-style `claims.strength`).
 - **The model will want to relax `--padj-max`, `--lfc-min` or `--min-pct`**
   after a group comes back with no markers. Do not. Report the group as having
   none; thresholds are the user's answers, fixed before the run.

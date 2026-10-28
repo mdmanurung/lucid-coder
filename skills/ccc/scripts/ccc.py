@@ -17,16 +17,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from liana.method import AggregateClass, aggregate_meta
-from matplotlib.transforms import offset_copy
+from plotnine import labs, scale_size_area
 from plots import grey_to_red, plot_dotplot
 from scipy import sparse
 from skillkit import (
+    check_gene_ids,
     check_unique,
     fail,
     make_outdir,
     parse_required,
     run,
     seed_everything,
+    with_status,
     write_report,
     write_reproducibility,
     write_result,
@@ -38,6 +40,8 @@ SKILL_DIR = Path(__file__).resolve().parents[1]
 
 REQUIRED = [
     "adata",
+    "context",
+    "gene_id_col",
     "resource",
     "groupby",
     "methods",
@@ -52,10 +56,13 @@ REQUIRED = [
     "reference",
     "seed",
 ]
-KEYS = [*REQUIRED[:3], "sample", *REQUIRED[3:]]
+KEYS = [*REQUIRED[:5], "sample", *REQUIRED[5:]]
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
     "adata": str(SKILL_DIR / "examples" / "demo.h5ad"),
+    "context": "synthetic demo: 3 cell types x 40 cells, "
+    "2 samples, planted LIG1-REC1 and LIG2-REC2, no real tissue",
+    "gene_id_col": "gene_ids",
     "resource": str(SKILL_DIR / "examples" / "demo_resource.tsv"),
     "groupby": "cell_type",
     "sample": None,
@@ -103,6 +110,8 @@ COUNT_LABEL = "passing interactions (n)"
 def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--adata")
+    parser.add_argument("--context")
+    parser.add_argument("--gene-id-col")
     parser.add_argument("--resource")
     parser.add_argument("--groupby")
     parser.add_argument("--sample")
@@ -172,7 +181,12 @@ def load(p):
         if not Path(p[key]).is_file():
             fail(ERRORS, "missing_file", path=p[key])
     adata = ad.read_h5ad(p["adata"])
-    check_unique(adata.var_names, "gene names")
+    # var_names are symbols; --gene-id-col none means the source has no ids.
+    id_col = p["gene_id_col"]
+    if id_col != "none" and id_col not in adata.var.columns:
+        fail(ERRORS, "missing_column", what="var", col=id_col)
+    ids = None if id_col == "none" else adata.var[id_col].astype(str).tolist()
+    gene_ids = check_gene_ids(ids, adata.var_names.tolist())
     check_unique(adata.obs_names, "cell ids")
     resource = pd.read_csv(p["resource"], sep="\t")
     for col in ("ligand", "receptor"):
@@ -214,7 +228,7 @@ def load(p):
         fail(ERRORS, "few_groups", col=col, n=len(categories))
     sources = labels_of(p["sources"], "--sources", categories, col)
     targets = labels_of(p["targets"], "--targets", categories, col)
-    return adata, resource, overlap, categories, sources, targets
+    return adata, resource, overlap, categories, sources, targets, gene_ids
 
 
 def infer(adata, resource, methods, sources, targets, categories, p):
@@ -253,6 +267,39 @@ def tidy(res, p):
     lead = ["sample"] if p["sample"] else []
     order = [*lead, "magnitude_rank", "specificity_rank", *COLUMNS[:4]]
     return res[lead + COLUMNS].sort_values(order).reset_index(drop=True)
+
+
+def pair_status(interactions, resource, gene_ids):
+    """Every resource pair keeps a row: untested pairs get NA ranks and a status.
+
+    not_measured: a subunit is missing from var_names; not_tested: every subunit is
+    measured but no source-target row passed --expr-prop / --min-cells.
+    """
+    key = interactions["ligand"] + "|" + interactions["receptor"]
+    pairs = resource[["ligand", "receptor"]].astype(str).drop_duplicates()
+    universe = (pairs["ligand"] + "|" + pairs["receptor"]).tolist()
+
+    def subunits(lr):
+        return [g for x in lr.split("|") for g in x.split("_")]
+
+    reasons = {
+        lr: "not_tested" if all(g in gene_ids for g in subunits(lr)) else "not_measured"
+        for lr in universe
+        if lr not in set(key)
+    }
+    table = with_status(interactions.assign(lr=key), universe, "lr", reasons)
+    split = table["lr"].str.split("|", expand=True)
+    table["ligand"], table["receptor"] = split[0], split[1]
+
+    def ids(complex_):
+        found = [gene_ids.get(g) for g in complex_.split("_")]
+        return None if None in found else "_".join(found)
+
+    table["ligand_gene_id"] = table["ligand"].map(ids)
+    table["receptor_gene_id"] = table["receptor"].map(ids)
+    lead = ["sample"] if "sample" in table else []
+    cols = [*lead, *COLUMNS[:4], "ligand_gene_id", "receptor_gene_id", *COLUMNS[4:]]
+    return table[[*cols, "status"]]
 
 
 def count_pairs(interactions, categories, p):
@@ -301,36 +348,36 @@ def draw_dotplot(figures, top, p):
             SPECIFICITY_LABEL: 1 - top["specificity_rank"],
         },
     )
-    fig = plot_dotplot(
+    plot = plot_dotplot(
         data,
         "pair",
         "interaction",
         MAGNITUDE_LABEL,
         SPECIFICITY_LABEL,
         max_size=DOT_MAX_SIZE,
+        mean_label=MAGNITUDE_LABEL,
     )
-    ax = fig.axes[0]
-    ax.invert_yaxis()
-    # plot_dotplot labels sizes as percents; 1 - rank is a plain fraction.
-    for text, value in zip(
-        ax.get_legend().get_texts(), ("0.25", "0.5", "1"), strict=True
-    ):
-        text.set_text(value)
-    # 36 pt right of the colorbar clears its ticks and label at 8 pt type.
-    cbar_right = offset_copy(fig.axes[1].transAxes, fig=fig, x=36, units="points")
-    ax.get_legend().set_bbox_to_anchor((1, 1), transform=cbar_right)
-    fig.set_layout_engine("tight")
+    # plot_dotplot labels sizes "Fraction expressing" in percent; 1 - rank is a
+    # plain fraction, so replace the size scale and its title.
+    breaks = [0.25, 0.5, 0.75, 1]
+    plot += scale_size_area(
+        max_size=DOT_MAX_SIZE,
+        limits=(0, 1),
+        breaks=breaks,
+        labels=[str(b) for b in breaks],
+    )
+    plot += labs(size=SPECIFICITY_LABEL)
     width = min(183, max(110, 70 + 6 * data["pair"].nunique()))
-    height = max(60, 25 + 6 * data["interaction"].nunique())
-    save_panel(fig, data, figures, "lr_dotplot", width, height)
-    plt.close(fig)
+    # 100 mm floor: the colourbar and size legend stack on the right.
+    height = max(100, 25 + 6 * data["interaction"].nunique())
+    save_panel(plot, data, figures, "lr_dotplot", width, height)
 
 
 def analyse(argv, full_argv):
     p = parse_args(argv)
     methods = pick_methods(p["methods"])
     seed_everything(p["seed"])
-    adata, resource, overlap, categories, sources, targets = load(p)
+    adata, resource, overlap, categories, sources, targets, gene_ids = load(p)
     # One BLAS thread and n_jobs=1 keep the permutations single-threaded.
     with threadpool_limits(1):
         res = infer(adata, resource, methods, sources, targets, categories, p)
@@ -347,7 +394,9 @@ def analyse(argv, full_argv):
 
     outdir = make_outdir(p["outdir"])
     tables, figures = outdir / "tables", outdir / "figures"
-    interactions.to_csv(tables / "interactions.tsv", sep="\t", index=False)
+    table = pair_status(interactions, resource, gene_ids)
+    status_counts = {k: int(v) for k, v in table["status"].value_counts().items()}
+    table.to_csv(tables / "interactions.tsv", sep="\t", index=False)
     pair_counts.to_csv(tables / "pair_counts.tsv", sep="\t", index=False)
 
     plt.switch_backend("Agg")
@@ -387,6 +436,8 @@ def analyse(argv, full_argv):
             **overlap,
             "n_interactions": len(interactions),
             "n_pass": len(passing),
+            "status_counts": status_counts,
+            "gene_id_col": p["gene_id_col"],
             "top_interactions": top[COLUMNS[:4]].to_dict("records"),
             "methods": [m.method_name for m in methods],
             "seed": p["seed"],
@@ -394,6 +445,7 @@ def analyse(argv, full_argv):
         },
         summary,
         ["report.md", "tables/interactions.tsv", "figures/lr_dotplot.png"],
+        context=p["context"],
         reference=p["reference"],
     )
     write_reproducibility(
@@ -402,7 +454,7 @@ def analyse(argv, full_argv):
         p,
         KEYS,
         full_argv,
-        ["liana", "anndata", "numpy", "pandas", "scipy", "matplotlib"],
+        ["liana", "anndata", "numpy", "pandas", "scipy", "matplotlib", "plotnine"],
     )
     return outdir
 

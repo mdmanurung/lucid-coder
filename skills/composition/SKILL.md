@@ -23,6 +23,10 @@ metadata:
     - crumblr
     - dream
   inputs:
+    - name: context
+      type: string
+      description: species, tissue or cell type, condition and dataset
+      required: true
     - name: adata
       type: file
       format:
@@ -53,6 +57,7 @@ metadata:
       - numpy
       - pandas
       - matplotlib
+      - plotnine-extra
     r:
       - crumblr
       - variancePartition
@@ -116,6 +121,7 @@ Each row is a grill question. Ask the user; never fill one in.
 |---|---|---|
 | `--adata` + `--sample-col` + `--label-col` | Which h5ad holds the cells, which obs column names the sample (one library), which the cell-type label? | `examples/demo.h5ad`, `sample`, `cell_type` |
 | `--counts` + `--meta` | Or: which TSV holds samples x labels counts, which TSV the sample metadata? | not used |
+| `--context` | Species, tissue or cell type, condition and dataset? | `synthetic demo: 8 donors, ctrl vs stim, 7 PBMC-like labels, no real tissue` |
 | `--donor-col` | Which sample column names the donor (person or animal)? A donor with several samples needs a donor term in `--formula`. | `donor` |
 | `--formula` | Which model? Does a donor give more than one sample (then `(1\|donor)`), and which covariates enter? | `~ condition + (1\|donor)` |
 | `--coef` | Which coefficient is the effect of interest (model.matrix name)? | `conditionstim` |
@@ -170,18 +176,20 @@ named for composition in `docs/pipeline-skills.md`)
 ## Output structure
 
 Tables are wide with one row per sample, sorted by sample. `da_results.tsv` is
-sorted by padj, then label. Box figures are named `proportion_<label>` with
+sorted by padj, then label, and keeps every input label: `status` is `tested`, or
+`not_tested` with NA statistics for a label under `--min-count`. Figures use the
+tested labels only. Box figures are named `proportion_<label>` with
 non-word characters replaced by `_`; the tree below lists the demo's six.
 
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_samples, n_donors, dropped_cells_by_level, n_labels_tested, dropped_labels, n_significant, significant (label: up/down), paired_by, engine, params, seed, chat_summary_lines, preferred_artifacts
+├── result.json                # n_samples, n_donors, dropped_cells_by_level, n_labels_tested, dropped_labels, status_counts, n_significant, significant (label: up/down), paired_by, engine, params, seed, context, chat_summary_lines (first: "Context: ..."), preferred_artifacts
 ├── tables/
 │   ├── counts.tsv             # sample x kept labels, cells
 │   ├── proportions.tsv        # counts / sample total over kept labels
 │   ├── clr.tsv                # crumblr's CLR values (cobj$E, pseudocount 0.5)
-│   └── da_results.tsv         # label, logFC, se, t, ci_low, ci_high, pvalue, padj, significant
+│   └── da_results.tsv         # label, logFC, se, t, ci_low, ci_high, pvalue, padj, significant, status
 ├── figures/
 │   ├── composition.pdf
 │   ├── composition.png
@@ -241,6 +249,10 @@ of `templates/`; a test fails when they drift.
   they share one denominator, so one expanding label lowers every other label's
   share. The logFC is on the CLR scale, relative to the geometric mean of all
   kept labels. Say "relative abundance".
+- **The model will want to say the condition recruits, expands or kills a cell
+  type**, or that a shifted label drives a phenotype. Do not. crumblr gives a
+  relative abundance associated with `--coef`; a mechanism needs a perturbation
+  or other data (house-style `claims.strength`).
 - **The model will want to treat each sample as independent** when a donor gave
   several (e.g. ctrl and stim). Do not. The script stops unless `--donor-col`
   appears in `--formula`; ask whether it enters as `(1|donor)` or fixed.

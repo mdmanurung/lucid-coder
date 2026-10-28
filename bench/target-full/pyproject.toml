@@ -20,6 +20,7 @@ dependencies = [
   "igraph",
   "leidenalg",
   "scikit-learn<1.8",  # celltypist 1.7.1 needs sklearn's removed multi_class
+  "pynndescent<0.7",  # 0.7.0 breaks sc.tl.ingest (make_forest TypeError)
   "scikit-misc",
   "h5py",
   "liana>=1.10",  # 1.8.0 crashes on anndata 0.13.4

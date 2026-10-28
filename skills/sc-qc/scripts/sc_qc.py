@@ -42,6 +42,7 @@ REQUIRED = [
     "doublet_threshold",
     "seed",
     "reference",
+    "context",
 ]
 MODE_ARGS = {
     "fixed": ["min_genes", "max_genes", "min_counts", "max_pct_mito"],
@@ -60,6 +61,8 @@ DEMO = {
     "doublet_threshold": "auto",
     "seed": 0,
     "reference": "synthetic demo genes, no genome build",
+    "context": "synthetic demo: 3 samples of 5 populations, planted "
+    "low-quality cells and doublets, no real tissue",
     "layer": None,
     **dict.fromkeys(MODE_ARGS["fixed"]),
     "mads_counts": 5.0,
@@ -119,6 +122,7 @@ def parse_args(argv):
     parser.add_argument("--doublet-threshold")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--reference")
+    parser.add_argument("--context")
     p = parse_required(parser, REQUIRED, DEMO, argv, optional=OPTIONAL)
     flags = " ".join
 
@@ -535,6 +539,7 @@ def analyse(argv, argv_full):
         },
         summary,
         ["report.md", "tables/cells_per_sample.tsv", "figures/counts_vs_genes.png"],
+        context=p["context"],
         reference=p["reference"],
     )
     packages = [
@@ -544,6 +549,7 @@ def analyse(argv, argv_full):
         "pandas",
         "scipy",
         "matplotlib",
+        "plotnine",
         "scikit-image",
     ]
     write_reproducibility(outdir, __file__, p, KEYS, argv_full, packages)

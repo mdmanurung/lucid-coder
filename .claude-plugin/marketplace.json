@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "lucid-coder",
+  "description": "Readable, reproducible bioinformatics and statistics R/Python, with tested pipeline skills and one figure style.",
+  "owner": {
+    "name": "mdmanurung",
+    "url": "https://github.com/mdmanurung"
+  },
+  "plugins": [
+    {
+      "name": "lucid-coder",
+      "description": "House style for R/Python analysis code and figures, plus 21 deterministic single-cell and statistics pipeline skills.",
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}

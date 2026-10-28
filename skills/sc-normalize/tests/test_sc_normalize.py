@@ -37,8 +37,10 @@ ARGS = {
     "--layer-out": "normalized",
     "--seed": "0",
     "--reference": "synthetic demo features, no genome build",
+    "--context": "synthetic demo, no real tissue",
     "--theta": "100",
     "--clip": "25",
+    "--gene-id-col": "gene_ids",
 }
 DSB_ARGS = {
     "--adata": str(EXAMPLES / "demo_adt.h5ad"),
@@ -46,6 +48,7 @@ DSB_ARGS = {
     "--layer-out": "normalized",
     "--seed": "0",
     "--reference": "synthetic demo features, no genome build",
+    "--context": "synthetic demo, no real tissue",
     "--empty-droplets": str(EXAMPLES / "demo_empty.h5ad"),
     "--isotype-controls": "IgG1,IgG2a,IgG2b",
 }
@@ -127,6 +130,13 @@ def test_pearson_removes_depth_from_pc1(pearson_out, log1p_out):
     assert pearson["n_features_dropped"] == 0
     assert pearson["reference"] == "synthetic demo features, no genome build"
     assert 2 <= len(pearson["chat_summary_lines"]) <= 3
+    assert pearson["context"].startswith("synthetic demo")
+    assert pearson["chat_summary_lines"][0].startswith("Context: ")
+    assert pearson["status_counts"] == {"tested": 300}
+    assert pearson["gene_id_col"] == "gene_ids"
+    table = pd.read_csv(pearson_out / "tables" / "gene_mean_variance.tsv", sep="\t")
+    assert list(table.columns[:2]) == ["feature", "gene_id"]
+    assert table["gene_id"].iloc[0] == "ENSG90000000000.1"
 
 
 def test_layers(pearson_out, log1p_out):
@@ -181,10 +191,10 @@ def test_output_contract(method, pearson_out, dsb_out):
     assert cells["cell"].is_monotonic_increasing
 
 
-def test_missing_argument_fails_without_demo(tmp_path):
-    assert is_error(
-        run_with(tmp_path, drop=["--seed"]), "missing required arguments: --seed"
-    )
+@pytest.mark.parametrize("flag", ["--seed", "--context"])
+def test_missing_argument_fails_without_demo(tmp_path, flag):
+    completed = run_with(tmp_path, drop=[flag])
+    assert is_error(completed, f"missing required arguments: {flag}")
 
 
 def test_missing_reference_fails(tmp_path):
@@ -227,6 +237,8 @@ def test_outdir_exists(tmp_path):
         ((), {"theta": "0"}, "--theta must be > 0, got 0.0"),
         ((), {"layer_out": "counts"}, "--layer-out must be a layer name other than"),
         (("--clip",), {}, "--method pearson needs: --clip"),
+        (("--gene-id-col",), {}, "--method pearson needs: --gene-id-col"),
+        ((), {"gene_id_col": "ensembl"}, "var column not found in --adata: ensembl"),
         ((), {"target_sum": "1e4"}, "--method pearson does not use: --target-sum"),
         ((), {"adata": "/no/such.h5ad"}, "input file not found: /no/such.h5ad"),
     ],
@@ -266,7 +278,29 @@ def test_all_zero_gene_dropped(tmp_path):
 
     completed = run_with(tmp_path, adata=edited(tmp_path, "demo.h5ad", zero))
     assert completed.returncode == 0, completed.stderr
-    assert result(tmp_path / "out")["n_features_dropped"] == 1
+    res = result(tmp_path / "out")
+    assert res["n_features_dropped"] == 1
+    assert res["status_counts"] == {"tested": 299, "not_detected": 1}
+    table = pd.read_csv(tmp_path / "out/tables/gene_mean_variance.tsv", sep="\t")
+    row = table.set_index("feature").loc["G000"]
+    assert row["status"] == "not_detected" and row["gene_id"] == "ENSG90000000000.1"
+    assert row[["mean_counts", "var_normalised"]].isna().all()
+
+
+def test_ambiguous_gene_ids(tmp_path):
+    def duplicate(adata):
+        adata.var.loc["G001", "gene_ids"] = adata.var.loc["G000", "gene_ids"]
+
+    completed = run_with(tmp_path, adata=edited(tmp_path, "demo.h5ad", duplicate))
+    assert is_error(completed, "duplicate gene ids: ENSG90000000000.1")
+
+
+def test_no_gene_ids_writes_na(tmp_path):
+    completed = run_with(tmp_path, gene_id_col="none")
+    assert completed.returncode == 0, completed.stderr
+    assert result(tmp_path / "out")["gene_id_col"] == "none"
+    table = pd.read_csv(tmp_path / "out/tables/gene_mean_variance.tsv", sep="\t")
+    assert table["gene_id"].isna().all()
 
 
 def test_isotype_missing(tmp_path):
