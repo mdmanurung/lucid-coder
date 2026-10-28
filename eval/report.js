@@ -137,7 +137,7 @@ const L3_MEASURES = [
   ['UPPER_SNAKE R parameters, median (H6, house style)', r => median(r.map(x => x.upper_constants))],
   ['uptake: %>% only', r => rate(r.map(x => x.uptake_pipe))],
   ['uptake: no plot title', r => rate(r.map(x => x.uptake_no_title))],
-  ['uptake: theme_bw(base_size = 8)', r => rate(r.map(x => x.uptake_theme))],
+  ['uptake: theme_pubr(base_size = 8)', r => rate(r.map(x => x.uptake_theme))],
   ['house: |> only (pipe used)', r => rate(r.map(x => x.native_pipe))],
   ['D rule: out_dir variable', r => rate(r.map(x => x.rule_out_dir))],
   ['D rule: options(warn = 1)', r => rate(r.map(x => x.rule_warn1))],

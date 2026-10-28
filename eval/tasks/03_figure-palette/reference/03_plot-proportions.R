@@ -16,7 +16,7 @@ PANEL_WIDTH_MM <- 89
 PANEL_HEIGHT_MM <- 60
 REQUIRED_COLS <- c("donor_id", "condition", "cell_type", "proportion")
 
-theme_set(theme_bw(base_size = 8))
+theme_set(ggpubr::theme_pubr(base_size = 8))
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) != 1) {
@@ -37,16 +37,29 @@ dir.create(run_dir, recursive = TRUE)
 proportions <- read.delim(here::here("data", "proportions.tsv"))
 missing_cols <- setdiff(REQUIRED_COLS, names(proportions))
 if (length(missing_cols) > 0) {
-  stop("proportions.tsv lacks columns ", toString(missing_cols), ".", call. = FALSE)
+  stop(
+    "proportions.tsv lacks columns ",
+    toString(missing_cols),
+    ".",
+    call. = FALSE
+  )
 }
 palette_table <- read.delim(here::here("data", "palette.tsv"))
 palette <- setNames(palette_table$hex, palette_table$label)
 # Colours by label, never by position: an unknown condition must stop the script.
 unknown_labels <- setdiff(proportions$condition, names(palette))
 if (length(unknown_labels) > 0) {
-  stop("palette.tsv has no colour for ", toString(unknown_labels), ".", call. = FALSE)
+  stop(
+    "palette.tsv has no colour for ",
+    toString(unknown_labels),
+    ".",
+    call. = FALSE
+  )
 }
-proportions$condition <- factor(proportions$condition, levels = CONDITION_LEVELS)
+proportions$condition <- factor(
+  proportions$condition,
+  levels = CONDITION_LEVELS
+)
 if (anyNA(proportions$condition)) {
   stop(
     "proportions.tsv has conditions outside CONDITION_LEVELS; recode them at load.",
@@ -55,7 +68,10 @@ if (anyNA(proportions$condition)) {
 }
 
 # ---- Plot ----
-p_proportions <- ggplot(proportions, aes(cell_type, proportion, colour = condition)) +
+p_proportions <- ggplot(
+  proportions,
+  aes(cell_type, proportion, colour = condition)
+) +
   geom_point(position = position_dodge(width = 0.6), size = 1) +
   scale_colour_manual(values = palette[CONDITION_LEVELS]) +
   labs(
@@ -87,4 +103,7 @@ ggsave(
 write.csv(proportions, paste0(stem, ".csv"), row.names = FALSE)
 
 # ---- Session info ----
-writeLines(capture.output(sessionInfo()), file.path(run_dir, "session_info.txt"))
+writeLines(
+  capture.output(sessionInfo()),
+  file.path(run_dir, "session_info.txt")
+)

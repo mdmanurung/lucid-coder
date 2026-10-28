@@ -44,7 +44,6 @@ from plotnine import (
     geom_smooth,
     geom_text,
     geom_tile,
-    geom_violin,
     geom_vline,
     ggplot,
     guide_legend,
@@ -243,23 +242,6 @@ def plot_box(
         )
         + scale_y_continuous(expand=(0.05, 0, 0.15, 0))
     )
-
-
-def plot_violin(data, group, value, pal, *, value_label, title=None):
-    """fig.distribution: violins with a median line; a box too when n >= FEW_POINTS."""
-    check_cols(data, [group, value], "plot_violin")
-    levels = levels_of(data[group], pal)
-    df = pd.DataFrame({"group": as_factor(data[group], levels), "value": data[value]})
-    p = (
-        ggplot(df, aes("group", "value"))
-        + geom_violin(aes(fill="group"), alpha=0.6, draw_quantiles=0.5)
-        + scale_fill_manual(values=pal, guide=None)
-        + scale_x_discrete(labels=n_labels(df["group"]))
-        + labs(x="", y=value_label, title=title)
-    )
-    if df["group"].value_counts().min() < FEW_POINTS:
-        return p
-    return p + geom_boxplot(width=0.1, outlier_shape="", fill="white")
 
 
 def plot_embedding(data, x, y, colour, pal, *, axis_name, title=None):
@@ -546,9 +528,15 @@ if __name__ == "__main__":
             ),
             donors,
         ),
-        "violin": (
-            plot_violin(
-                cells, "cell_type", "cd3e", pal_cell_type, value_label="CD3E (log1p)"
+        "box_many": (
+            plot_box(
+                cells,
+                "cell_type",
+                "cd3e",
+                pal_cell_type,
+                jitter_width=0.2,
+                seed=1,
+                value_label="CD3E (log1p)",
             ),
             cells,
         ),

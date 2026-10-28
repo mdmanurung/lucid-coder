@@ -85,7 +85,7 @@ These items say whether the plugin was followed. They do not say whether the cod
 | Id | Item | Decision rule | Measure |
 |---|---|---|---|
 | H1 | Native pipe | `|>` used, `%>%` absent | A `native_pipe` |
-| H2 | House theme | `theme_bw(base_size = 8)` set; n/a without a plot | A `uptake_theme` |
+| H2 | House theme | `theme_pubr(base_size = 8)` set (`theme_bw` before 2026-10-28); n/a without a plot | A `uptake_theme` |
 | H3 | No plot titles | no `ggtitle()` or `labs(title =)`; n/a without a plot | A `uptake_no_title` |
 | H4 | Learned rules (arm D) | `out_dir` named; `options(warn = 1)` first | A `rule_out_dir`, `rule_warn1` |
 | H5 | Tidyverse first | no `data.table`, `apply()` on a data frame, `merge()` or base loops over rows; count | A `base_df_calls` |

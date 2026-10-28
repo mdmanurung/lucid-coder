@@ -182,7 +182,7 @@ function textMeasures(code, script) {
     check_count: (code.match(/\bstop\(|\bstopifnot\(|\bvalidate_that\(|assert/g) || []).length,
     uptake_pipe: code.includes('%>%') && !code.includes('|>'),
     uptake_no_title: plots ? !/ggtitle\(|labs\([^)]*\btitle\s*=/.test(code) : null,
-    uptake_theme: plots ? /theme_bw\(\s*base_size\s*=\s*8\s*\)/.test(code) : null,
+    uptake_theme: plots ? /theme_pubr\(\s*base_size\s*=\s*8\s*\)/.test(code) : null,
     // House rule: |> and never %>%. A script with no pipe at all is NA, not a pass.
     native_pipe: code.includes('|>') || code.includes('%>%') ? code.includes('|>') && !code.includes('%>%') : null,
     rule_warn1: /options\(\s*warn\s*=\s*1\s*\)/.test(code),

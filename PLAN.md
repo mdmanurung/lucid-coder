@@ -385,7 +385,7 @@ eval pilot the same day, the user revised D1 and added D8 and D9.
 | D6 | Keep v0.1's Python CLI | no; reuse only `store.py`'s ideas in `rules.js` |
 | D7 | File names: `NN_verb_noun` or `NN_verb-noun` | `NN_verb-noun`: `_` between fields, `-` between words, per Bryan's naming sequel |
 | D8 | Check budget | the default five plus at most one extra per script; the pilot showed a median of 8 checks with lucid-coder against 3 without |
-| D9 | Plot theme | `theme_bw(base_size = 8)` |
+| D9 | Plot theme | `theme_bw(base_size = 8)`; revised 2026-10-28 to `ggpubr::theme_pubr(base_size = 8)` |
 
 ## 11. Deferred from v0.1, with the condition to revisit
 

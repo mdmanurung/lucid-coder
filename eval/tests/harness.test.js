@@ -27,7 +27,7 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 x <- read.csv(file.path("data", "x.csv"))
 counts <- x %>% split(x$group) %>% vapply(nrow, integer(1))
-plot_style <- quote(ggplot() + theme_bw(base_size = 8))
+plot_style <- quote(ggplot() + ggpubr::theme_pubr(base_size = 8))
 write.csv(
   data.frame(group = names(counts), n = counts),
   file.path(out_dir, "counts.csv"),

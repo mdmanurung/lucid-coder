@@ -3,12 +3,13 @@
 from pathlib import Path
 
 import matplotlib
-from plotnine import ggplot, theme_bw, theme_set
+from plotnine import ggplot, theme, theme_classic, theme_set
 
-# Type 42 embeds editable TrueType text instead of outlines; 8 pt matches the
-# R theme (theme_bw(base_size = 8)).
+# Type 42 embeds editable TrueType text instead of outlines. plotnine has no
+# theme_pubr; theme_classic at 8 pt with the legend on top is its nearest twin
+# (R: theme_pubr(base_size = 8)).
 matplotlib.rcParams.update({"pdf.fonttype": 42, "ps.fonttype": 42, "font.size": 8})
-theme_set(theme_bw(base_size=8))
+theme_set(theme_classic(base_size=8) + theme(legend_position="top"))
 
 
 def save_panel(plot, data, run_dir, name, width_mm, height_mm):

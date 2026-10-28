@@ -107,23 +107,30 @@ caption instead of filling it with a common default.
 7. **Order is information.** Natural orders stay (time, dose, ctrl before
    stim); unordered categories sort by value. A heatmap states its order basis
    in the caption: clustered (metric and linkage) or fixed by label.
-8. **Mark the design, not decoration.** Thresholds are dashed lines. Lines
+8. **Mark the design, not decoration.** Rows, columns and colour follow the
+   design as the methods describe it. Draw order is emphasis: reference lines
+   first, context in grey, the focus last. Thresholds are dashed lines. Lines
    join paired samples only when the design is paired; never show paired data
    as two independent boxes. Heatmaps carry an annotation bar for each design
    variable (condition, cell type), and clustering is used only when it has a
    biological reason that the caption states. Proportions share one stated
    denominator ("% of cells per sample"). Labels go on the top N items only
    when asked, N per direction.
-9. **Distributions match their size.** n < 10: points and median. n ≥ 10:
-   violin with a median line and no extrema whiskers, or a box with
-   `outlier.shape = NA` under jittered points. Overlapping densities get alpha
-   fills. Jitter takes a seed. Too many points to read: rasterise, then use
-   alpha, then `geom_pointdensity()`, hexbin or a 2D density.
+9. **Show every point.** Distributions are jittered points over a summary,
+   never a violin: n < 10 a median crossbar, n ≥ 10 a box with
+   `outlier.shape = NA` under the points. Overlapping densities get
+   alpha fills. Jitter takes a seed. Too many points to read: rasterise, then
+   use alpha, then `geom_pointdensity()`, hexbin or a 2D density. No pie,
+   radial or dual-axis chart; many categories by group is a dot plot sorted by
+   value, not grouped bars.
 10. **Missing is not zero.** A gene that was filtered, undetected, below the
     detection limit or not measured gets its own mark or colour, labelled "not
-    tested" or "not detected", and never a 0 or the colour of "no change".
-11. **One build, three files.** `theme_bw(base_size = 8)` (Python: the plotnine
-    theme in `theme.py`); size in mm (89 single column, 183 double);
+    tested" or "not detected", and never a 0 or the colour of "no change". On a
+    log axis, non-detects sit at a sentinel under a labelled LOD line.
+11. **One build, three files.** `ggpubr::theme_pubr(base_size = 8)` (Python:
+    `theme_classic(base_size = 8)` in `theme.py`); text geoms in pt
+    (`size.unit = "pt"`); zoom with `coord_cartesian()`, never scale limits;
+    facet strips left, outside, no box; size in mm (89 single column, 183 double);
     `cairo_pdf` plus a PNG for review plus the source-data CSV of the plotted
     frame, all through `save_panel()`. Never a JPEG, never 3D.
 
@@ -136,8 +143,8 @@ caption instead of filling it with a common default.
 | Forest | Point + named interval, dashed line at 0 (or 1 on ratio scales), sorted by estimate, log₂ typeset | same theme, no template |
 | Heatmap | Diverging centred at 0, symmetric limits, rotated labels, condition annotation bar, order basis in caption | `plot_heatmap(..., col_annotation=)`, ComplexHeatmap with `colorRamp2(c(-L, 0, L))` |
 | PCA | Colour and shape by condition, variance on axes, pair lines only when paired | same theme |
-| Composition | Stacked proportions 0–100% per sample, label-keyed palette, rotated sample labels | `plot_composition` |
-| Distributions | Violin + median, no extrema | `plot_violin` |
+| Composition | Stacked proportions 0–100% per sample, label-keyed palette, rotated sample labels; comparing one category across groups is one point per sample per group instead | `plot_composition` |
+| Distributions | Jittered points; median crossbar under 10 per group, box from 10 | `plot_box(..., jitter_width=, seed=)` |
 | Volcano | Blue down, red up, grey rest, dashed cut-offs, top N per direction labelled only when asked | `plot_volcano(..., n_label=)` |
 | Dot plot | Area = fraction expressing with a grey-circle size legend at 25/50/75/100%, viridis mean with a unit colourbar | `plot_dotplot(..., mean_label=)` |
 | UMAP | No frame, corner arrows, label-keyed palette, rasterised points | `plot_embedding(..., axis_name="UMAP")` |
@@ -173,6 +180,14 @@ Worked examples of that procedure:
 - **GSEA running score.** Enrichment curve, a barcode rug of set members, NES
   and adjusted p in the plot, the gene set and ranking metric in the caption.
 
+## Reviewing a figure
+
+Critique before redesign (Riffomonas DAIJ): **Describe** what is drawn and for
+whom, **Analyze** the encodings, **Interpret** what a reader would conclude,
+**Judge** whether the figure supports its headline, then propose one
+alternative. Rebuild from the raw data and check recomputed statistics against
+the published ones before changing the form.
+
 ## The model will want to... Do not
 
 - **…accept the library default title, legend title or axis label.** Do not:
@@ -181,8 +196,12 @@ Worked examples of that procedure:
   labels and the test in the caption.
 - **…use a rainbow or the default categorical cycle.** Do not: use the label-keyed
   palette or viridis.
-- **…draw a box for 4 donors, or a bar with an error bar.** Do not: points
-  plus a median.
+- **…draw a box for 4 donors, a violin, or a bar with an error bar.** Do not:
+  points plus a median crossbar under 10, a box under the points from 10.
+- **…reach for a pie, a radial plot or a second y axis.** Do not: a dot plot
+  or two aligned panels.
+- **…set `ylim()` or `scale_y_continuous(limits = )` to zoom.** Do not: it
+  drops rows before the statistics; use `coord_cartesian(ylim = )`.
 - **…pick the test for the brackets itself.** Do not: the test and adjustment
   come from the analysis plan; ask if they are not stated.
 - **…label every significant gene.** Do not: label the top N per direction
@@ -204,6 +223,10 @@ The principles generalise the `fig.*` rows of the house style. The installed
 zeros, overplotting, denominators and the clustering rationale. The installed
 `biology-core` skill gives measured versus derived, non-detection versus
 absence, scores that are not probabilities, and context in the caption. The
+Riffomonas Code Club (Pat Schloss, 2020-2026, reviewed by the user on
+2026-10-28) gives no violins, the charts to avoid, coord
+limits, pt text, left strips, design-led layout, draw order and LOD sentinels;
+`theme_pubr` is the user's own pick from that review. The
 other sources are the immgenT figure site for minimal in-plot text, Wilke's *Fundamentals of Data
 Visualization* and data-to-viz for chart choice, the biology-skills review for
 n and order, and the user's picks and notes on the figure gallery

@@ -182,7 +182,6 @@ plot_box <- function(
   if (is.null(test)) {
     return(p)
   }
-  # ggpubr is needed only by callers that ask for brackets.
   p +
     ggpubr::stat_pwc(
       method = test,
@@ -191,26 +190,6 @@ plot_box <- function(
       label = "p.adj = {p.adj.format}"
     ) +
     scale_y_continuous(expand = expansion(mult = c(0.05, 0.15)))
-}
-
-# fig.distribution: violins with a median line; a box too when n >= FEW_POINTS.
-plot_violin <- function(data, group, value, pal, value_label, title = NULL) {
-  check_cols(data, c(group, value), "plot_violin")
-  data[[group]] <- factor_by_pal(data[[group]], pal)
-  p <- ggplot(data, aes(.data[[group]], .data[[value]])) +
-    geom_violin(
-      aes(fill = .data[[group]]),
-      alpha = 0.6,
-      quantiles = 0.5,
-      quantile.linetype = "solid"
-    ) +
-    scale_fill_manual(values = pal, guide = "none") +
-    scale_x_discrete(labels = n_labels(data[[group]])) +
-    labs(x = NULL, y = value_label, title = title)
-  if (min(table(data[[group]])) < FEW_POINTS) {
-    return(p)
-  }
-  p + geom_boxplot(width = 0.1, outlier.shape = NA, fill = "white")
 }
 
 # UMAP or similar. `axis_name` names the embedding ("UMAP"); the corner arrows
@@ -421,8 +400,8 @@ if (sys.nframe() == 0) {
       ),
       de
     ),
-    violin = list(
-      plot_violin(many, "cell_type", "cd3e", pal_cell_type, "CD3E (log1p)"),
+    box_many = list(
+      plot_box(many, "cell_type", "cd3e", pal_cell_type, 0.2, 1, "CD3E (log1p)"),
       many
     ),
     feature = list(
@@ -464,7 +443,7 @@ if (sys.nframe() == 0) {
     ),
     scatter_fit = list(plot_scatter_fit(de, "log2_fc", "q_value", label = "gene"), de)
   )
-  # ggpubr draws the brackets; the bracket panels need it installed.
+  # ggpubr draws the brackets (theme.R already needs it).
   if (requireNamespace("ggpubr", quietly = TRUE)) {
     panels$box_test <- list(
       plot_box(
