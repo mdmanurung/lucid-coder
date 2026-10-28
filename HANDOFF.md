@@ -12,11 +12,15 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-1. The user reviews persona-only D against persona + house D, blind: https://claude.ai/artifact/RmCgcbCap28SH6HMYR1bWg (6 panels: 01sk whole script, notebook, workflow; 02-04 whole scripts; scope notes; key in `eval/results/house-vs-persona-20261028/review/side-by-side-key.tsv` in the worktree, C = persona only, D = persona + house). House runs gates 5/5; script lines 01sk 99/119 (persona only 160/159), 02 20 (34), 03 84 (137), 04 99 (123); the house notebook draws one figure where persona-only drew three.
+1. Done: persona + house beat persona alone 5 of 6 (below). Keep both tiers. Next: a second reader, or more tasks (05, 06, Python twins) under persona + house.
 2. Done: round 2 head-to-head (results below).
 3. Persona core is live (`rules/core.md`, 3,343 bytes): identity, five failure facts, eight habits, authority. The rule-list core it replaced is in git history (`4b14e3b`). Reviewer reports in `skills/lucid-coder/references/persona-panel-20261028/`. Dropped from core in the swap, kept in r.md/python.md or house-style only: no globals, comment toggles, dead code, `_v2`, denominators, distinct seed per replicate, root-relative path wording, "let the package loop", `check_*.R` ban text, separate layers, legend order. Blind test: item 1.
 4. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
 5. Decisions open for the user: allow `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form; the other session's uncommitted `templates/plots.*`, `bench/`, `skills/*` and house-style rows.
+
+## Persona + house vs persona alone, blind (2026-10-28)
+- Page https://claude.ai/artifact/RmCgcbCap28SH6HMYR1bWg (reshuffled so each side was left in 3 of 6 panels). Persona + house won 01sk script ("parameters after the header, easy to change"), 01sk notebook ("parameters go first"), 01sk workflow ("more concise"), 02 and 03; persona alone won 04 (no reason). Persona + house cut script lines by a quarter to a third.
+- Notebook caveat: the user wanted the persona side's three figures ("all necessary plots that I will make anyway"). house.md now asks for the figures a reviewer expects for the method (DE: donor MDS, volcano, top genes per donor), no more, replacing "only the figures the task asks for". Parameters now go right after the header.
 
 ## Rules vs persona v2 on 01sk, blind (2026-10-28)
 - Page https://claude.ai/artifact/3doNepJZpSwBf9aGXHqUFi, rep 1, C = rule list, D = persona v2. Unblinded: persona won setup, filter-and-aggregate and the SKILL.md workflow; the rule list won load, fit and the notebook ("more concise in explanations": the persona notebook was 519 lines against 316, with an extra MDS figure); write was a tie.
