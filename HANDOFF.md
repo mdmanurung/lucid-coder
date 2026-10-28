@@ -12,11 +12,14 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-1. Done: rules-D vs persona-D (below). Next: decide whether to keep the persona (it lost 2-1 on whole scripts, won the figure task) or run more tasks.
+1. Running: persona v2 on 01sk, 2 reps, `eval/results/persona2-01sk-20261028`. Then a blind page against the rule-list D runs in `skill-nb2-20261027`. A persona v1 rep 1 run is also finishing in `persona-01sk-20261028` (its rep 2 was blocked by a pre-made dir); score it as an extra point.
 2. Done: round 2 head-to-head (results below).
 3. Persona core is live (`rules/core.md`, 3,343 bytes): identity, five failure facts, eight habits, authority. The rule-list core it replaced is in git history (`4b14e3b`). Reviewer reports in `skills/lucid-coder/references/persona-panel-20261028/`. Dropped from core in the swap, kept in r.md/python.md or house-style only: no globals, comment toggles, dead code, `_v2`, denominators, distinct seed per replicate, root-relative path wording, "let the package loop", `check_*.R` ban text, separate layers, legend order. Blind test: item 1.
 4. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
 5. Decisions open for the user: allow `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form; the other session's uncommitted `templates/plots.*`, `bench/`, `skills/*` and house-style rows.
+
+## Persona v2 (2026-10-28)
+- The task 02 diff showed the persona adding a `message()` of dims read and a `CONDITION_LEVELS` block the task did not need. Three clauses changed in core (`b46adf3`): report what a step removed, nothing when it removed nothing; a task with no knob has no parameters block; no audit of what went right. Cut to pay for them: the re-plot sentence, "names say what objects hold", "QC and annotation are notebooks too".
 
 ## Rules vs persona, blind (2026-10-28)
 - Page https://claude.ai/artifact/39ScY8EorPPrspU484YF4y, whole scripts, C = rule-list D (sbs2), D = persona D. Unblinded: rules won 02 and 04, persona won 03. Scripts under the persona were longer (34/137/123 vs 23/97/85).
