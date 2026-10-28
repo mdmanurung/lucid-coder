@@ -123,12 +123,15 @@ function main() {
   const opt = name => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : null);
   const [resultsDir, outDir] = argv;
   if (!resultsDir || !outDir) {
-    console.error('usage: node eval/side-by-side.js <results-dir> <out-dir> [--rep 1] [--arms A,D] [--tasks 02,04] [--whole] [--human panels.json]');
+    console.error('usage: node eval/side-by-side.js <results-dir> <out-dir> [--rep 1] [--arms A,D] [--tasks 02,04] [--whole] [--notes notes.json] [--human panels.json]');
     process.exit(1);
   }
   // --arms A,D gives a two-column head-to-head; columns are still shuffled per panel.
   const { panels, key } = armPanels(resultsDir, opt('--rep') || '1', (opt('--arms') || 'A,B,C,D').split(','), opt('--tasks')?.split(','), argv.includes('--whole'));
   const human = opt('--human') ? humanPanels(opt('--human')) : [];
+  // --notes file.json: {panelId: text} shown under a panel title, e.g. a scope statement.
+  const notes = opt('--notes') ? JSON.parse(fs.readFileSync(opt('--notes'), 'utf8')) : {};
+  for (const p of panels) if (notes[p.id]) p.note = notes[p.id];
   fs.mkdirSync(outDir, { recursive: true });
   const template = fs.readFileSync(path.join(__dirname, 'side-by-side.html'), 'utf8');
   const data = JSON.stringify({ source: path.basename(resultsDir), panels: [...panels, ...human] }).replace(/</g, '\\u003c');
