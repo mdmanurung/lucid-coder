@@ -12,11 +12,15 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-1. The user reviews rule-list D against persona v2 D on task 01sk, blind: https://claude.ai/artifact/3doNepJZpSwBf9aGXHqUFi (7 step panels, rep 1, scope notes; key in `eval/results/persona-vs-rules-01sk-20261028/review/side-by-side-key.tsv`, C = rule list, D = persona v2). Persona v2 01sk: gates 2/2, script lines 160/159 against 144/161 under the rule list; de.tsv byte-identical across sides; the persona notebook adds an MDS figure. The stopped persona v1 run produced nothing and was removed.
+1. Decide: keep the persona core or restore the rule list (`4b14e3b`). Blind picks put them at parity: rules 5, persona 4, ties 2 across tasks 01sk and 02-04 (details below).
 2. Done: round 2 head-to-head (results below).
 3. Persona core is live (`rules/core.md`, 3,343 bytes): identity, five failure facts, eight habits, authority. The rule-list core it replaced is in git history (`4b14e3b`). Reviewer reports in `skills/lucid-coder/references/persona-panel-20261028/`. Dropped from core in the swap, kept in r.md/python.md or house-style only: no globals, comment toggles, dead code, `_v2`, denominators, distinct seed per replicate, root-relative path wording, "let the package loop", `check_*.R` ban text, separate layers, legend order. Blind test: item 1.
 4. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
 5. Decisions open for the user: allow `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form; the other session's uncommitted `templates/plots.*`, `bench/`, `skills/*` and house-style rows.
+
+## Rules vs persona v2 on 01sk, blind (2026-10-28)
+- Page https://claude.ai/artifact/3doNepJZpSwBf9aGXHqUFi, rep 1, C = rule list, D = persona v2. Unblinded: persona won setup, filter-and-aggregate and the SKILL.md workflow; the rule list won load, fit and the notebook ("more concise in explanations": the persona notebook was 519 lines against 316, with an extra MDS figure); write was a tie.
+- Running tally of rule list vs persona, like-for-like panels only: rules 5, persona 4, ties 2. Parity, one reader.
 
 ## Persona v2 (2026-10-28)
 - The task 02 diff showed the persona adding a `message()` of dims read and a `CONDITION_LEVELS` block the task did not need. Three clauses changed in core (`b46adf3`): report what a step removed, nothing when it removed nothing; a task with no knob has no parameters block; no audit of what went right. Cut to pay for them: the re-plot sentence, "names say what objects hold", "QC and annotation are notebooks too".
