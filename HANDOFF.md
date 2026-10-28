@@ -1,6 +1,6 @@
 # Handoff — lucid-coder
 
-**Date:** 2026-10-27 · **Branch:** main, not pushed · **Status:** Phases 0-3 committed. On 2026-10-27 the rules were rewritten from the corpus code, R4DS/R Cookbook and Wilke. A review then aligned the skill doc, house-style table, templates, scorer and hooks with them. 80 tests pass. All grid numbers below predate the new rules.
+**Date:** 2026-10-27 · **Branch:** main, not pushed · **Status:** Development paused 2026-10-28; the plugin (v0.4.0: persona core + house rules) is in real use. Plan and next steps: `ROADMAP.md` and the GitHub roadmap issue.
 
 ## Goal
 Build a ponytail-like Claude Code plugin with three properties:
