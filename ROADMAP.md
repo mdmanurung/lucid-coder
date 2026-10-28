@@ -24,6 +24,7 @@ Phase 1, measure what exists (no new tasks):
 2. A second reader judges the existing review pages, to check the picks are not one person's taste.
 3. Fold learned rules from real use into `house.md` or the persona.
 4. Decide the open questions: `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form.
+5. Add **tut** counts from the kai notebook corpus to existing house-style rows (#21).
 
 Phase 2, harness fixes:
 - Balance column positions in two-arm review pages automatically (position bias found by hand on 2026-10-28).
@@ -42,4 +43,8 @@ Phase 3, new eval tasks (`eval/TASK-CATALOG.md`, sources in `eval/task-sources/`
 9. Regulator sign: a network without weights turns a repressor positive.
 10. Visit and pair selection: duplicate runs or the wrong baseline visit.
 
+More task sources may come from the kai notebook corpus (#22).
+
 Each task: a frozen small dataset under `inputs/`, a prompt, `check.R`, a reference answer that passes and a naive one that fails, then 4 arms x 2 reps and a blind review page. About 1-2 hours to build and $8 to run per task.
+
+Phase 4, skill evidence from the kai notebook corpus (#19): mine how 2,845 scverse tutorials call each pipeline skill's method, then propose gotchas and grill-question values for the user to approve (#20).
