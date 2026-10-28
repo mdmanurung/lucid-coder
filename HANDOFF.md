@@ -12,7 +12,7 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-1. Decide: keep the persona core or restore the rule list (`4b14e3b`). Blind picks put them at parity: rules 5, persona 4, ties 2 across tasks 01sk and 02-04 (details below).
+1. Both worlds: `rules/core.md` is the persona (judgement + why), `rules/house.md` (new, `93679bb`) restates the user-decided conventions and a do-not-add list as flat rules; readCore() injects both. Rendered prompt 6.0 KB of 9.5. Not yet measured: run D on 01sk (2 reps) and 02-04 from the worktree (so the other session's tree is untouched) and compare blind against the persona-only runs.
 2. Done: round 2 head-to-head (results below).
 3. Persona core is live (`rules/core.md`, 3,343 bytes): identity, five failure facts, eight habits, authority. The rule-list core it replaced is in git history (`4b14e3b`). Reviewer reports in `skills/lucid-coder/references/persona-panel-20261028/`. Dropped from core in the swap, kept in r.md/python.md or house-style only: no globals, comment toggles, dead code, `_v2`, denominators, distinct seed per replicate, root-relative path wording, "let the package loop", `check_*.R` ban text, separate layers, legend order. Blind test: item 1.
 4. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
