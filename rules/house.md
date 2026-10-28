@@ -1,4 +1,4 @@
-## House rules (decided by the user; not up for judgement)
+## House rules (the user decided these)
 - Parameters a reader may change: right after the header, UPPER_SNAKE, a reason each. Package defaults and one-use values stay inline.
 - A named function only at 3+ calls in a script or shared by 2+ scripts. Each output file gets its own write line.
 - Header: Purpose, Run, Inputs and Outputs one file per line. Every block opens with `# Name ` padded with `-` to column 80; a one-line comment names the step; a blank line between steps.
