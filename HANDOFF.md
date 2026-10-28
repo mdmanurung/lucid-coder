@@ -12,7 +12,7 @@ Build a ponytail-like Claude Code plugin with three properties:
 Readability is the goal, not token efficiency. Done means phases 0–3 of `PLAN.md` section 9 pass their checks.
 
 ## Next action
-1. Running: persona v2 on 01sk, 2 reps, `eval/results/persona2-01sk-20261028`. Then a blind page against the rule-list D runs in `skill-nb2-20261027`. A persona v1 rep 1 run is also finishing in `persona-01sk-20261028` (its rep 2 was blocked by a pre-made dir); score it as an extra point.
+1. The user reviews rule-list D against persona v2 D on task 01sk, blind: https://claude.ai/artifact/3doNepJZpSwBf9aGXHqUFi (7 step panels, rep 1, scope notes; key in `eval/results/persona-vs-rules-01sk-20261028/review/side-by-side-key.tsv`, C = rule list, D = persona v2). Persona v2 01sk: gates 2/2, script lines 160/159 against 144/161 under the rule list; de.tsv byte-identical across sides; the persona notebook adds an MDS figure. The stopped persona v1 run produced nothing and was removed.
 2. Done: round 2 head-to-head (results below).
 3. Persona core is live (`rules/core.md`, 3,343 bytes): identity, five failure facts, eight habits, authority. The rule-list core it replaced is in git history (`4b14e3b`). Reviewer reports in `skills/lucid-coder/references/persona-panel-20261028/`. Dropped from core in the swap, kept in r.md/python.md or house-style only: no globals, comment toggles, dead code, `_v2`, denominators, distinct seed per replicate, root-relative path wording, "let the package loop", `check_*.R` ban text, separate layers, legend order. Blind test: item 1.
 4. The per-file inline packets (`packet-20261027`, `packet-skill-20261027`) are superseded: the user found whole-file rating fatigue-biased.
