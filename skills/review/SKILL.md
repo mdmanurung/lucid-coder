@@ -42,7 +42,7 @@ default or rule id it breaks, and a one-line fix.
 
 Order the groups by consequence:
 
-1. Scientific risk: `checks.*`, `data.*`, `repro.*`.
+1. Scientific risk: `checks.*`, `data.*`, `repro.*`, `stats.*`.
 2. Layout, comments and control flow: `files.*`, `comments.*`, `code.*`.
 3. Style: `r.*`, `py.*`, `fig.*`.
 
@@ -81,10 +81,12 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/rules.js" propose --topic 'r.assign' --scope
 
 ### mycelium-extra
 
-If the skill listing has names starting `mycelium-extra:`, scilintr is
-installed. Do not repeat its findings (bare `except`, `setwd()`, unseeded
-randomness, global warning suppression). Write one line instead:
-"scilintr covers X; run mycelium-extra's lint."
+scilintr is a separate install; mycelium's `analyze` and mycelium-extra's
+`verify` run it when it is present. If it is installed (`scilintr` on `PATH`
+for Python, the R package `scilintr` for R), do not
+repeat its findings (bare `except`, `setwd()`, unseeded randomness, global
+warning suppression). Write one line instead: "scilintr covers X; run
+`scilintr` or `/mycelium-extra:verify`."
 
 ## Never
 
