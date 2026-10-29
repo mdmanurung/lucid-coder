@@ -1,0 +1,41 @@
+id: scrna.de.pseudobulk-donor
+version: 0.1.0
+status: candidate
+question: >
+  Compare expression between conditions
+  within annotated cell populations.
+modalities: [scrna, cite_seq_rna]
+designs: [independent, paired, longitudinal]
+requires:
+  - raw_integer_counts
+  - sample_id
+  - donor_id
+  - cell_type
+  - condition
+statistical_unit: biological_replicate
+observation_unit: pseudobulk_sample
+methods:
+  preferred: [pseudobulk_limma_voom, pseudobulk_edgeR]
+  alternatives: [cell_level_mixed_model]
+checks:
+  - sample_donor_mapping_valid
+  - count_integrity
+  - minimum_replication
+  - design_matrix_full_rank
+  - paired_structure_preserved
+  - batch_confounding_checked
+  - sensitivity_to_low_cell_counts
+evidence:
+  - repository: aifimmunology/aifi-healthy-pbmc-reference
+    path: 07-Pseudobulk/
+    commit: TO_BE_PINNED
+    type: implementation_example
+methodology:
+  - doi: 10.1038/s41467-020-19894-4
+  - doi: 10.1038/s41467-021-25960-2
+verification:
+  documentation_reviewed: false
+  source_verified: false
+  executed: false
+  simulation_calibrated: false
+  scientifically_approved: false

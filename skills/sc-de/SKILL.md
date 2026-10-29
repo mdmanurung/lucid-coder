@@ -131,6 +131,8 @@ features are proteins or assays named by the input, so lm takes no gene ids.
 
 ## Parameters (all required, no defaults)
 
+Ask these through the analysis contract: `${CLAUDE_PLUGIN_ROOT}/skills/lucid-coder/references/contracts.md`.
+
 Each row is a grill question. Ask the user; never fill one in.
 
 | Argument | Grill question | Demo-only value (mast / lm) |

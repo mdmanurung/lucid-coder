@@ -18,6 +18,7 @@ Templates:
 
 - R: `air.toml`, `.lintr`, `palettes.R`, `theme.R`, `plots.R`
 - Python: `ruff.toml`, `palettes.py`, `theme.py`, `plots.py`
+- Both: `lucid-coder.yaml`, filled in by step 4 rather than copied as is
 
 ## Steps
 
@@ -47,7 +48,22 @@ Templates:
    A `palettes.R` or `palettes.py` that exists and differs from the template
    holds project colours. Never copy over it. Offer to append the
    `palette_for` helper from the template instead, and only on yes.
-4. Count files that use the magrittr pipe:
+4. Offer `lucid-coder.yaml`, the env pointer the SessionStart hook reads. It
+   names the env only, never packages. If it exists, show it and ask whether
+   it is still right. Otherwise ask which env manager (pixi, conda, uv or
+   system) and which env name or prefix. Activate that env, then fill `r`
+   and `python` from:
+
+   ```bash
+   command -v Rscript
+   command -v python
+   ```
+
+   Each path must sit under the env prefix; if one does not, the env is not
+   active, so say so and ask. Leave a field out rather than guess it. Show
+   the filled file and ask before writing it to the repository root. A
+   malformed file is ignored by the hook with a one-line warning.
+5. Count files that use the magrittr pipe:
 
    ```bash
    grep -rl '%>%' --include='*.R' --include='*.Rmd' --include='*.qmd' . | wc -l
@@ -56,7 +72,7 @@ Templates:
    If the count is above 0, say how many files. The house style is `|>`
    always, so offer to convert them as a separate change. Do not convert
    here, because `air` does not rewrite pipes.
-5. Report what was copied and what was skipped. Then list the commands to run
+6. Report what was copied and what was skipped. Then list the commands to run
    next, for the languages that apply:
 
    ```bash
@@ -67,6 +83,28 @@ Templates:
 
    Say that folders and scaffolding belong to mycelium-extra's repo-template
    skill, not to this one.
+
+   Mention analysis contracts too, without writing one: each analysis gets
+   `contracts/<analysis>.yaml` (from `templates/contract.yaml`), agreed before
+   any code. A value of `ask` is a question the grill still has to settle.
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/contract.js" validate contracts/<analysis>.yaml
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/contract.js" asks contracts/<analysis>.yaml
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/contract.js" approve contracts/<analysis>.yaml --by <name>
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/contract.js" status contracts/<analysis>.yaml
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/contract.js" gates contracts/<analysis>.yaml
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/contract.js" card <skill>
+   ```
+
+   A contract's `skill:` links the method card `skills/<skill>/card.yaml`;
+   its `engine:` links `skills/<skill>/variants/<engine>.yaml`. Every card
+   `requires` entry needs a `columns` entry in the contract.
+
+   In a mycelium-extra repo, `contract.js mycelium <file> --table <path>
+   [--sample-col <col>]` prints a `mycelium-extra.data_contract.v1` JSON for
+   `data-contract-check` to stdout. Pipe it in; never save it in the repo
+   unasked.
 
 ## Never
 

@@ -1,0 +1,14 @@
+# lucid-coder.yaml: which env this project runs in. Pointers only; packages
+# live in the env's own lock file (pixi.toml, environment.yml, uv.lock).
+# The SessionStart hook reads this and tells the agent which R and Python to use.
+version: 1
+env:
+  manager: conda        # pixi | conda | uv | system
+  name: R4_51           # or leave name out and give the prefix alone
+  prefix: /abs/path/to/conda/envs/R4_51
+  r: /abs/path/to/conda/envs/R4_51/bin/Rscript      # command -v Rscript, inside the env
+  python: /abs/path/to/conda/envs/R4_51/bin/python  # command -v python, inside the env
+formatters:
+  air: "0.x"
+  ruff: "0.x"
+run_dir_root: results

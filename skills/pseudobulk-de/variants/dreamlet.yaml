@@ -1,0 +1,85 @@
+# Implementation variant of the pseudobulk-de card for --engine dreamlet.
+# Source: external review "dreamlet pseudobulk differential expression pattern",
+# 2026-10-29, adapted to the shipped script. Parameters are package references
+# only; the contract still holds the answers.
+id: scrna.de.pseudobulk-donor.dreamlet
+parent: scrna.de.pseudobulk-donor
+engine: dreamlet
+script: scripts/dreamlet.R
+# scripts/dreamlet.R relevels the contrast factor to the denominator and reads the
+# coefficient <factor><numerator>, so the formula keeps its intercept. The review's
+# "~ 0 + condition" with contrast "conditionstim - conditionctrl" estimates the
+# same difference.
+formula_pattern: "~ condition + (1 | donor_id)"
+estimand: >
+  Model-estimated numerator-minus-denominator log2 expression contrast
+  within each cell type, conditional on the specified covariates and the
+  donor random-intercept structure. Not necessarily the arithmetic mean
+  of donor-level log fold changes.
+statistical_unit: donor
+observation_unit: donor_condition_sample_celltype
+parameters:
+  min.cells:
+    package_default: 5
+    source: dreamlet 1.8.0 processAssays.Rd, Usage
+  min.count:
+    package_default: 5
+    source: dreamlet 1.8.0 processAssays.Rd, Usage
+  min.samples:
+    package_default: 4
+    source: dreamlet 1.8.0 processAssays.Rd, Usage
+    note: a filter on samples, not a count of independent donors
+  min.prop:
+    package_default: 0.4
+    source: dreamlet 1.8.0 processAssays.Rd, Usage
+  normalize.method:
+    package_default: TMM
+    source: dreamlet 1.8.0 processAssays.Rd, Usage
+  min.total.count:
+    package_default: null
+    source: passed through ... to edgeR::filterByExpr; not in the processAssays usage
+    note: default not checked
+known_failures:
+  - pseudoreplication from cell-level tests
+  - normalized or integrated values used as raw counts
+  - samples from the same donor treated as independent
+  - different conditions pooled into one sample_id
+  - one condition missing after cell-type filtering
+  - min.samples read as the minimum number of independent donors
+  - unmodelled condition-batch confounding
+  - dreamlet 1.8.0 accepts min.cells in dreamlet() but does not use it; filter cells in processAssays.
+  - edgeR drops an all-zero gene; it stays in the table as an NA row.
+  - base_mean is AveExpr, mean log2 CPM, not a normalised count.
+block_before_fit:
+  - input_counts_are_raw_integer_and_nonnegative
+  - sample_ids_unique_by_biological_sample
+  - donor_condition_metadata_constant_per_sample
+  - enough_paired_donors_for_inference_not_just_min_samples
+  - no_complete_confounding_or_rank_deficiency
+  - each_donor_condition_has_at_most_one_biological_sample_or_explicit_replicate_policy
+  - paired_donor_counts_reported_per_celltype_after_filtering
+  - condition_and_batch_not_perfectly_confounded
+block_before_report:
+  - requested contrast estimable in each reported cell type
+  - no unresolved model errors or dropped contrast terms (details(), seeErrors())
+  - effect direction matches numerator minus denominator
+  - residual and voom weight diagnostics reviewed
+  - multiple-testing family documented (topTable BH across reported cell types and genes)
+  - sensitivity to min.cells and low-abundance cell types reported
+  - NA rows (genes edgeR dropped) excluded from the count of genes tested
+  - base_mean labelled as mean log2 CPM, not as a normalised count
+verification:
+  documentation_reviewed:
+    date: 2026-10-29
+    by: user review
+    note: external review document; execution not run
+  source_verified: false
+  executed: false
+  simulation_calibrated: false
+  scientifically_approved: false
+provenance:
+  upstream: https://github.com/DiseaseNeurogenomics/dreamlet
+  commit: null
+  docs:
+    - https://diseaseneurogenomics.github.io/dreamlet/articles/dreamlet.html
+  note: article DOI in the review unverified; licence review pending

@@ -109,6 +109,8 @@ symbols). The UMAP is the query's own; the script does not compute or project on
 
 ## Parameters (all required, no defaults)
 
+Ask these through the analysis contract: `${CLAUDE_PLUGIN_ROOT}/skills/lucid-coder/references/contracts.md`.
+
 Each row is a grill question. Ask the user; never fill one in.
 
 | Argument | Grill question | Demo-only value |

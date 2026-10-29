@@ -251,6 +251,68 @@ function readActiveRules(langs) {
   return rules;
 }
 
+const ENV_FILE = 'lucid-coder.yaml';
+const ENV_MAX = 300;
+// A path is plain characters, short, normalised, off /proc /dev /sys, and outside the repo
+// (a cloned repo can carry any binary) except under <root>/.pixi/envs/.
+function envPath(v, root) {
+  if (!/^\/[\w.\/+-]+$/.test(v) || v.length > 200 || v !== path.normalize(v)) return false;
+  if (/^\/(proc|dev|sys)(\/|$)/.test(v)) return false;
+  const roots = [root];
+  try { roots.push(fs.realpathSync(root)); } catch (e) {}
+  return roots.every(r => !(v + '/').startsWith(r + '/') || v.startsWith(path.join(r, '.pixi/envs/')));
+}
+const ENV_FIELDS = {
+  manager: [v => ['pixi', 'conda', 'uv', 'system'].includes(v), 'pixi, conda, uv or system'],
+  name: [v => /^[\w.+-]{1,64}$/.test(v), 'a plain env name'],
+  prefix: [envPath, 'a plain absolute path'],
+  r: [envPath, 'a plain absolute path'],
+  python: [envPath, 'a plain absolute path'],
+};
+
+// The env named by lucid-coder.yaml at the repo root, as one block of at most
+// ENV_MAX chars; '' when there is no file. A bad file gives one warning line.
+// The file is not trust-gated, so only values that pass ENV_FIELDS are injected.
+function readEnv(cwd) {
+  let file;
+  let text;
+  const root = (repoInfo(cwd) || { root: path.resolve(cwd) }).root;
+  try {
+    file = path.join(root, ENV_FILE);
+    const st = fs.statSync(file); // follows symlinks; a link to /dev/zero is not a file
+    if (!st.isFile() || st.size > 8192) return `${file} is malformed (not a small file); ignoring it. Ask which R and Python to use.`;
+    text = fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    return '';
+  }
+  let env;
+  try {
+    const doc = require('../scripts/yaml-lite').parse(text);
+    if (!doc || doc.version !== 1) throw new Error('version must be 1');
+    env = doc.env;
+    if (!env || typeof env !== 'object' || Array.isArray(env)) throw new Error('env must be a map');
+    if (env.manager == null) throw new Error('env.manager is missing');
+    for (const [key, [ok, want]] of Object.entries(ENV_FIELDS)) {
+      if (env[key] != null && !(typeof env[key] === 'string' && ok(env[key], root))) throw new Error(`env.${key} must be ${want}`);
+    }
+    for (const k of ['r', 'python']) {
+      if (env[k] != null && env.prefix != null && !env[k].startsWith(env.prefix + '/')) throw new Error(`env.${k} must be inside env.prefix`);
+    }
+  } catch (e) {
+    // Only the line number or field name, never file text, reaches the context.
+    const where = (e.message.match(/^line \d+/) || [e.message])[0];
+    return `${file} is malformed (${where}); ignoring it. Ask which R and Python to use.`;
+  }
+  const { manager, name, prefix, r, python } = env;
+  const runs = [r && `R as ${r}`, python && `Python as ${python}`].filter(Boolean);
+  const run = runs.length ? `Run ${runs.join(' and ')}` : 'Use this env for R and Python';
+  const descs = name && prefix ? [`${manager} env ${name}, prefix ${prefix}`, `${manager} env ${name}`]
+    : [name ? `${manager} env ${name}` : prefix ? `${manager} env at ${prefix}` : manager];
+  const head = '## Environment (lucid-coder.yaml)\n';
+  const blocks = descs.map(d => `${head}${run} (${d}); not the R or Python first on PATH.`);
+  return blocks.find(b => b.length <= ENV_MAX) || `${file} has values too long; ignoring it. Ask which R and Python to use.`;
+}
+
 // One line, no leading '#', so rule text cannot open a fake heading.
 function escapeRule(text) {
   return String(text || '').replace(/\s+/g, ' ').trim().replace(/^#+\s*/, '').slice(0, RULE_MAX);
@@ -268,9 +330,11 @@ function scopeLabel(scope) {
   return s.kind;
 }
 
-function render(core, rules, tiers = []) {
+// The env block sits before the learned rules, so their budget counts it.
+function render(core, rules, tiers = [], env = '') {
   let out = 'LUCID-CODER ACTIVE\n\n' + core;
   for (const tier of tiers) out += '\n\n' + tier;
+  if (env) out += '\n\n' + env;
   if (rules.length) out += learnedBlock(out.length, rules);
   if (rules.notice) out += '\n\n' + rules.notice;
   return out;
@@ -331,6 +395,6 @@ function readStdin(cb) {
 module.exports = {
   FALLBACK_CORE, readMode, setMode, readCore, readActiveRules,
   readTiers, detectLanguages, readLang, setLang, languages,
-  escapeRule, render, writeOutput, readStdin,
+  escapeRule, render, writeOutput, readStdin, readEnv,
   dataDir, rememberDataDir, repoInfo, sha256, RULE_MAX,
 };

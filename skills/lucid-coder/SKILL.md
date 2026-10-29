@@ -21,7 +21,9 @@ Optimise for one-pass understanding and a clean rerun. Brevity breaks ties.
 
 Assessed on the acumen bench (2026-10-27, `bench/plots/`): answers unchanged
 against no skill, and figures follow house style in 20 to 33% of runs. A
-pipeline skill's script enforces style; this persona only advises.
+pipeline skill's script enforces style; this persona only advises. A pipeline
+skill asks its parameters through an analysis contract:
+`references/contracts.md`.
 
 ## Where the rules live
 

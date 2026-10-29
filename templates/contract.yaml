@@ -1,0 +1,44 @@
+# contracts/<analysis>.yaml: the analysis contract, agreed before any code.
+# Any value may be the literal ask: the grill asks it before approval.
+# Check:    node scripts/contract.js validate contracts/<analysis>.yaml
+# Approve:  node scripts/contract.js approve contracts/<analysis>.yaml --by <name>
+# Approval writes an approved block with a sha256 of the rest of the file;
+# any later edit, comments included, makes the approval stale.
+version: 1
+analysis: cd14_disease_vs_healthy   # must match the file name
+skill: pseudobulk-de                # optional: the pipeline skill that runs it; links skills/<skill>/card.yaml
+engine: dreamlet                    # optional: picks skills/<skill>/variants/<engine>.yaml
+question: Does disease shift CD14 monocyte expression against healthy donors?
+estimand: difference in mean log2 expression, disease minus healthy, within donor
+interpretation: positive logFC = higher in disease
+unit: donor                         # experimental unit
+observation_unit: pseudobulk_sample # what one row of the fitted data is
+replicate: donor
+columns:                            # each requires entry of the skill's card: its sample-table column
+  sample_id: sample
+  donor_id: donor
+  cell_type: cell_type
+  condition: condition
+  raw_integer_counts: layers/counts # an h5ad path (X or layers/<name>), not a column
+design:
+  formula: "~ condition + (1 | donor)"
+  reference_levels:
+    condition: healthy
+  covariates: []
+  blocking: [donor]
+contrasts:
+  disease_vs_healthy: "condition: disease - healthy"
+test: dreamlet mixed model, moderated t-test
+multiple_testing:
+  method: BH
+  family: all genes in this contrast
+thresholds:
+  padj_max: 0.05
+  lfc_min: ask
+filters:
+  - step: filterByExpr
+    cutoff: ask
+seed: 1
+outputs: [de_table.tsv, volcano.pdf]
+params:                             # skill arguments not covered above; value or ask
+  min_cells: ask

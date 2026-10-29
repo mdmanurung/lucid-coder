@@ -129,6 +129,8 @@ dc.op.progeny(organism="human", top=500, thr_padj=0.05, license="academic").to_c
 
 ## Parameters (all required, no defaults)
 
+Ask these through the analysis contract: `${CLAUDE_PLUGIN_ROOT}/skills/lucid-coder/references/contracts.md`.
+
 Each row is a grill question. Ask the user; never fill one in.
 
 | Argument | Meaning | Grill question | Demo-only value |

@@ -1,12 +1,12 @@
 // SubagentStart: same text as SessionStart, which does not reach subagents.
 // LUCID_SUBAGENT_MATCHER (a case-insensitive regex on agent_type) limits which
 // subagents get it; anything ambiguous injects, so scoping never drops the persona.
-const { readMode, readCore, readActiveRules, readTiers, languages, render, writeOutput, readStdin, FALLBACK_CORE } = require('./lib');
+const { readMode, readCore, readActiveRules, readTiers, languages, readEnv, render, writeOutput, readStdin, FALLBACK_CORE } = require('./lib');
 
 function inject() {
   try {
     const langs = languages(process.cwd());
-    writeOutput('SubagentStart', render(readCore(), readActiveRules(langs), readTiers(langs)));
+    writeOutput('SubagentStart', render(readCore(), readActiveRules(langs), readTiers(langs), readEnv(process.cwd())));
   } catch (e) {
     writeOutput('SubagentStart', FALLBACK_CORE);
   }
