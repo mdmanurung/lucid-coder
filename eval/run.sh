@@ -99,9 +99,9 @@ for task_id in "${task_ids[@]}"; do
   task="$(resolve_task "$task_id")"
   task_dir="$TASKS_DIR/$task"
   prompt_file="$task_dir/prompt.md"
-  # Python twins carry "py" in the id (01py_...); arm-prompt.js picks the language tier.
+  # A Python task has a Python reference script; arm-prompt.js picks the language tier.
   lang=r
-  [[ "$task" == *py_* ]] && lang=python
+  compgen -G "$task_dir/reference/*.py" >/dev/null && lang=python
   for arm in "${arm_ids[@]}"; do
     for ((rep = 1; rep <= reps; rep++)); do
       run_dir="$out/${task}_${arm}_r${rep}"
@@ -131,6 +131,9 @@ for task_id in "${task_ids[@]}"; do
       mkdir "$run_dir" 2>/dev/null || die "$run_dir already exists"
       mkdir "$run_dir/repo"
       cp -R "$task_dir/inputs/." "$run_dir/repo/"
+      # The prompt runs `--with-requirements requirements.txt`; the task file only points
+      # at the shared lock by a relative path, so the run repo gets the lock itself.
+      [[ -f "$task_dir/requirements.txt" ]] && cp "$EVAL_DIR/envs/python-tasks.txt" "$run_dir/repo/requirements.txt"
       # The rules say to run air/ruff format after every edit; without the configs the
       # agent would format to tool defaults (80 columns) and fail score.js's check at
       # the template widths. Every arm gets them; score.js copies them again before scoring.

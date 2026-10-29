@@ -5,6 +5,7 @@
 # Run:     Rscript eval/fixtures/make-fixtures.R
 # Notes:   [Stochastic] one seed per task, so editing one task leaves the others unchanged.
 #          Reruns are byte-identical; eval/tests/gates.test.js checks this.
+#          Tasks 07-16 are not built here: each has its own make-inputs.*/make-data.R in its folder.
 
 # ---- Setup ----
 TASKS_DIR <- here::here("eval", "tasks")

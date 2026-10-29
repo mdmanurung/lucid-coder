@@ -1,0 +1,4 @@
+gene	role	interaction_log2_fc	interaction_q	monocyte_log2_fc	monocyte_log_cpm	monocyte_q	cd4t_log2_fc	cd4t_log_cpm	cd4t_q
+RABGAP1L	larger_in_monocytes	5.776	5.122e-22	6.102	10.11	1.577e-13	0.3913	7.644	0.006067
+ENO1	smaller_in_monocytes	-2.046	1.836e-12	-1.307	10.58	6.471e-11	0.8055	10.87	3.037e-09
+ARHGAP15	significant_in_one_type_only	0.03258	0.9595	0.4772	5.157	0.2636	0.5616	8.226	3.963e-05

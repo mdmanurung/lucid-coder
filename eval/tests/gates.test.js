@@ -84,6 +84,12 @@ const cases = [
   ['04_refactor-legacy', '04_group-means.R', /values differ|rows, expected/],
   ['05_recode-trap', '05_summarise-cohorts.R', /wrong age group:.*S07 \(BR1 -> older\)/],
   ['06_grep-trap', '06_filter-controls.R', /has 0 rows, expected 280/],
+  ['07_repeated-visits', '07_model-tf-time.R', /time p-value off the repo's mixed model:.*PLAGL1/],
+  ['09_composition', '09_test-composition.R', /unchanged types called: Enterocyte\.Progenitor, Stem, TA, TA\.Early/],
+  ['11_contrast-direction', '11_test-groups.R', /sign flipped or missing for 20 of 20 planted/],
+  ['12_per-sample-qc', '12_filter-cells.R', /SRR28679757 kept 0\/360 cells/],
+  ['14_interaction-contrast', '14_compare-responses.R', /ENO1 not called.*ARHGAP15 called/],
+  ['16_visit-pairs', '16_pair-visits.R', /more than one row: P03 \(2\), P06 \(2\), P11 \(2\).*extra donors.*P09/],
   // '.': the skill tree under reference/ (and reference/naive/), not one script.
   ['01sk_pseudobulk-de', '.', /GENE17 called.*SKILL\.md lacks trigger_keywords, Why This Exists/],
 ];

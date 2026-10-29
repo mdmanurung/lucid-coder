@@ -7,13 +7,12 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const { scoreRun } = require('../score');
+const { pyArgs, scoreRun } = require('../score');
 
 const root = path.join(__dirname, '..', '..');
 const tasksDir = path.join(root, 'eval', 'tasks');
 const R_MODULE = 'module load statistical/R/4.5.2/gcc.8.5.0';
 const UV = path.join(os.homedir(), '.local', 'bin', 'uv');
-const UV_ARGS = ['run', '--python', '3.12', '--with', 'pandas,scipy,matplotlib', 'python'];
 // The first uv call may fetch the interpreter and packages.
 const TIMEOUT = 600000;
 
@@ -37,7 +36,7 @@ function repoWith(taskId, scriptPath) {
 function gate(taskId, scriptPath) {
   const taskDir = path.join(tasksDir, taskId);
   const { repo, script } = repoWith(taskId, scriptPath);
-  const run = spawnSync(UV, [...UV_ARGS, script, 'results/run1'], { cwd: repo, encoding: 'utf8', timeout: TIMEOUT });
+  const run = spawnSync(UV, [...pyArgs(taskDir), script, 'results/run1'], { cwd: repo, encoding: 'utf8', timeout: TIMEOUT });
   assert.strictEqual(run.status, 0, `${scriptPath} failed:\n${run.stderr}`);
   const check = rscript(`${path.join(taskDir, 'check.R')} ${repo} ${taskDir}`, repo);
   assert.strictEqual(check.status, 0, check.stderr);
@@ -49,6 +48,10 @@ const cases = [
   ['01py_pseudobulk-de', '01_compare-conditions.py', /GENE17 called/],
   ['02py_metadata-join', '02_summarise-samples.py', /wrong or missing condition\/batch/],
   ['03py_figure-palette', '03_plot-proportions.py', /proportions_by-condition\.csv/],
+  ['08_pathway-activity', '08_score-pathways.py', /JAK-STAT score 23\.47/],
+  ['10_gene-ids', '10_score-tfs.py', /229 TFs scored/],
+  ['13_counts-layer', '13_combine-labs.py', /lab_b: 128\/128 library_size wrong/],
+  ['15_regulator-sign', '15_score-regulators.py', /T2 mean score in B = 3\.20/],
 ];
 
 for (const [taskId, script, naiveDetail] of cases) {

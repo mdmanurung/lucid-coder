@@ -26,6 +26,30 @@ Ranking: a trap a gate can check with one number or sign; a known answer from th
 | 9 | Regulator sign convention | a network without a `weight`/`mor` column scores every edge +1, so a repressor flips sign | decoupler toy data, 30 cells x 20 genes, offline | repressor T2 has mean score < 0 in group B | Python decoupler v2 | decoupler #1 |
 | 10 | Visit and pair selection | keeping duplicate runs or the wrong visit, so pairs are unbalanced | synthetic: donors x visits with duplicates and one missing baseline | planted pairs | R dplyr | corpus #6 (3 repos), #14 |
 
+## Built (2026-10-29)
+
+All ten are built. Their gates run in `eval/tests/gates.test.js` (R) and `eval/tests/python.test.js` (Python): the reference passes and the naive answer fails under the harness itself. No arm has been run on them yet. Inputs are frozen; each task folder holds its own builder (`make-inputs.*` or `make-data.R`), not `eval/fixtures/make-fixtures.R`. Python tasks run in the env their `requirements.txt` names (`eval/envs/python-tasks.txt`, decoupler 2.3.1).
+
+| # | Task id | Path | Gate status |
+|---|---------|------|-------------|
+| 1 | 07_repeated-visits | `eval/tasks/07_repeated-visits/` | pass: reference passes, naive fails (gates.test.js) |
+| 2 | 08_pathway-activity | `eval/tasks/08_pathway-activity/` | pass: reference passes, naive fails, score.js scores (python.test.js) |
+| 3 | 09_composition | `eval/tasks/09_composition/` | pass: reference passes, naive fails (gates.test.js) |
+| 4 | 10_gene-ids | `eval/tasks/10_gene-ids/` | pass: reference passes, naive fails, score.js scores (python.test.js) |
+| 5 | 11_contrast-direction | `eval/tasks/11_contrast-direction/` | pass: reference passes, naive fails (gates.test.js) |
+| 6 | 12_per-sample-qc | `eval/tasks/12_per-sample-qc/` | pass: reference passes, naive fails (gates.test.js) |
+| 7 | 13_counts-layer | `eval/tasks/13_counts-layer/` | pass: reference passes, naive fails, score.js scores (python.test.js) |
+| 8 | 14_interaction-contrast | `eval/tasks/14_interaction-contrast/` | pass: reference passes, naive fails (gates.test.js) |
+| 9 | 15_regulator-sign | `eval/tasks/15_regulator-sign/` | pass: reference passes, naive fails, score.js scores (python.test.js) |
+| 10 | 16_visit-pairs | `eval/tasks/16_visit-pairs/` | pass: reference passes, naive fails (gates.test.js) |
+
+Differences from the plan above:
+- #2 (08): decoupler 2.3.1 with the current PROGENy gives JAK-STAT 16.73 on the Wald stat; the book reports 17.15 with an older PROGENy copy. The gate uses 16.73 (tolerance 0.5).
+- #4 (10): the input is a DE table, so the raw-counts arm of the trap cannot occur; only the gene-ID trap is tested.
+- 08, 10, 13 and 15 prompts run `uv run ... --with-requirements requirements.txt`, the same pinned lock the gate and rerun use. run.sh must copy `eval/envs/python-tasks.txt` to `requirements.txt` in each Python run repo (the task-folder file has a relative `-r` that does not resolve there).
+- 07 ships `LICENSE-GPL-3.0.txt`; only that folder is GPL-3.0, the repository licence is undecided.
+- Known soft spots, recorded in each `check.R`: 09 does not catch per-mouse proportion t-tests or per-mouse quasi-binomial GLMs (only 2 infected mice, too little power to call the depleted types); its up-type rule is Enterocyte log_fc > 0 and q < 0.25, so crumblr, crumblr robust, edgeR QL, t-tests, quasi-binomial and limma on logits all pass while the pooled cells-as-unit test fails; 12 and 13 do not check `qc_summary.tsv` or `combined.h5ad`, which their prompts ask for.
+
 ## Next tier
 
 | Task | Trap | Data | Note |
@@ -40,6 +64,8 @@ Ranking: a trap a gate can check with one number or sign; a known answer from th
 | LIANA, too few cells | ranking interactions from a cell type with a handful of cells | `li.ds.kang_2018()` with a planted rare type | decoupler #9 |
 | Pseudotime root | an arbitrary root cell | Setty 2019 bone marrow, 392 MB processed | scbp #6 |
 | Dose response | unassigned cells used as the zero-dose reference | `srivatsan_2020_sciplex2()`, 145 MB | pertpy #5 |
+| Negative control: cells per donor | vary cells per donor with donors fixed; the per-cell false-positive rate must not rise | synthetic, task 01 generator | design only; fold into task 01 later |
+| Negative control: one subtype fixed | hold one subtype's absolute count fixed while the others grow; it must not be called changed in absolute terms | synthetic, known absolute counts | design only. Overlaps 09: both test closure. 09 has one real type rising and gates false calls on the rest; this is the mirror case with a known absolute truth. Build as a second fixture of 09, not a new task |
 
 ## Open before building
 

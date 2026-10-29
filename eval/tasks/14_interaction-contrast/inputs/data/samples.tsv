@@ -1,0 +1,33 @@
+sample_id	donor_id	cell_type	condition	n_cells
+p1015_ctrl_cd14mono	patient_1015	CD14+ Monocytes	ctrl	859
+p1015_ctrl_cd4t	patient_1015	CD4 T cells	ctrl	951
+p1015_stim_cd14mono	patient_1015	CD14+ Monocytes	stim	718
+p1015_stim_cd4t	patient_1015	CD4 T cells	stim	835
+p1016_ctrl_cd14mono	patient_1016	CD14+ Monocytes	ctrl	393
+p1016_ctrl_cd4t	patient_1016	CD4 T cells	ctrl	502
+p1016_stim_cd14mono	patient_1016	CD14+ Monocytes	stim	355
+p1016_stim_cd4t	patient_1016	CD4 T cells	stim	461
+p101_ctrl_cd14mono	patient_101	CD14+ Monocytes	ctrl	207
+p101_ctrl_cd4t	patient_101	CD4 T cells	ctrl	353
+p101_stim_cd14mono	patient_101	CD14+ Monocytes	stim	269
+p101_stim_cd4t	patient_101	CD4 T cells	stim	467
+p1039_ctrl_cd14mono	patient_1039	CD14+ Monocytes	ctrl	126
+p1039_ctrl_cd4t	patient_1039	CD4 T cells	ctrl	201
+p1039_stim_cd14mono	patient_1039	CD14+ Monocytes	stim	164
+p1039_stim_cd4t	patient_1039	CD4 T cells	stim	302
+p107_ctrl_cd14mono	patient_107	CD14+ Monocytes	ctrl	210
+p107_ctrl_cd4t	patient_107	CD4 T cells	ctrl	180
+p107_stim_cd14mono	patient_107	CD14+ Monocytes	stim	179
+p107_stim_cd4t	patient_107	CD4 T cells	stim	199
+p1244_ctrl_cd14mono	patient_1244	CD14+ Monocytes	ctrl	418
+p1244_ctrl_cd4t	patient_1244	CD4 T cells	ctrl	1108
+p1244_stim_cd14mono	patient_1244	CD14+ Monocytes	stim	300
+p1244_stim_cd4t	patient_1244	CD4 T cells	stim	892
+p1256_ctrl_cd14mono	patient_1256	CD14+ Monocytes	ctrl	402
+p1256_ctrl_cd4t	patient_1256	CD4 T cells	ctrl	1049
+p1256_stim_cd14mono	patient_1256	CD14+ Monocytes	stim	387
+p1256_stim_cd4t	patient_1256	CD4 T cells	stim	993
+p1488_ctrl_cd14mono	patient_1488	CD14+ Monocytes	ctrl	317
+p1488_ctrl_cd4t	patient_1488	CD4 T cells	ctrl	1216
+p1488_stim_cd14mono	patient_1488	CD14+ Monocytes	stim	393
+p1488_stim_cd4t	patient_1488	CD4 T cells	stim	1529

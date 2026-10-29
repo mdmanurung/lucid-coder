@@ -75,8 +75,13 @@ function findScript(repo) {
 const isSkill = script => script.split(path.sep)[0] === 'skills';
 
 const isPython = script => /\.py$/i.test(script);
-// uv may have to fetch the interpreter and packages on its first call.
-const PY_CMD = ['uv', ['run', '--python', '3.12', '--with', 'pandas,scipy,matplotlib', 'python']];
+// uv may have to fetch the interpreter and packages on its first call. A task that needs
+// more than pandas, scipy and matplotlib lists its packages in its own requirements.txt.
+function pyArgs(taskDir) {
+  const req = path.join(taskDir || '', 'requirements.txt');
+  const deps = taskDir && fs.existsSync(req) ? ['--with-requirements', req] : ['--with', 'pandas,scipy,matplotlib'];
+  return ['run', '--python', '3.12', ...deps, 'python'];
+}
 
 // `claude --output-format json` prints one result object; tolerate an array of events.
 function claudeStats(file) {
@@ -91,11 +96,11 @@ function claudeStats(file) {
 }
 
 // Reruns the script on a copy of the repo without results/, so leftovers cannot help.
-function rerun(repo, script) {
+function rerun(repo, script, taskDir) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lucid-rerun-'));
   try {
     fs.cpSync(repo, tmp, { recursive: true, filter: src => src !== path.join(repo, 'results') });
-    const [cmd, args, timeout] = isPython(script) ? [...PY_CMD, PY_RERUN_MS] : ['Rscript', [], RERUN_MS];
+    const [cmd, args, timeout] = isPython(script) ? ['uv', pyArgs(taskDir), PY_RERUN_MS] : ['Rscript', [], RERUN_MS];
     // A skill takes the ClawBio contract flags; a task script takes the run dir only.
     const out = path.join('results', 'rerun');
     const scriptArgs = isSkill(script) ? [script, '--input', 'data', '--output', out] : [script, out];
@@ -202,7 +207,7 @@ function scoreRun(runDir) {
   const script = findScript(repo);
   row.script_found = Boolean(script);
   if (!script) return row;
-  row.rerun_ok = rerun(repo, script);
+  row.rerun_ok = rerun(repo, script, taskDir);
   Object.assign(row, style(repo, script), textMeasures(fs.readFileSync(path.join(repo, script), 'utf8'), script));
   return row;
 }
@@ -247,4 +252,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { COLUMNS, findScript, scoreRun, textMeasures, toTsv, toolEnv };
+module.exports = { COLUMNS, findScript, pyArgs, scoreRun, textMeasures, toTsv, toolEnv };
