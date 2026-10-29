@@ -14,9 +14,9 @@ from experimental, omics or single-cell data.
 1. **Name it, then explain it below.** One short title; no subtitle; the caption goes in the report, at most 60 words.
 2. **Show the unit of replication.** Each donor is a point; n sits under each group label.
 3. **Make inference visible and honest.** Brackets show the adjusted p; the test and adjustment come from the analysis plan.
-4. **Colour has one job.** Label-keyed palettes, viridis for continuous values, blue-white-red centred at 0, blue down and red up.
+4. **Colour has one job, and every scale is colour-blind safe.** Label-keyed palettes from `categorical_palette()` (Tol, Okabe-Ito, Tableau Color Blind; Tol discrete rainbow up to 23), viridis for continuous values, blue-white-red centred at 0, blue down and red up.
 5. **Encode groups twice.** Colour plus shape or position, so the figure survives greyscale.
-6. **Axes carry meaning.** Units on every axis; log₂ typeset; embeddings without frame, with corner arrows.
+6. **Axes carry meaning; labels read at print size.** Units on every axis; log₂ typeset; text at least 6 pt, black or white on fills by contrast, no overlapping labels; embeddings without frame, with corner arrows.
 7. **Order is information.** Natural orders stay; a heatmap states its order basis.
 8. **Mark the design.** Dashed thresholds; pair lines only for paired data; annotation bars on heatmaps.
 9. **Show every point.** Jittered points with a median crossbar under 10 per group, a box from 10; no violin. Pie, radial and dual-axis charts are not used.

@@ -89,21 +89,27 @@ caption instead of filling it with a common default.
    evidence. An association is never drawn or captioned as a cause, and a
    score is never labelled as a probability. A fitted line does not extend
    past the data.
-4. **Colour has one job per figure.**
+4. **Colour has one job per figure, and every scale is colour-blind safe.**
    - Categories: one palette keyed by label, the same colour for the same label
      in every figure; an unknown label is an error, never a fallback colour.
+     Build it with `categorical_palette(labels)` (Tol, Okabe-Ito, Tableau Color
+     Blind, then Tol discrete rainbow up to 23); never tab10/tab20, Brewer
+     Set1-3, rainbow or jet.
    - Continuous values: viridis, high values drawn on top.
    - Signed values: diverging blue-white-red, centred at 0, symmetric limits
      held in a named constant, values beyond squished.
    - Direction: blue down, red up, grey for not significant or background.
 5. **Encode groups twice.** Colour plus shape (or colour plus position), so the
    figure survives greyscale print and colour-vision deficiency.
-6. **Axes carry meaning.** Every axis and legend title names the quantity and
+6. **Axes carry meaning, and every label reads at print size.** Every axis and legend title names the quantity and
    its unit; never a raw column name. Math is typeset: log₂ via
    `expression(log[2]~"fold change")` or `r"$\log_2$ fold change"`. Bars start
    at 0. Crowded category labels rotate 90°. Embeddings have equal aspect, no
    frame and no ticks, with two short corner arrows ("UMAP 1", "UMAP 2"). PCA
-   axes state the variance explained.
+   axes state the variance explained. Text is at least 6 pt at the final
+   width. Text on a coloured fill takes `text_colour(fill)`; light series
+   colours (yellow, sand) switch to black for text. Labels never overlap: repel
+   with a seed, wrap or rotate; never shrink below 6 pt to fit.
 7. **Order is information.** Natural orders stay (time, dose, ctrl before
    stim); unordered categories sort by value. A heatmap states its order basis
    in the caption: clustered (metric and linkage) or fixed by label.
@@ -194,8 +200,10 @@ the published ones before changing the form.
   default labels are column names. Write each one.
 - **…add a subtitle with n or the test.** Do not: n goes under the group
   labels and the test in the caption.
-- **…use a rainbow or the default categorical cycle.** Do not: use the label-keyed
-  palette or viridis.
+- **…use a rainbow, tab10/tab20, Brewer Set1 or the default categorical cycle.**
+  Do not: use `categorical_palette()` keyed by label, or viridis.
+- **…shrink text or let labels overlap to make them fit.** Do not: wrap,
+  rotate or repel; 6 pt is the floor.
 - **…draw a box for 4 donors, a violin, or a bar with an error bar.** Do not:
   points plus a median crossbar under 10, a box under the points from 10.
 - **…reach for a pie, a radial plot or a second y axis.** Do not: a dot plot
