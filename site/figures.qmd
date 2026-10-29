@@ -19,7 +19,7 @@ from experimental, omics or single-cell data.
 6. **Axes carry meaning; labels read at print size.** Units on every axis; log₂ typeset; text at least 6 pt, black or white on fills by contrast, no overlapping labels; embeddings without frame, with corner arrows.
 7. **Order is information.** Natural orders stay; a heatmap states its order basis.
 8. **Mark the design.** Dashed thresholds; pair lines only for paired data; annotation bars on heatmaps.
-9. **Show every point.** Jittered points with a median crossbar under 10 per group, a box from 10; no violin. Pie, radial and dual-axis charts are not used.
+9. **Show every point.** Jittered points with a median crossbar under 10 per group, a box from 10; no violin in results figures (QC review plots may use one). Pie, radial and dual-axis charts are not used.
 10. **Missing is not zero.** "Not tested" gets its own mark.
 11. **One build, three files.** `cairo_pdf`, a PNG for review, and the source-data CSV.
 

@@ -230,6 +230,10 @@ PNG and source CSV, with no title and no significance stars:
 
 ## Gotchas
 
+- **The model will want to subtract baseline** and test the change scores between
+  groups. Do not, in a parallel-group design: model the follow-up value with
+  baseline as a covariate (Harrell, R Workflow "analysis": "it is not
+  appropriate to compute change from baseline").
 - **The model will want to drop singular or unconverged features** to "clean"
   the table. Do not. They stay in the table, the BH family and the report
   counts; tell the user how many there are and let them decide.

@@ -122,8 +122,9 @@ caption instead of filling it with a common default.
    biological reason that the caption states. Proportions share one stated
    denominator ("% of cells per sample"). Labels go on the top N items only
    when asked, N per direction.
-9. **Show every point.** Distributions are jittered points over a summary,
-   never a violin: n < 10 a median crossbar, n ≥ 10 a box with
+9. **Show every point.** In results figures, distributions are jittered
+   points over a summary, never a violin (QC review plots of per-cell metrics
+   may use violins): n < 10 a median crossbar, n ≥ 10 a box with
    `outlier.shape = NA` under the points. Overlapping densities get
    alpha fills. Jitter takes a seed. Too many points to read: rasterise, then
    use alpha, then `geom_pointdensity()`, hexbin or a 2D density. No pie,
@@ -186,6 +187,24 @@ Worked examples of that procedure:
 - **GSEA running score.** Enrichment curve, a barcode rug of set members, NES
   and adjusted p in the plot, the gene set and ranking metric in the caption.
 
+## Recipes
+
+Exact ggplot2 calls for rules above (ggplot2 >= 3.5; R Graphics Cookbook 2e,
+checked against the current API):
+
+- **Per-facet text:** a data frame keyed by the facet column,
+  `geom_text(aes(label = label), data = facet_labels)`; `annotate()` repeats in
+  every facet.
+- **Legend inside the panel:** `theme(legend.position = "inside",
+  legend.position.inside = c(1, 1), legend.justification = c(1, 1))`.
+- **A 95% interval from a mean:** `se * qt(0.975, n - 1)` with
+  `n = sum(!is.na(x))`, never 1.96.
+- **Dodged points, lines and intervals:** one object, `pd <- position_dodge(0.6)`,
+  passed to every layer, or they misalign.
+- **Log axes:** `scale_y_log10(labels = scales::label_log()) +
+  annotation_logticks(sides = "l")`.
+- **Fonts:** `cairo_pdf` embeds font subsets; do not add extrafont.
+
 ## Reviewing a figure
 
 Critique before redesign (Riffomonas DAIJ): **Describe** what is drawn and for
@@ -204,7 +223,8 @@ the published ones before changing the form.
   Do not: use `categorical_palette()` keyed by label, or viridis.
 - **…shrink text or let labels overlap to make them fit.** Do not: wrap,
   rotate or repel; 6 pt is the floor.
-- **…draw a box for 4 donors, a violin, or a bar with an error bar.** Do not:
+- **…draw a box for 4 donors, a violin in a results figure, or a bar with an
+  error bar.** Do not:
   points plus a median crossbar under 10, a box under the points from 10.
 - **…reach for a pie, a radial plot or a second y axis.** Do not: a dot plot
   or two aligned panels.

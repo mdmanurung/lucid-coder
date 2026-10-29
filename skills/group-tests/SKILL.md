@@ -212,6 +212,10 @@ outdir/
 
 ## Gotchas
 
+- **The model will want to subtract baseline** and test the change scores between
+  groups. Do not, in a parallel-group design: model the follow-up value with
+  baseline as a covariate (Harrell, R Workflow "analysis": "it is not
+  appropriate to compute change from baseline").
 - **The model will want to use `wilcoxon` on paired samples** because the
   paired run "loses" incomplete donors. Do not. Paired samples are not
   independent; ask whether the design is paired and pass `--pair-col`.
