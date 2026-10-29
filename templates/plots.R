@@ -187,7 +187,9 @@ plot_box <- function(
       method = test,
       method.args = list(paired = !is.null(pair)),
       p.adjust.method = p_adjust,
-      label = "p.adj = {p.adj.format}"
+      label = "p.adj = {p.adj.format}",
+      # ggpubr's default is 3.88 mm (about 11 pt); match the 8 pt theme.
+      label.size = 7 / .pt
     ) +
     scale_y_continuous(expand = expansion(mult = c(0.05, 0.15)))
 }
@@ -231,7 +233,10 @@ plot_heatmap <- function(
   limit,
   col_annotation = NULL,
   annotation_pal = NULL,
-  title = NULL
+  title = NULL,
+  x_label = col,
+  y_label = row,
+  fill_label = value
 ) {
   check_cols(data, c(row, col, value, col_annotation), "plot_heatmap")
   # Caller factor levels win; otherwise first-seen order, as in plots.py.
@@ -249,7 +254,7 @@ plot_heatmap <- function(
       oob = scales::squish
     ) +
     scale_y_discrete(limits = rev) +
-    labs(x = col, y = row, fill = value, title = title)
+    labs(x = x_label, y = y_label, fill = fill_label, title = title)
   if (nlevels(data[[col]]) > ROTATE_PAST) {
     p <- p + rotate_x()
   }
@@ -302,23 +307,41 @@ plot_dotplot <- function(data, feature, group, mean, frac, max_size, mean_label,
 }
 
 # Stacked bar of each label's share of the count per sample.
-plot_composition <- function(data, sample, label, count, pal, title = NULL) {
+plot_composition <- function(
+  data,
+  sample,
+  label,
+  count,
+  pal,
+  title = NULL,
+  x_label = sample,
+  y_label = sprintf("%% of %s", count),
+  fill_label = label
+) {
   check_cols(data, c(sample, label, count), "plot_composition")
   data[[label]] <- factor_by_pal(data[[label]], pal)
   ggplot(data, aes(.data[[sample]], .data[[count]], fill = .data[[label]])) +
     geom_col(position = "fill") +
     scale_fill_manual(values = pal) +
     scale_y_continuous(labels = scales::percent) +
-    labs(x = sample, y = sprintf("%% of %s", count), fill = label, title = title)
+    labs(x = x_label, y = y_label, fill = fill_label, title = title)
 }
 
 # Points with a linear fit and its 95% confidence band.
-plot_scatter_fit <- function(data, x, y, label = NULL, title = NULL) {
+plot_scatter_fit <- function(
+  data,
+  x,
+  y,
+  label = NULL,
+  title = NULL,
+  x_label = x,
+  y_label = y
+) {
   check_cols(data, c(x, y, label), "plot_scatter_fit")
   p <- ggplot(data, aes(.data[[x]], .data[[y]])) +
     geom_point(size = 0.5) +
     geom_smooth(method = "lm", formula = y ~ x, se = TRUE, level = 0.95) +
-    labs(x = x, y = y, title = title)
+    labs(x = x_label, y = y_label, title = title)
   if (is.null(label)) {
     return(p)
   }

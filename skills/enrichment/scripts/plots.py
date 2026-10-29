@@ -291,6 +291,9 @@ def plot_heatmap(
     col_annotation=None,
     annotation_pal=None,
     title=None,
+    x_label=None,
+    y_label=None,
+    fill_label=None,
 ):
     """Diverging fill centred at 0, squished at +-limit; first row on top.
 
@@ -319,7 +322,12 @@ def plot_heatmap(
             oob=squish,
         )
         + scale_y_discrete(limits=[str(r) for r in rows[::-1]])
-        + labs(x=col, y=row, fill=value, title=title)
+        + labs(
+            x=x_label or col,
+            y=y_label or row,
+            fill=fill_label or value,
+            title=title,
+        )
     )
     if len(cols) > ROTATE_PAST:
         p += ROTATE_X
@@ -388,7 +396,18 @@ def plot_dotplot(data, feature, group, mean, frac, *, max_size, mean_label, titl
     )
 
 
-def plot_composition(data, sample, label, count, pal, *, title=None):
+def plot_composition(
+    data,
+    sample,
+    label,
+    count,
+    pal,
+    *,
+    title=None,
+    x_label=None,
+    y_label=None,
+    fill_label=None,
+):
     """Stacked bar of each label's share of the count per sample."""
     check_cols(data, [sample, label, count], "plot_composition")
     df = pd.DataFrame(
@@ -403,11 +422,16 @@ def plot_composition(data, sample, label, count, pal, *, title=None):
         + geom_col(position="fill")
         + scale_fill_manual(values=pal)
         + scale_y_continuous(labels=label_percent())
-        + labs(x=sample, y=f"% of {count}", fill=label, title=title)
+        + labs(
+            x=x_label or sample,
+            y=y_label or f"% of {count}",
+            fill=fill_label or label,
+            title=title,
+        )
     )
 
 
-def plot_scatter_fit(data, x, y, label=None, *, title=None):
+def plot_scatter_fit(data, x, y, label=None, *, title=None, x_label=None, y_label=None):
     """Points with a linear fit and its 95% confidence band."""
     check_cols(data, [x, y] + ([label] if label else []), "plot_scatter_fit")
     df = pd.DataFrame({"x": data[x], "y": data[y]})
@@ -415,7 +439,7 @@ def plot_scatter_fit(data, x, y, label=None, *, title=None):
         ggplot(df, aes("x", "y"))
         + geom_point(size=0.5)
         + geom_smooth(method="lm", se=True, level=0.95)
-        + labs(x=x, y=y, title=title)
+        + labs(x=x_label or x, y=y_label or y, title=title)
     )
     if label is None:
         return p
