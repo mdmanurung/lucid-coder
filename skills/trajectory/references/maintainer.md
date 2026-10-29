@@ -50,7 +50,7 @@ No titles; captions sit in `report.md`.
   by group size.
 - `umap_pseudotime`: cells coloured by DPT (viridis); unreachable cells grey.
 - `pseudotime_by_group`: `plot_box`, one jittered point per cell (jitter 0.3,
-  `--seed`), group colours from tab20 in group order. Under 10 cells in any
+  `--seed`), group colours from `categorical_palette` in group order (colour-blind safe, up to 23). Under 10 cells in any
   group it draws points and a median, no box; the caption says which.
 - Captions name how the view was made: the stored UMAP's neighbour count,
   metric, PCs and seed (from `uns["neighbors"]["params"]`; `min_dist` is not

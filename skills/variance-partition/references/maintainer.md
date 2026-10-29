@@ -6,7 +6,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 
 Figures are matplotlib in the house theme, saved by `save_panel` as PDF, PNG
 and source CSV. No titles; captions sit in `report.md`. Colours follow the
-corpus (E-pl-01): RColorBrewer Set1 for the terms in `sortCols` order, grey85
+corpus (E-pl-01): `categorical_palette` for the terms in `sortCols` order (the corpus used Set1, which is not colour-blind safe), grey85
 for Residuals.
 
 - `variance_violin`: `plotVarPart` redrawn; one violin per term of percent

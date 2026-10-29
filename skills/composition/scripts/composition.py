@@ -20,7 +20,7 @@ import anndata as ad
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.colors import to_hex
+from palettes import categorical_palette
 from plots import FEW_POINTS, ROTATE_X, plot_box, plot_composition
 from skillkit import (
     check_design_rank,
@@ -98,9 +98,8 @@ ERRORS = {
 
 DA_COLUMNS = ["label", "logFC", "se", "t", "ci_low", "ci_high", "pvalue", "padj"]
 # Fixed plot spec, not analysis thresholds. Groups take Paul Tol's bright set
-# (reference blue, then red), labels tab20 as hex (plotnine legends reject RGB tuples).
+# (reference blue, then red); labels take categorical_palette (colour-blind safe).
 GROUP_COLOURS = ["#4477AA", "#EE6677", "#228833", "#CCBB44", "#66CCEE", "#AA3377"]
-LABEL_COLOURS = [to_hex(c) for c in plt.get_cmap("tab20").colors]
 SIG, OTHER = "#B2182B", "0.5"
 JITTER_WIDTH = 0.2
 
@@ -257,7 +256,7 @@ def draw_figures(figures, counts, props, meta, da, p):
     group = p["group_col"]
     levels = sorted(meta[group].astype(str).unique())
     group_pal = dict(zip(levels, cycle(GROUP_COLOURS)))
-    label_pal = dict(zip(counts.columns, cycle(LABEL_COLOURS)))
+    label_pal = categorical_palette(counts.columns)
     order = meta.assign(g=meta[group].astype(str)).sort_values(["g", "sample"]).index
     captions = {}
 

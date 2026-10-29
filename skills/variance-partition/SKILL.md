@@ -192,7 +192,7 @@ python scripts/variance_partition.py --demo --outdir demo_out
 ## Workflow (fixed order)
 
 1. **Validate** arguments and input; bad input gives `ERROR: <message>`, exit 2.
-   The formula accepts only `name` and `(1|name)` terms joined by `+`, at most 9.
+   The formula accepts only `name` and `(1|name)` terms joined by `+`, at most 23 (the largest colour-blind-safe palette).
    Unique gene and sample ids; fewer than 3 `--counts` samples stops the run.
 2. **Pseudobulk** (`--adata` only): sum raw counts per `--sample-col`, then drop
    samples with fewer than `--min-cells` cells, as in pseudobulk-de. Fewer than

@@ -116,7 +116,7 @@ Golden values, as cells of 400 matching `true_label`:
 
 Figures come from the vendored `scripts/plots.py` (`plot_embedding`,
 `plot_dotplot`, `plot_box`, `plot_heatmap`), saved by `save_panel` as PDF, PNG
-and source CSV. No titles; captions sit in `report.md`. Labels take `tab10`
+and source CSV. No titles; captions sit in `report.md`. Labels take `categorical_palette` (colour-blind safe, up to 23)
 colours in sorted order.
 
 - `umap_label`: the query's `X_umap`, coloured by transferred label.

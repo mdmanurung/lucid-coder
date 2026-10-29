@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import skillkit as kit
-from matplotlib.colors import to_hex
+from palettes import categorical_palette
 from plotnine import scale_fill_gradient
 from plots import (
     FEW_POINTS,
@@ -98,7 +98,6 @@ PACKAGES = ["anndata", "numpy", "pandas", "scipy", "matplotlib", "plotnine", "sc
 PACKAGES += ["celltypist", "scikit-learn", "pynndescent"]
 # Fixed plot spec, not analysis thresholds.
 # Hex strings: plotnine legends reject RGBA tuples.
-TAB10 = [to_hex(c) for c in plt.get_cmap("tab10").colors]
 DOT_MAX_SIZE = 4  # mm, dot diameter at frac = 1
 JITTER_WIDTH = 0.3  # box widths each side
 HEATMAP_LIMIT = 1  # fractions run 0 to 1
@@ -403,8 +402,7 @@ def analyse(argv, argv_full):
     by_cluster = by_cluster.sort_values(["cluster", "label"], ignore_index=True)
     by_cluster.to_csv(tables / "label_by_cluster.tsv", sep="\t", index=False)
 
-    # ponytail: tab10 repeats colours past 10 labels; add a palette when that bites.
-    pal = {lab: TAB10[i % 10] for i, lab in enumerate(found)}
+    pal = categorical_palette(found)
     plt.switch_backend("Agg")
     heat = by_cluster.rename(columns={"frac_of_cluster": "fraction of cluster"})
     rule = (

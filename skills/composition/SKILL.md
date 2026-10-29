@@ -224,7 +224,7 @@ outdir/
 **Fixed plot spec.** No titles and no stars; captions with padj sit in
 `report.md`.
 - `composition`: `plots.plot_composition`, one stacked bar per sample, samples
-  ordered by `--group-col` then sample, labels coloured by tab20.
+  ordered by `--group-col` then sample, labels coloured by `categorical_palette` (colour-blind safe, up to 23).
 - `proportion_<label>`: `plots.plot_box` of each sample's share per
   `--group-col` level (Tol blue, red, ...), y title "<label> (fraction of
   sample's cells)". Under 10 samples per level (the demo has 8) it draws points

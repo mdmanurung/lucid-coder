@@ -25,8 +25,8 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import scanpy as sc  # noqa: E402
 import scvelo as scv  # noqa: E402
-from matplotlib.colors import to_hex  # noqa: E402
 from plotnine import element_text, theme  # noqa: E402
+from palettes import categorical_palette  # noqa: E402
 from plots import plot_composition  # noqa: E402
 from skillkit import (  # noqa: E402
     check_gene_ids,
@@ -344,13 +344,7 @@ def draw_figures(figures, adata, p, levels, pal, cells, by_group, top):
     save_panel(fig, umap, figures, "umap_velocity_pseudotime", 89, 75)
     plt.close(fig)
 
-    fate_pal = dict(
-        zip(
-            by_group["terminal_state"].cat.categories,
-            [to_hex(c) for c in plt.get_cmap("Set2").colors],
-            strict=False,
-        )
-    )
+    fate_pal = categorical_palette(by_group["terminal_state"].cat.categories)
     plot = plot_composition(
         by_group, col, "terminal_state", "fate probability", fate_pal
     ) + theme(axis_text_x=element_text(rotation=45, ha="right"))
@@ -474,9 +468,7 @@ def analyse(argv, full_argv):
     )
     adata.write_h5ad(outdir / "data" / "velocity.h5ad")
 
-    # ponytail: tab20 repeats colours past 20 groups; pass a palette when needed.
-    tab20 = plt.get_cmap("tab20").colors
-    pal = {lv: to_hex(tab20[k % 20]) for k, lv in enumerate(levels)}
+    pal = categorical_palette(levels)
     plt.switch_backend("Agg")
     draw_figures(outdir / "figures", adata, p, levels, pal, cells, by_group, top)
 

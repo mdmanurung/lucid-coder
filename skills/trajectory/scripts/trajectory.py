@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import scanpy as sc  # noqa: E402
-from matplotlib.colors import to_hex  # noqa: E402
+from palettes import categorical_palette  # noqa: E402
 from plotnine import element_text, theme  # noqa: E402
 from plots import FEW_POINTS, plot_box  # noqa: E402
 from scipy import sparse, stats  # noqa: E402
@@ -348,9 +348,7 @@ def analyse(argv, full_argv):
         )
     }
     trend = gene_trends(adata, genes, pseudotime)
-    # ponytail: tab20 repeats colours past 20 groups; pass a palette when needed.
-    tab20 = plt.get_cmap("tab20").colors
-    pal = {lv: to_hex(tab20[k % 20]) for k, lv in enumerate(levels)}
+    pal = categorical_palette(levels)
     plt.switch_backend("Agg")
     draw_figures(
         outdir / "figures", adata, p, levels, pal, cells, edges_long, trend, genes

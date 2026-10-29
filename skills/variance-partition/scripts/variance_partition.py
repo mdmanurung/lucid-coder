@@ -18,7 +18,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from palettes import palette_for
+from palettes import categorical_palette, palette_for
 from plots import plot_heatmap
 from skillkit import (
     check_design_rank,
@@ -78,7 +78,7 @@ DEMO = {
 ERRORS = {
     "bad_value": "{arg} must be {rule}, got {value}",
     "bad_formula": "--formula must be '~ (1|a) + b' with column names, got {value!r}",
-    "too_many_terms": "--formula has {n} terms; the figures colour at most 9",
+    "too_many_terms": "--formula has {n} terms; the figures colour at most 23",
     "input_mode": "give --counts with --meta, or --adata with --sample-col, not both",
     "min_cells_needs_adata": "--min-cells applies only to --adata input; "
     "--counts samples are already summed",
@@ -104,12 +104,10 @@ ERRORS = {
     "r_failed": "{script} failed with exit {code}: {tail}",
 }
 
-# Fixed plot spec, not analysis thresholds. Colours follow the corpus (E-pl-01):
-# RColorBrewer Set1 for covariates, grey85 for Residuals.
-SET1 = [
-    "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",
-    "#FFFF33", "#A65628", "#F781BF", "#999999",
-]  # fmt: skip
+# Fixed plot spec, not analysis thresholds. Terms take categorical_palette
+# (colour-blind safe; the corpus used RColorBrewer Set1, E-pl-01), grey85 for
+# Residuals. 23 is the largest colour-blind-safe set.
+MAX_TERMS = 23
 RESIDUAL_COLOUR = "#D9D9D9"
 
 
@@ -162,7 +160,7 @@ def check_values(p):
     if not re.fullmatch(rf"~\s*{TERM}(\s*\+\s*{TERM})*\s*", p["formula"]):
         fail(ERRORS, "bad_formula", value=p["formula"])
     terms = re.findall(NAME, p["formula"])
-    if len(terms) > len(SET1):
+    if len(terms) > MAX_TERMS:
         fail(ERRORS, "too_many_terms", n=len(terms))
     return terms, set(RANDOM_TERM.findall(p["formula"]))
 
@@ -433,7 +431,7 @@ def analyse(argv, full_argv):
         for term in order
     }
     top_genes = list(dict.fromkeys(g for genes in top_by_term.values() for g in genes))
-    pal = dict(zip(order[:-1], SET1, strict=False)) | {"Residuals": RESIDUAL_COLOUR}
+    pal = categorical_palette(order[:-1]) | {"Residuals": RESIDUAL_COLOUR}
 
     plt.switch_backend("Agg")
     draw_figures(figures, fractions, order, top_genes, cancor, pal)

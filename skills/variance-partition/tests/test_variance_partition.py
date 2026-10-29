@@ -280,7 +280,10 @@ def test_demo_conflict(tmp_path):
     [
         ({"min_frac": "2"}, "--min-frac must be in [0, 1], got 2.0"),
         ({"formula": "donor + rin"}, "--formula must be '~ (1|a) + b'"),
-        ({"formula": "~ " + " + ".join("abcdefghij")}, "--formula has 10 terms"),
+        (
+            {"formula": "~ " + " + ".join("abcdefghijklmnopqrstuvwx")},
+            "--formula has 24 terms",
+        ),
         ({"adata": "x.h5ad"}, "give --counts with --meta, or --adata"),
         ({"min_cells": "3"}, "--min-cells applies only to --adata input"),
         ({"counts": "/no/such.tsv"}, "input file not found: /no/such.tsv"),

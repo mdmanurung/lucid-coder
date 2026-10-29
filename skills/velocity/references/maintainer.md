@@ -95,13 +95,13 @@ Figures come from the vendored `scripts/plots.py` (`plot_composition`),
 saved by `save_panel` as PDF, PNG and source CSV. No titles; captions sit in
 `report.md`. The UMAP captions name the PCs, highly variable genes,
 neighbours and seed of the velocity graph, and say the UMAP came from the input
-(no `min_dist` here). Group colours come from tab20 in group order.
+(no `min_dist` here). Group colours come from `categorical_palette` in group order (colour-blind safe, up to 23).
 
 - `velocity_stream`: cells coloured by group, velocity streamlines on the UMAP;
   the CSV holds UMAP and projected velocity per cell.
 - `umap_velocity_pseudotime`: cells coloured by velocity pseudotime (viridis).
 - `fate_by_group`: stacked bar of mean fate probability per group, one segment
-  per terminal state (Set2). Probabilities lie in [0, 1], so the diverging
+  per terminal state (`categorical_palette`). Probabilities lie in [0, 1], so the diverging
   `plot_heatmap` scale does not fit.
 - `phase_portraits`: Ms against Mu for the 4 top genes, coloured by group;
   the dashed line is the steady-state ratio (`velocity_gamma`, or
