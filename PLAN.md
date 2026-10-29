@@ -245,7 +245,7 @@ Field rules:
 - `topic` is required. Each rule uses a house-style key or a new `user.*` key.
 - `scope.kind` is one of `global`, `language`, `repo`, `file-glob`. The other scope key is `language` (`r` or `python`), `repo` (the origin remote as `host/owner/repo`, else the repo root path) or `glob`.
 - `status` is one of `proposed`, `active`, `rejected`, `superseded`, `retired`.
-- `source` is one of `user-correction`, `user-preference`, `repo-review`. A rule from `repo-review` was proposed by `/lucid-coder:review` reading local code, and it still needs approval.
+- `source` is one of `user-correction`, `user-preference`, `repo-review`. A rule from `repo-review` was proposed by `/lucid-coder:review` reading local code, and it still needs approval. A rule imported by `/lucid-coder:learn --from-memory` has source `user-memory:<project>/<file>.md`; `rules.js harvest` reads Claude Code `feedback` memories read-only and keeps only a scan time and content hashes in `memory-seen.json`.
 
 ### 5.3 Conflict and supersession, mechanically
 

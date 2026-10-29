@@ -5,19 +5,23 @@ const fs = require('fs');
 const path = require('path');
 const { parseArgs } = require('util');
 const { dataDir, repoInfo, sha256, RULE_MAX } = require('../hooks/lib');
+const { harvest, markSeen } = require('../hooks/memory');
 
 const USAGE = `Usage: node scripts/rules.js <command>
   list [--status proposed|active|rejected|superseded|retired] [--json]
-  propose --topic T --scope global|language|repo|file-glob [--language r|python] [--glob G]
-          --statement S --why W [--good G] [--bad B] [--source user-correction|user-preference|repo-review]
+  propose --topic T --scope global|language|repo|file-glob [--language r|python] [--glob G] [--repo ID]
+          --statement S --why W [--good G] [--bad B]
+          [--source user-correction|user-preference|repo-review|user-memory:<project>/<file>]
   approve <id>
   supersede <new-id> <old-id>
   reject <id>
   retire <id>
-  trust`;
+  trust
+  harvest [--since-last] [--json] | harvest --mark-seen`;
 
 const STATUSES = ['proposed', 'active', 'rejected', 'superseded', 'retired'];
 const SOURCES = ['user-correction', 'user-preference', 'repo-review'];
+const MEMORY_SOURCE = /^user-memory:(?!\.\.?\/)[^\s/]+\/[^\s/]+\.md$/;
 const TOPIC = /^[a-z]+(\.[a-z0-9_]+)+$/;
 const SECRET = /Bearer\s|AKIA[0-9A-Z]{16}|ghp_|sk-[A-Za-z0-9]{20,}|-----BEGIN|(secret|password|token)\s*=/i;
 const ABS_PATH = /\/home\/|\/Users\/|\b[A-Za-z]:\\/;
@@ -59,7 +63,9 @@ function ruleProblem(r) {
   }
   if (/^\s*#/.test(r.statement) || /^\s*#/.test(r.why)) return `${r.id}: statement and why cannot start with #`;
   if (!STATUSES.includes(r.status)) return `${r.id}: unknown status ${r.status}`;
-  if (!SOURCES.includes(r.source)) return `${r.id}: source must be one of ${SOURCES.join(', ')}`;
+  if (!SOURCES.includes(r.source) && !MEMORY_SOURCE.test(r.source || '')) {
+    return `${r.id}: source must be one of ${SOURCES.join(', ')} or user-memory:<project>/<file>.md`;
+  }
   return null;
 }
 
@@ -128,7 +134,7 @@ const commands = {
     const scope = { kind: opts.scope };
     if (opts.scope === 'language') scope.language = opts.language;
     if (opts.scope === 'file-glob') scope.glob = opts.glob;
-    if (opts.scope === 'repo') scope.repo = currentRepo().id;
+    if (opts.scope === 'repo') scope.repo = opts.repo || currentRepo().id;
     const last = Math.max(0, ...store.rules.map(r => parseInt(String(r.id).slice(2), 10) || 0));
     const rule = {
       id: 'r-' + String(last + 1).padStart(4, '0'),
@@ -200,19 +206,31 @@ const commands = {
   },
 };
 
+// Reads Claude Code memory, never writes it; --mark-seen writes only hashes and a time.
+function harvestCommand(opts) {
+  if (opts['mark-seen']) return console.log(`Marked ${markSeen()} feedback memories as seen.`);
+  const found = harvest({ sinceLast: opts['since-last'] });
+  if (opts.json) return console.log(JSON.stringify(found, null, 2));
+  if (!found.length) return console.log('No feedback memories to review.');
+  for (const c of found) {
+    console.log(`${c.source} [${c.projects_seen.length > 1 ? 'global' : c.repo || 'no repo'}] ${c.description}`);
+  }
+}
+
 function main() {
   let parsed;
   try {
     parsed = parseArgs({
       allowPositionals: true,
       options: Object.fromEntries(
-        ['status', 'topic', 'scope', 'language', 'glob', 'statement', 'why', 'good', 'bad', 'source']
-          .map(k => [k, { type: 'string' }]).concat([['json', { type: 'boolean' }]])),
+        ['status', 'topic', 'scope', 'language', 'glob', 'repo', 'statement', 'why', 'good', 'bad', 'source']
+          .map(k => [k, { type: 'string' }]).concat(['json', 'since-last', 'mark-seen'].map(k => [k, { type: 'boolean' }]))),
     });
   } catch (e) {
     die(`${e.message}\n${USAGE}`);
   }
   const [command, ...args] = parsed.positionals;
+  if (command === 'harvest') return harvestCommand(parsed.values);
   if (!commands[command]) die(USAGE);
   const needs = { approve: 1, reject: 1, retire: 1, supersede: 2 }[command] || 0;
   if (args.length !== needs) die(USAGE);
