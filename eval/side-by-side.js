@@ -94,13 +94,21 @@ function armPanels(resultsDir, rep, arms, onlyTasks, whole) {
     const language = taskRuns.some(run => /py_/.test(run)) ? 'python' : 'r';
     // A step only some versions have would compare code against an empty column; skip it.
     for (const [id, title, lang] of steps.filter(([id]) => taskRuns.every(run => pieces[run][id]))) {
-      const columns = shuffle(taskRuns).map((run, i) => {
-        key.push([`${prefix}_${id}`, LABELS[i], run, run.match(/_([A-D])_r\d+$/)[1]]);
-        return { label: LABELS[i], code: pieces[run][id] || '(nothing in this step)' };
-      });
       const taskTitle = tasks.length > 1 ? `${task.replace(/_/, ' ').replace(/-/g, ' ')}: ` : '';
-      panels.push({ id: `${prefix}_${id}`, group: 'arms', title: taskTitle + title, language: lang === 'r' ? language : lang, columns });
+      panels.push({ id: `${prefix}_${id}`, group: 'arms', title: taskTitle + title, language: lang === 'r' ? language : lang,
+        columns: taskRuns.map(run => ({ run, code: pieces[run][id] || '(nothing in this step)' })) });
     }
+  }
+  // Two arms: each is on the left in half the panels (odd count: a random arm gets one more),
+  // in a random order. Four arms: shuffle each panel.
+  const odd = crypto.randomInt(2);
+  const left = shuffle(panels.map((_, i) => (i + odd) % 2 === 0));
+  for (const [n, p] of panels.entries()) {
+    const order = arms.length !== 2 ? shuffle(p.columns) : left[n] ? p.columns : [...p.columns].reverse();
+    p.columns = order.map(({ run, code }, i) => {
+      key.push([p.id, LABELS[i], run, run.match(/_([A-D])_r\d+$/)[1]]);
+      return { label: LABELS[i], code };
+    });
   }
   return { panels, key };
 }
@@ -128,7 +136,7 @@ function main() {
     console.error('usage: node eval/side-by-side.js <results-dir> <out-dir> [--rep 1] [--arms A,D] [--tasks 02,04] [--whole] [--notes notes.json] [--human panels.json]');
     process.exit(1);
   }
-  // --arms A,D gives a two-column head-to-head; columns are still shuffled per panel.
+  // --arms A,D gives a two-column head-to-head; each arm is on the left in half the panels.
   const { panels, key } = armPanels(resultsDir, opt('--rep') || '1', (opt('--arms') || 'A,B,C,D').split(','), opt('--tasks')?.split(','), argv.includes('--whole'));
   const human = opt('--human') ? humanPanels(opt('--human')) : [];
   // --notes file.json: {panelId: text} shown under a panel title, e.g. a scope statement.
@@ -145,4 +153,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { splitScript, notebookText, markdownSection };
+module.exports = { splitScript, notebookText, markdownSection, armPanels };

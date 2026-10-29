@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { splitScript, notebookText } = require('../side-by-side');
+const { splitScript, notebookText, armPanels } = require('../side-by-side');
 
 test('banners map to sections; fit wins over filter; text before the first banner is setup', () => {
   const parts = splitScript([
@@ -59,6 +59,24 @@ test('--arms A,D builds two-column panels per task from scripts/', () => {
   const data = JSON.parse(fs.readFileSync(path.join(out, 'side-by-side.html'), 'utf8').match(/const DATA = (.*);\n/)[1]);
   assert.deepStrictEqual(data.panels.map(p => p.id), ['02_load', '03_load']);
   assert.ok(data.panels.every(p => p.columns.length === 2 && p.columns.every(c => /# [AD]$/.test(c.code))));
+});
+
+test('two arms: each arm is on the left in half the panels, odd count off by one', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sbs-balance-'));
+  for (const task of ['01_a', '02_b', '03_c', '04_d', '05_e', '06_f', '07_g']) {
+    for (const arm of ['A', 'D']) {
+      const dir = path.join(root, `${task}_${arm}_r1`, 'repo', 'scripts');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, `${task}.R`), `# Load data ----\nx <- 1\n`);
+    }
+  }
+  // Independent per-panel shuffles pass one run with p = 70/128, all 20 with p ~ 6e-6.
+  for (let i = 0; i < 20; i++) {
+    const { panels, key } = armPanels(root, '1', ['A', 'D'], null, false);
+    assert.strictEqual(panels.length, 7);
+    const aLeft = key.filter(([, label, , arm]) => label === 'W' && arm === 'A').length;
+    assert.ok(aLeft === 3 || aLeft === 4, `A on the left in ${aLeft} of 7`);
+  }
 });
 
 test('a script without banners turns that task into one whole-script panel', () => {
