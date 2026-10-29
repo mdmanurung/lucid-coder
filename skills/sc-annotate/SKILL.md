@@ -221,6 +221,9 @@ outdir/
 - **The model will want to re-label low-confidence cells** as "Unknown" with a
   cutoff it picked. Do not. The script reports confidence; any cutoff is the
   user's, applied downstream.
+- **The model will want to call transferred labels validated.** Do not. They
+  are predictions (`claims.strength`): validating them needs a reference donor
+  held out from training, which this skill does not run. Say so in the report.
 - **The model will want to drop a marker gene or label** that fails the marker
   check. Do not. The error names the absent genes or labels; ask the user to fix
   the TSV or the gene names.
