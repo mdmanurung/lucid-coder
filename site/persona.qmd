@@ -35,7 +35,7 @@ From `rules/core.md`:
 2. **Knobs at the top.** Values a reader may change sit first, in `UPPER_SNAKE`, each with a reason.
 3. **Say it once, inline until it repeats.** A named function only at three or more calls.
 4. **Trust the package.** Call edgeR, limma, dplyr and scanpy; never rebuild them.
-5. **Check where data enters, then trust it.** One named `stopifnot(identical(...))` where metadata meets a matrix, and a cardinality argument on joins.
+5. **Check where data enters, then trust it.** One named identity check where metadata meets a matrix, and a cardinality argument on joins.
 6. **Scripts compute, notebooks show.**
 7. **Every number reruns.** Read-only `data/`, seeds, explicit factor levels, session info.
 8. **Figures show the data.** Each donor a point over any summary, units on axes, one palette keyed by label.

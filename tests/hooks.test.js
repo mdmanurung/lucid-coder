@@ -128,6 +128,7 @@ test('activate injects the tier for the detected language, and the flag override
   const overridden = run('activate.js', home, { cwd: rRepo }).stdout;
   assert.match(overridden, PY_TIER);
   assert.doesNotMatch(overridden, R_TIER);
+  assert.doesNotMatch(overridden, /\|>|%>%|stopifnot|ggplot|suppressPackage|tidyverse/, 'no R spellings outside the R tier');
   const sub = JSON.parse(run('subagent.js', home, { cwd: rRepo }).stdout).hookSpecificOutput.additionalContext;
   assert.strictEqual(sub, overridden, 'subagent gets the same tiers');
   fs.writeFileSync(path.join(home, '.lucid-coder-lang'), 'garbage');
