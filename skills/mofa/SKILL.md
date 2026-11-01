@@ -101,6 +101,8 @@ argument it names. Do not work around it.
 - the user wants factors regressed on group plus age (a model with covariates
   is a separate step on `factors.tsv`).
 
+Environment: pixi feature `mofa` (`pixi install -e mofa`, from `templates/pixi.toml`).
+
 ## Input contract
 
 | Input | Format | Required content | Example |

@@ -97,6 +97,8 @@ argument it names. Do not work around it.
 - the user asks for scCODA or another Bayesian composition model (later engine);
 - the user wants one rank test per frequency without a model (use group-tests).
 
+Environment: pixi feature `bioc-de` (`pixi install -e bioc-de`, from `templates/pixi.toml`).
+
 ## Input contract
 
 Give exactly one input mode.

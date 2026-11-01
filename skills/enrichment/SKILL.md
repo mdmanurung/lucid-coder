@@ -105,6 +105,8 @@ in the up genes", "NES dotplot across contrasts".
 (signature scoring), TF/pathway activity (decoupler), zenith on a dreamlet fit,
 or there is no DE table yet.
 
+Environment: pixi feature `bioc-de` for the fgsea engine (`pixi install -e bioc-de`, from `templates/pixi.toml`).
+
 ## Input contract
 
 | Input | Format | Required content | Example |

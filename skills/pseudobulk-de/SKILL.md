@@ -91,6 +91,8 @@ Then read `result.json` and relay `chat_summary_lines` and `preferred_artifacts`
 If the script prints `ERROR: ...` and exits 2, tell the user the message and the
 argument it names. Do not work around it.
 
+Environment: pixi feature `bioc-de` for the dreamlet and deseq2 engines (`pixi install -e bioc-de`, from `templates/pixi.toml`); on osx-arm64 also run `pixi run -e bioc-de setup-r`.
+
 ## Input contract
 
 | Input | Format | Required content | Example |

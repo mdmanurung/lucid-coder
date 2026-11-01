@@ -112,6 +112,8 @@ Do not work around it.
 the user wants cluster markers (`sc-markers`); the test has no covariates
 (`group-tests`); the question is about cell-type proportions.
 
+Environment: pixi feature `bioc-de` for the mast engine (`pixi install -e bioc-de`, from `templates/pixi.toml`).
+
 ## Input contract
 
 | Input | Format | Required content | Example |

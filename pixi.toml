@@ -1,0 +1,138 @@
+# pixi.toml: one reproducible R + Python env for an analysis project.
+# Copy to the project root, run `pixi install` (default env) or
+# `pixi install -e <feature>`, then run code with `pixi run -e <env> ...`.
+# The lock file `pixi.lock` is written beside it; commit both.
+
+[workspace]
+name = "lucid-coder"
+channels = ["conda-forge", "bioconda"]
+channel-priority = "strict"      # conda-forge wins; bioconda only for what it lacks
+platforms = ["linux-64", "osx-arm64"]
+
+# Default env: R 4.5 + Python 3.12, formatters and notebook tooling. Covers
+# sc-qc, sc-normalize, sc-embed, sc-markers, sc-annotate, trajectory,
+# signature-scoring, tf-activity, gene-programs, group-tests, longitudinal.
+[dependencies]
+python = "3.12.*"
+r-base = "4.5.*"
+air = "*"                        # R formatter
+ruff = "*"                       # Python formatter
+uv = "*"
+quarto = "*"
+papermill = "*"
+nbconvert = "*"
+ipykernel = "*"                  # python3 kernel for papermill
+r-irkernel = "*"                 # R kernel; check `jupyter kernelspec list` shows ir
+# numpy and pandas stay capped for every env: scvelo and liana need pandas<3
+numpy = ">=2,<2.4"
+pandas = ">=2.3,<3"
+scipy = "*"
+matplotlib-base = "*"
+threadpoolctl = "*"
+plotnine = "0.15.*"
+mizani = "0.14.*"
+anndata = "*"
+scanpy = "==1.12.4"              # the sc-qc goldens are for this version
+scikit-learn = "<1.8"            # celltypist caps scikit-learn
+pynndescent = "<0.7"
+umap-learn = "*"
+python-igraph = "*"
+scikit-misc = "*"
+scikit-image = "*"
+harmonypy = "*"                  # bioconda; sc-embed expects the 2.x build
+muon = "*"
+mudata = "*"
+decoupler-py = ">=2"             # signature-scoring, tf-activity
+pydeseq2 = "*"                   # pseudobulk-de (bulk engine)
+celltypist = "*"                 # sc-annotate
+r-here = "*"
+r-ggplot2 = "*"
+r-ggpubr = "*"
+r-scales = "*"
+r-dplyr = "*"
+r-purrr = "*"
+r-tidyr = "*"
+r-forcats = "*"
+r-readr = "*"
+r-tibble = "*"
+r-lme4 = "*"                     # longitudinal
+r-lmertest = "*"
+r-reformulas = "*"
+r-matrix = "*"
+r-lintr = "*"
+r-scattermore = "*"
+
+[pypi-dependencies]
+plotnine-extra = "==0.2.0"
+
+# velocity: scVelo and CellRank (skill velocity).
+[feature.velocity.dependencies]
+scvelo = "*"
+cellrank = "*"
+
+# pertpy: perturbation tools, also used by milo-da (skill milo-da).
+[feature.pertpy.dependencies]
+pertpy = "==1.4.0"
+formulaic = "*"
+formulaic-contrasts = "*"
+
+# liana: cell-cell communication (skill ccc). 2.0 from conda is untested, so
+# take 1.10.0 from PyPI; its pandas<3 limit is met by the default pin.
+[feature.liana.pypi-dependencies]
+liana = "==1.10.0"
+
+# mofa: multi-omics factor analysis (skill mofa).
+[feature.mofa.dependencies]
+mofapy2 = "*"
+h5py = "*"
+
+# bioc-de: Bioconductor 3.22 for pseudobulk-de, variance-partition,
+# composition, mashr-sharing, sc-de and enrichment. Ranges pin one release
+# so both platforms agree.
+[feature.bioc-de.dependencies]
+bioconductor-limma = ">=3.66,<3.67"
+bioconductor-edger = ">=4.8,<4.9"
+bioconductor-biocparallel = ">=1.44,<1.45"
+bioconductor-singlecellexperiment = ">=1.32,<1.33"
+bioconductor-summarizedexperiment = ">=1.40,<1.41"
+bioconductor-variancepartition = "*"
+bioconductor-crumblr = "*"
+bioconductor-deseq2 = "*"
+bioconductor-mast = "*"
+bioconductor-fgsea = "*"
+r-mashr = "*"
+r-ashr = "*"
+
+# dreamlet has a bioconda build for linux-64 only.
+[feature.bioc-de.target.linux-64.dependencies]
+bioconductor-dreamlet = "==1.8.0"
+
+# On osx-arm64 dreamlet is built from source; `pixi run -e bioc-de setup-r`.
+# Its dependencies come from bioconda here; zenith (needs Rgraphviz, absent on
+# osx-arm64 bioconda) and dreamlet are built by setup-r.
+[feature.bioc-de.target.osx-arm64.dependencies]
+r-biocmanager = "*"
+compilers = "*"
+bioconductor-beachmat = ">=2.26,<2.27"
+bioconductor-delayedmatrixstats = ">=1.32,<1.33"
+bioconductor-gseabase = ">=1.72,<1.73"
+bioconductor-sparsematrixstats = ">=1.22,<1.23"
+r-ggbeeswarm = "*"
+r-metafor = "*"
+
+[feature.bioc-de.tasks]
+setup-r = """Rscript -e 'if (!requireNamespace("dreamlet", quietly = TRUE)) BiocManager::install("dreamlet", ask = FALSE, update = FALSE)'"""
+
+# dev: what the plugin tests need beyond the template (npm test, pytest).
+[feature.dev.dependencies]
+nodejs = "*"
+pytest = "*"
+
+[environments]
+dev = ["velocity", "pertpy", "liana", "mofa", "bioc-de", "dev"]
+velocity = ["velocity"]
+pertpy = ["pertpy"]
+liana = ["liana"]
+mofa = ["mofa"]
+bioc-de = ["bioc-de"]
+all = ["velocity", "pertpy", "liana", "mofa", "bioc-de"]

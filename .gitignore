@@ -31,3 +31,6 @@ __pycache__/
 # quarto site build
 site/_site/
 site/.quarto/
+
+# pixi environments
+.pixi/

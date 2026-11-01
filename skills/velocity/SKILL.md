@@ -102,6 +102,8 @@ argument it names. Do not work around it.
 - the user wants a pseudotime, CytoTRACE or real-time CellRank kernel;
 - the object has no UMAP yet (run sc-embed first).
 
+Environment: pixi feature `velocity` (`pixi install -e velocity`, from `templates/pixi.toml`).
+
 ## Input contract
 
 | Input | Format | Required content | Example |

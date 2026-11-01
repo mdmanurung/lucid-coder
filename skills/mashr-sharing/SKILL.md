@@ -86,6 +86,8 @@ Then read `result.json` and relay `chat_summary_lines` and `preferred_artifacts`
 If the script prints `ERROR: ...` and exits 2, tell the user the message and the
 argument it names. Do not work around it.
 
+Environment: pixi feature `bioc-de` (`pixi install -e bioc-de`, from `templates/pixi.toml`).
+
 ## Input contract
 
 | Input | Format | Required content | Example |

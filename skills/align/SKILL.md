@@ -18,7 +18,8 @@ Templates:
 
 - R: `air.toml`, `.lintr`, `palettes.R`, `theme.R`, `plots.R`
 - Python: `ruff.toml`, `palettes.py`, `theme.py`, `plots.py`
-- Both: `lucid-coder.yaml`, filled in by step 4 rather than copied as is
+- Both, handled only in step 4: `pixi.toml` (the env spec) and
+  `lucid-coder.yaml` (filled in, not copied as is)
 
 ## Steps
 
@@ -48,11 +49,19 @@ Templates:
    A `palettes.R` or `palettes.py` that exists and differs from the template
    holds project colours. Never copy over it. Offer to append the
    `palette_for` helper from the template instead, and only on yes.
-4. Offer `lucid-coder.yaml`, the env pointer the SessionStart hook reads. It
+4. Offer `pixi.toml`, the env spec (show it or the diff, ask once). A
+   `pixi.toml` that exists and differs holds the project's env: never copy
+   over it; offer to add missing features by hand, only on yes. It holds a
+   default env plus optional features: `velocity`,
+   `pertpy`, `liana`, `mofa`, `bioc-de`. On yes, run `pixi install`, or
+   `pixi install -e <feature>` for the skills the user names. Then offer
+   `lucid-coder.yaml`, the env pointer the SessionStart hook reads. It
    names the env only, never packages. If it exists, show it and ask whether
-   it is still right. Otherwise ask which env manager (pixi, conda, uv or
-   system) and which env name or prefix. Activate that env, then fill `r`
-   and `python` from:
+   it is still right. Otherwise, with pixi, fill `manager: pixi`, `name: <env>`
+   and only `prefix: <root>/.pixi/envs/<env>`; leave out `r` and `python`,
+   so the hook says `pixi run -e <env>` (long paths overflow its line). For
+   another manager (conda, uv or system) ask for the
+   env name or prefix and activate it. Then fill `r` and `python` from:
 
    ```bash
    command -v Rscript
