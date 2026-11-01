@@ -90,8 +90,11 @@ Templates:
    ruff format .
    ```
 
-   Say that folders and scaffolding belong to mycelium-extra's repo-template
-   skill, not to this one.
+   Say that folders and scaffolding belong to mycelium-extra's
+   `/mycelium-extra:repo-setup` (new repository) and
+   `/mycelium-extra:new-analysis` (one analysis), not to this one. Both read
+   `lucid-coder.yaml`: new-analysis puts `env.r` and `env.python` in the
+   Snakefile.
 
    Mention analysis contracts too, without writing one: each analysis gets
    `contracts/<analysis>.yaml` (from `templates/contract.yaml`), agreed before
