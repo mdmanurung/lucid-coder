@@ -305,7 +305,9 @@ function readEnv(cwd) {
   }
   const { manager, name, prefix, r, python } = env;
   const runs = [r && `R as ${r}`, python && `Python as ${python}`].filter(Boolean);
-  const run = runs.length ? `Run ${runs.join(' and ')}` : 'Use this env for R and Python';
+  const run = runs.length ? `Run ${runs.join(' and ')}`
+    : manager === 'pixi' && name ? `Run R and Python through \`pixi run -e ${name}\``
+    : 'Use this env for R and Python';
   const descs = name && prefix ? [`${manager} env ${name}, prefix ${prefix}`, `${manager} env ${name}`]
     : [name ? `${manager} env ${name}` : prefix ? `${manager} env at ${prefix}` : manager];
   const head = '## Environment (lucid-coder.yaml)\n';

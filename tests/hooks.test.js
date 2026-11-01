@@ -336,6 +336,9 @@ test('untrusted lucid-coder.yaml: odd paths, in-repo binaries, overflow and non-
   }
   fs.writeFileSync(file, yaml(`  r: ${repo}/.pixi/envs/default/bin/Rscript`));
   assert.match(out().stdout, /## Environment/, 'pixi project envs are allowed');
+  // What align writes for pixi: the run command, whatever the root length.
+  fs.writeFileSync(file, `version: 1\nenv:\n  manager: pixi\n  name: default\n  prefix: ${repo}/.pixi/envs/default\n`);
+  assert.match(out().stdout, /Run R and Python through `pixi run -e default`/);
   // Overflow: fixed line, no instruction to read the file.
   fs.writeFileSync(file, yaml(`  prefix: ${PREFIX}/${'a'.repeat(120)}\n  r: ${PREFIX}/${'a'.repeat(120)}/bin/Rscript\n  python: ${PREFIX}/${'a'.repeat(120)}/bin/python`));
   const big = out().stdout;
