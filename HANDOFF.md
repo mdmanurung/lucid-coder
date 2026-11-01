@@ -27,7 +27,7 @@ Done 2026-11-01: user picked D in 12/13 panels (all 9 whole-script panels and 3 
 
 ## Dead ends — do not redo
 - Gate-only comparison on 07-16 hits the ceiling: baseline Opus passes the traps, so it cannot separate the arms.
-- B/#4 "fold learned rules": no rules have been saved through /learn; the plugin data dirs are empty.
+- B/#4 "fold learned rules": first learned rule r-0001 (comments.steps, global) saved 2026-11-01 from the 14_fit pick; one rule is not enough to fold yet.
 - Pruning `.claude/worktrees/`: all 12 have uncommitted files (1-35 each); check them before removing any.
 
 ## Read first
