@@ -2,7 +2,7 @@
 Inputs:  data/counts.tsv   [gap: provided with the task]
          data/cells.tsv    [gap: provided with the task]
 Outputs: <run_dir>/de.tsv, <run_dir>/session_info.txt
-Run:     uv run --python 3.12 --with pandas,scipy,matplotlib python \
+Run:     uv run --python 3.12 --with pandas,scipy,matplotlib,plotnine python \
          scripts/01_compare-conditions.py results/run1
 Notes:   [Stochastic] none. Inference unit: donor. Cells from one donor are not
          independent, so counts are summed per donor (pseudobulk) before testing

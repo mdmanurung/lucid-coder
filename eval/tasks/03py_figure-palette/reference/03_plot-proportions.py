@@ -2,91 +2,78 @@
 Inputs:  data/proportions.tsv   [gap: provided with the task]
          data/palette.tsv       [gap: lab palette, keyed by label]
 Outputs: <run_dir>/proportions_by-condition.{pdf,png,csv}, <run_dir>/session_info.txt
-Run:     uv run --python 3.12 --with pandas,scipy,matplotlib python \
+Run:     uv run --python 3.12 --with pandas,scipy,matplotlib,plotnine python \
          scripts/03_plot-proportions.py results/run1
-Notes:   [Stochastic] none. Unit: donor. Denominator: all of a donor's cells.
+Notes:   [Stochastic] jitter, seeded. Unit: donor. Denominator: all of a donor's cells.
 """
 
-# %% Setup
-import argparse
 import sys
 from importlib.metadata import version
 from pathlib import Path
 
-import matplotlib
-import matplotlib.pyplot as plt
 import pandas as pd
+from plotnine import (
+    aes,
+    geom_point,
+    ggplot,
+    labs,
+    position_jitterdodge,
+    scale_colour_manual,
+)
 
+from theme import save_panel
+
+ROOT = Path(__file__).resolve().parents[1]
 # Healthy first, so it sits left of disease in every cell-type group.
 CONDITION_LEVELS = ["healthy", "disease"]
 PANEL = "proportions_by-condition"
 # Single-column journal width.
 PANEL_WIDTH_MM = 89
 PANEL_HEIGHT_MM = 60
-# Dodge keeps the two conditions apart within a cell-type group.
-DODGE = 0.15
-REQUIRED_COLS = ["donor_id", "condition", "cell_type", "proportion"]
+SEED = 1
 
-# Type 42 embeds editable text; 8 pt matches the R theme.
-matplotlib.rcParams.update({"pdf.fonttype": 42, "ps.fonttype": 42, "font.size": 8})
 
-parser = argparse.ArgumentParser()
-parser.add_argument("run_dir", type=Path, help="new directory under results/")
-run_dir = parser.parse_args().run_dir
-if run_dir.exists():
-    raise FileExistsError(
-        f"run_dir {run_dir} already exists; pick a new name so nothing is overwritten."
-    )
-run_dir.mkdir(parents=True)
+def main():
+    # Setup -------------------------------------------------------------------
+    run_dir = Path(sys.argv[1])
+    if run_dir.exists():
+        raise FileExistsError(f"{run_dir} exists; pick a new run directory.")
+    run_dir.mkdir(parents=True)
 
-# %% Load inputs
-project_root = Path(__file__).resolve().parents[1]
-proportions = pd.read_csv(project_root / "data" / "proportions.tsv", sep="\t")
-missing_cols = set(REQUIRED_COLS) - set(proportions.columns)
-if missing_cols:
-    raise KeyError(f"proportions.tsv lacks columns {sorted(missing_cols)}.")
-palette_table = pd.read_csv(project_root / "data" / "palette.tsv", sep="\t")
-palette = dict(zip(palette_table["label"], palette_table["hex"], strict=True))
-# Colours by label, never by position: an unknown condition must stop the script.
-unknown_labels = set(proportions["condition"]) - palette.keys()
-if unknown_labels:
-    raise KeyError(f"palette.tsv has no colour for {sorted(unknown_labels)}.")
-proportions["condition"] = pd.Categorical(
-    proportions["condition"], categories=CONDITION_LEVELS
-)
-if proportions["condition"].isna().any():
-    raise ValueError(
-        "proportions.tsv has conditions outside CONDITION_LEVELS; recode them at load."
+    # Load inputs -------------------------------------------------------------
+    proportions = pd.read_csv(ROOT / "data" / "proportions.tsv", sep="\t")
+    palette_table = pd.read_csv(ROOT / "data" / "palette.tsv", sep="\t")
+    palette = dict(zip(palette_table["label"], palette_table["hex"], strict=True))
+
+    # Build the plot frame ----------------------------------------------------
+    # Colours by label, never by position: an unknown condition stops the script.
+    unknown = set(proportions["condition"]) - palette.keys()
+    if unknown:
+        raise KeyError(f"palette.tsv has no colour for {sorted(unknown)}")
+    frame = proportions.assign(
+        condition=pd.Categorical(proportions["condition"], CONDITION_LEVELS)
     )
 
-# %% Plot
-cell_types = sorted(proportions["cell_type"].unique())
-fig, ax = plt.subplots(
-    figsize=(PANEL_WIDTH_MM / 25.4, PANEL_HEIGHT_MM / 25.4), layout="constrained"
-)
-for offset, condition in zip([-DODGE, DODGE], CONDITION_LEVELS, strict=True):
-    rows = proportions[proportions["condition"] == condition]
-    ax.scatter(
-        rows["cell_type"].map(cell_types.index) + offset,
-        rows["proportion"],
-        s=8,
-        color=palette[condition],
-        label=condition,
+    # Plot --------------------------------------------------------------------
+    plot = (
+        ggplot(frame, aes("cell_type", "proportion", colour="condition"))
+        + geom_point(
+            size=1,
+            position=position_jitterdodge(
+                jitter_width=0.1, dodge_width=0.5, random_state=SEED
+            ),
+        )
+        + scale_colour_manual(values={c: palette[c] for c in CONDITION_LEVELS})
+        + labs(x="cell type", y="proportion of the donor's cells")
     )
-ax.set_xticks(range(len(cell_types)), cell_types, rotation=30, ha="right")
-ax.set_ylabel("Proportion of the donor's cells")
-ax.legend(frameon=False)
-fig.supxlabel("One point per donor; denominator: all cells of that donor.", fontsize=7)
 
-# %% Write outputs
-fig.savefig(run_dir / f"{PANEL}.pdf", bbox_inches="tight")
-fig.savefig(run_dir / f"{PANEL}.png", dpi=300, bbox_inches="tight")
-plt.close(fig)
-# Source data: the same frame the panel was drawn from.
-proportions.to_csv(run_dir / f"{PANEL}.csv", index=False)
+    # Write outputs -----------------------------------------------------------
+    save_panel(plot, frame, run_dir, PANEL, PANEL_WIDTH_MM, PANEL_HEIGHT_MM)
+    versions = [f"python {sys.version}"] + [
+        f"{pkg} {version(pkg)}" for pkg in ["pandas", "plotnine"]
+    ]
+    (run_dir / "session_info.txt").write_text("\n".join(versions) + "\n")
 
-# %% Session info
-session_info = [f"python {sys.version}"] + [
-    f"{pkg} {version(pkg)}" for pkg in ["matplotlib", "pandas"]
-]
-(run_dir / "session_info.txt").write_text("\n".join(session_info) + "\n")
+
+if __name__ == "__main__":
+    main()

@@ -54,11 +54,12 @@ function readJson(file) {
 
 const oneLine = s => String(s).replace(/[\t\r\n]+/g, ' ').trim();
 
-// The agent's script: the first scripts/*.R or *.py other than the legacy input of task 04.
+// The agent's script: the first scripts/*.R or *.py other than task 04's legacy input and
+// the theme.py that run.sh copies in for Python tasks.
 function findScript(repo) {
   let files = [];
   try { files = fs.readdirSync(path.join(repo, 'scripts')); } catch (e) {}
-  const found = files.filter(f => /\.(R|py)$/i.test(f) && !/^00_legacy\./.test(f)).sort()[0];
+  const found = files.filter(f => /\.(R|py)$/i.test(f) && !/^(00_legacy|theme)\./.test(f)).sort()[0];
   if (found) return path.join('scripts', found);
   // ClawBio-style tasks (01sk): the script lives in skills/<name>/.
   let skills = [];
@@ -76,10 +77,10 @@ const isSkill = script => script.split(path.sep)[0] === 'skills';
 
 const isPython = script => /\.py$/i.test(script);
 // uv may have to fetch the interpreter and packages on its first call. A task that needs
-// more than pandas, scipy and matplotlib lists its packages in its own requirements.txt.
+// more than pandas, scipy, matplotlib and plotnine lists its packages in its own requirements.txt.
 function pyArgs(taskDir) {
   const req = path.join(taskDir || '', 'requirements.txt');
-  const deps = taskDir && fs.existsSync(req) ? ['--with-requirements', req] : ['--with', 'pandas,scipy,matplotlib'];
+  const deps = taskDir && fs.existsSync(req) ? ['--with-requirements', req] : ['--with', 'pandas,scipy,matplotlib,plotnine'];
   return ['run', '--python', '3.12', ...deps, 'python'];
 }
 
@@ -176,7 +177,7 @@ function textMeasures(code, script) {
       ...common,
       check_count: (code.match(/\braise\b|\bsys\.exit\(|\bassert\b/g) || []).length,
       uptake_pipe: null,
-      uptake_no_title: plots ? !/\.set_title\(|plt\.title\(|suptitle\(/.test(code) : null,
+      uptake_no_title: plots ? !/\.set_title\(|plt\.title\(|suptitle\(|ggtitle\(|labs\([^)]*\btitle\s*=/.test(code) : null,
       uptake_theme: null,
       native_pipe: null,
       rule_warn1: null,

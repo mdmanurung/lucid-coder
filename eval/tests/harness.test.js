@@ -148,6 +148,14 @@ test('score.js: header needs Purpose, Inputs, Outputs and Run; Notes is optional
   assert.strictEqual(textMeasures(noRun, 'scripts/01_x.R').header_complete, false);
 });
 
+test('score.js: a plotnine title counts against uptake_no_title in Python', () => {
+  const base = 'from plotnine import ggplot\np = ggplot(df)';
+  assert.strictEqual(textMeasures(base, 'scripts/03_x.py').uptake_no_title, true);
+  assert.strictEqual(textMeasures(`${base} + ggtitle("x")`, 'scripts/03_x.py').uptake_no_title, false);
+  assert.strictEqual(textMeasures(`${base} + labs(x="a", title="x")`, 'scripts/03_x.py').uptake_no_title, false);
+  assert.strictEqual(textMeasures(`${base} + labs(x="a")`, 'scripts/03_x.py').uptake_no_title, true);
+});
+
 test('score.js: join_guard_count counts relationship = in R and validate= in Python code lines', () => {
   const r = 'x <- left_join(a, b, by = "id", relationship = "many-to-one")\n' +
     'y <- inner_join(a, b, by = "id", relationship="one-to-one")\n# relationship = "x" in a comment\n';

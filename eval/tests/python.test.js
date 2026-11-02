@@ -27,6 +27,7 @@ function repoWith(taskId, scriptPath) {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), `py-${taskId}-`));
   fs.cpSync(path.join(tasksDir, taskId, 'inputs'), repo, { recursive: true });
   fs.mkdirSync(path.join(repo, 'scripts'));
+  fs.copyFileSync(path.join(root, 'templates', 'theme.py'), path.join(repo, 'scripts', 'theme.py'));
   const script = path.join('scripts', path.basename(scriptPath));
   fs.copyFileSync(scriptPath, path.join(repo, script));
   spawnSync('git', ['init', '-q'], { cwd: repo });

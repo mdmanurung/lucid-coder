@@ -2,7 +2,7 @@
 Inputs:  data/counts.tsv     [gap: provided with the task]
          data/metadata.tsv   [gap: sample sheet from the sequencing core]
 Outputs: <run_dir>/sample_summary.tsv, <run_dir>/session_info.txt
-Run:     uv run --python 3.12 --with pandas,scipy,matplotlib python \
+Run:     uv run --python 3.12 --with pandas,scipy,matplotlib,plotnine python \
          scripts/02_summarise-samples.py results/run1
 Notes:   [Stochastic] none. Count columns and sheet rows are in different orders,
          so samples are joined by sample_id, never by position.

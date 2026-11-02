@@ -138,6 +138,11 @@ for task_id in "${task_ids[@]}"; do
       # agent would format to tool defaults (80 columns) and fail score.js's check at
       # the template widths. Every arm gets them; score.js copies them again before scoring.
       cp "$EVAL_DIR/../templates/air.toml" "$EVAL_DIR/../templates/ruff.toml" "$run_dir/repo/"
+      # Python figure rules call save_panel() from theme.py; the script imports it from scripts/.
+      if [[ "$lang" == python ]]; then
+        mkdir "$run_dir/repo/scripts"
+        cp "$EVAL_DIR/../templates/theme.py" "$run_dir/repo/scripts/"
+      fi
       git -C "$run_dir/repo" init -q
       if [[ "$arm" != "A" ]]; then
         node "$EVAL_DIR/arm-prompt.js" "$arm" "$lang" >"$arm_file"
