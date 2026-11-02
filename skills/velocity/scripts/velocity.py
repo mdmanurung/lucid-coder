@@ -17,15 +17,20 @@ os.environ.setdefault("NUMBA_NUM_THREADS", "1")
 import argparse  # noqa: E402
 import warnings  # noqa: E402
 from pathlib import Path  # noqa: E402
+from unittest import mock  # noqa: E402
 
 import anndata as ad  # noqa: E402
 import cellrank as cr  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
+import pygpcca._gpcca  # noqa: E402
+import pygpcca._sorted_schur  # noqa: E402
 import scanpy as sc  # noqa: E402
 import scvelo as scv  # noqa: E402
 from plotnine import element_text, theme  # noqa: E402
+from scipy.sparse import linalg  # noqa: E402
+
 from palettes import categorical_palette  # noqa: E402
 from plots import plot_composition  # noqa: E402
 from skillkit import (  # noqa: E402
@@ -42,6 +47,11 @@ from skillkit import (  # noqa: E402
     write_result,
 )
 from theme import save_panel  # noqa: E402
+
+# pygpcca 1.0.4 imports warnings only if sys.warnoptions is empty; under an
+# inherited PYTHONWARNINGS (cellrank sets it) or -W its warn() is a NameError.
+# Drop this line once pygpcca imports warnings unconditionally.
+pygpcca._gpcca.warnings = pygpcca._sorted_schur.warnings = warnings
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 REQUIRED = [
@@ -407,7 +417,13 @@ def analyse(argv, full_argv):
         scv.tl.recover_dynamics(adata, n_jobs=1, show_progress_bar=False)
     scv.tl.velocity(adata, mode=p["mode"])
     scv.tl.velocity_graph(adata, n_jobs=1, show_progress_bar=False)
-    scv.tl.velocity_pseudotime(adata)
+    # scVelo calls eigsh with no start vector; scipy 1.18 then seeds ARPACK from
+    # OS entropy and pseudotime drifts ~1e-5 between runs. Pin a seeded v0;
+    # drop the patch once scVelo passes v0 or a random_state itself.
+    eigsh = linalg.eigsh
+    v0 = np.random.default_rng(p["seed"]).uniform(-1, 1, adata.n_obs)
+    with mock.patch.object(linalg, "eigsh", lambda m, **kw: eigsh(m, v0=v0, **kw)):
+        scv.tl.velocity_pseudotime(adata)
     scv.tl.velocity_embedding(adata, basis="umap")
     probs = fates(adata, terminal, p)
     states = list(probs.columns)
