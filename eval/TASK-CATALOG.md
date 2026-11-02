@@ -42,6 +42,8 @@ All ten are built. Their gates run in `eval/tests/gates.test.js` (R) and `eval/t
 | 8 | 14_interaction-contrast | `eval/tasks/14_interaction-contrast/` | pass: reference passes, naive fails (gates.test.js) |
 | 9 | 15_regulator-sign | `eval/tasks/15_regulator-sign/` | pass: reference passes, naive fails, score.js scores (python.test.js) |
 | 10 | 16_visit-pairs | `eval/tasks/16_visit-pairs/` | pass: reference passes, naive fails (gates.test.js) |
+| 11 | 07b_repeated-visits-na | `eval/tasks/07b_repeated-visits-na/` | pass: reference passes, naive fails (gates.test.js). 07 with HOXB2/RUNX1/TET1 scores missing in 20 samples; a wide drop shifts 10 TFs past tolerance and breaks `n_samples` |
+| 12 | 15b_regulator-sign-groups | `eval/tasks/15b_regulator-sign-groups/` | pass: reference passes, naive fails (python.test.js). 15 plus an A vs B test; truth is a paired t on 3 sample means, tolerance 6 log10 on T1-T4; cells as replicates miss by 10.9-27. Soft spot: cell-level Mann-Whitney passes. The prompt names `sample` as the donor: without it 3 of 4 A/D runs tested cells, with it 4 of 4 passed (2026-11-02) |
 
 Differences from the plan above:
 - #2 (08): decoupler 2.3.1 with the current PROGENy gives JAK-STAT 16.73 on the Wald stat; the book reports 17.15 with an older PROGENy copy. The gate uses 16.73 (tolerance 0.5).

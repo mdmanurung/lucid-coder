@@ -52,6 +52,7 @@ const cases = [
   ['10_gene-ids', '10_score-tfs.py', /229 TFs scored/],
   ['13_counts-layer', '13_combine-labs.py', /lab_b: 128\/128 library_size wrong/],
   ['15_regulator-sign', '15_score-regulators.py', /T2 mean score in B = 3\.20/],
+  ['15b_regulator-sign-groups', '15_score-regulators.py', /group p-value off the paired sample-level test: T1/],
 ];
 
 for (const [taskId, script, naiveDetail] of cases) {

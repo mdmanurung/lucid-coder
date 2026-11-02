@@ -85,6 +85,7 @@ const cases = [
   ['05_recode-trap', '05_summarise-cohorts.R', /wrong age group:.*S07 \(BR1 -> older\)/],
   ['06_grep-trap', '06_filter-controls.R', /has 0 rows, expected 280/],
   ['07_repeated-visits', '07_model-tf-time.R', /time p-value off the repo's mixed model:.*PLAGL1/],
+  ['07b_repeated-visits-na', '07_model-tf-time.R', /time p-value off the per-TF mixed model:.*PLAGL1.*n_samples off/],
   ['09_composition', '09_test-composition.R', /unchanged types called: Enterocyte\.Progenitor, Stem, TA, TA\.Early/],
   ['11_contrast-direction', '11_test-groups.R', /sign flipped or missing for 20 of 20 planted/],
   ['12_per-sample-qc', '12_filter-cells.R', /SRR28679757 kept 0\/360 cells/],
