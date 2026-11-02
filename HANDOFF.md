@@ -1,6 +1,6 @@
 # Handoff — lucid-coder readability eval, tasks 07-16
 
-**Updated:** 2026-11-02 · **Branch:** main · **Status:** 07-16 verdict in (D 12/13). Phase 1 #2 runs done; waiting on the user's blind picks.
+**Updated:** 2026-11-02 · **Branch:** main · **Status:** 07-16 verdict D 12/13; phase 1 verdict D 5/6. Open: Python `__main__` rule (#7).
 
 ## Check first
 Run `git log --oneline 80eb63b..HEAD` and `git status --short`. If either shows work this file does not mention, say so before anything else: State, Next action and Read first may be out of date, so re-check each against the code before acting on it.
@@ -9,7 +9,7 @@ Run `git log --oneline 80eb63b..HEAD` and `git status --short`. If either shows 
 Show whether persona + house (arm D) makes analysis code more readable to a human than baseline Opus (arm A). The user ranks human readability above correctness. Done means the user's blind picks plus the LLM-judge scores for tasks 07-16, unblinded and summarised.
 
 ## Next action
-Phase 1 #2 (2026-11-02): 48 runs in `eval/results/phase1-rest-20261101/` (tasks 01, 05, 06, 01py-03py, arms A-D, 2 reps), all exit 0, all 48 gates pass, scored and judged. Review page https://claude.ai/artifact/4xCJ843v67LFNcDCEwXZgX (6 panels, A vs D, rep 1, `picks` empty at publish). Per-arm scores are in `arm-summary.txt`, kept from the user until the picks are in. After the picks: unblind against `review/side-by-side-key.tsv`, then close #2 and #7.
+Phase 1 #2 done (2026-11-02): user picked D in 5/6 panels (01, 05, 06, 02py, 03py); A won 01py. Gates 48/48; header A 0/12, D 12/12; checks A 54, D 20; cost A $7.13, D $8.15. Judges at ceiling (Sonnet q2 A 4.67, D 4.92). Python gap from the reasons: the user wants `if __name__ == "__main__":` by default (only A used it), plus D's header and comments. That contradicts `rules/python.md` "flat top-level code"; #7 stays open for it. `review/key-with-picks.tsv`.
 
 Done 2026-11-01: user picked D in 12/13 panels (all 9 whole-script panels and 3 of 4 task-14 sections; A only on 14_fit, "X is verbose but tolerable; W needs comments if extracting >2 results"). `review/picks-unblinded.tsv`. LLM judges at ceiling (q2 A 4.00/4.05 vs D 4.05/4.45). Next: decide on committing results and the open items.
 
