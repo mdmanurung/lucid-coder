@@ -282,12 +282,13 @@ def test_r_failed(tmp_path):
     assert is_error(completed, "lmer.R failed with exit 1")
 
 
-@needs_r
 def test_missing_r_package(tmp_path):
-    # An empty user library hides lme4, which is not in R's own library; ~/.Renviron
-    # would set R_LIBS_USER back, so it is skipped too.
-    env = {"R_LIBS_USER": str(tmp_path), "R_LIBS": "", "R_ENVIRON_USER": "/dev/null"}
-    completed = run_with(tmp_path, env=env)
+    # pixi and conda install lme4 into R's own library, which no env var can hide,
+    # so a stub Rscript answers as lmer.R does when a package is missing.
+    stub = tmp_path / "Rscript"
+    stub.write_text("#!/bin/sh\necho 'missing R package: lme4 ' >&2\nexit 4\n")
+    stub.chmod(0o755)
+    completed = run_with(tmp_path, env={"RSCRIPT": str(stub)})
     assert is_error(completed, "missing R package: lme4")
 
 

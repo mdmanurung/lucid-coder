@@ -348,12 +348,13 @@ def test_r_failed(tmp_path):
     assert is_error(completed, "mash.R failed with exit 1")
 
 
-@needs_r
 def test_missing_r_package(tmp_path):
-    # An empty R_ENVIRON_USER stops ~/.Renviron from restoring the library path.
-    (tmp_path / "Renviron").write_text("")
-    env = {"R_LIBS_USER": str(tmp_path), "R_ENVIRON_USER": str(tmp_path / "Renviron")}
-    completed = run_with(tmp_path, env=env)
+    # pixi and conda install mashr into R's own library, which no env var can hide,
+    # so a stub Rscript answers as mash.R does when a package is missing.
+    stub = tmp_path / "Rscript"
+    stub.write_text("#!/bin/sh\necho 'R package not installed: mashr' >&2\nexit 3\n")
+    stub.chmod(0o755)
+    completed = run_with(tmp_path, env={"RSCRIPT": str(stub)})
     assert is_error(completed, "R package not installed: mashr; ask for it")
 
 
