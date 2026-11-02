@@ -229,7 +229,11 @@ def with_status(tested, universe, id_col, reasons):
         raise ValueError(f"unknown status {sorted(bad)}; use one of {STATUSES}")
     untested = pd.DataFrame({id_col: list(reasons), "status": list(reasons.values())})
     untested = untested[~untested[id_col].isin(tested[id_col])]
-    return pd.concat([tested.assign(status="tested"), untested], ignore_index=True)
+    tested = tested.assign(status="tested")
+    # An empty frame in concat raises a pandas FutureWarning on dtypes.
+    if untested.empty:
+        return tested.reset_index(drop=True)
+    return pd.concat([tested, untested], ignore_index=True)
 
 
 def check_gene_ids(ids, symbols):
