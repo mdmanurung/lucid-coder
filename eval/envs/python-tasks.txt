@@ -20,6 +20,11 @@
 #   pertpy 1.4.0      16.1, 14.3   (25.8, 17.2)
 # Every import fits the 600 s Python limit in score.js, but a busy file system can
 # push decoupler and liana past 2 min.
+# Second compute node, res-hpc-exe048 in Slurm job 25934208 (2026-11-01), timed with
+# `uv run ... python -I -c "import <pkg>"`, so each figure includes about 2 s of uv start-up:
+#   decoupler 62.4, 25.7   pydeseq2 2.6, 2.4   liana 155.0, 155.4
+#   jax 18.2, 28.1         pertpy 246.5, 209.3
+# pertpy at about 4 min is the slowest; it still fits the 600 s limit.
 #
 absl-py==2.5.1
 adjusttext==1.4.0
