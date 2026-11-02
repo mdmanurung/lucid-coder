@@ -406,9 +406,15 @@ def draw_figures(figures, table, p, contrasts, effect, label, ranks, sets):
     )
     stars = heat.loc[heat["significant"], ["set", "contrast"]].astype(str)
     stars = stars.rename(columns={"set": "row", "contrast": "col"}).assign(star="*")
-    plot = plot_heatmap(heat, "set", "contrast", label, limit=p["limit"]) + geom_text(
-        aes("col", "row", label="star"), data=stars, inherit_aes=False
-    )
+    plot = plot_heatmap(
+        heat,
+        "set",
+        "contrast",
+        label,
+        limit=p["limit"],
+        x_label="contrast",
+        y_label="gene set",
+    ) + geom_text(aes("col", "row", label="star"), data=stars, inherit_aes=False)
     save_panel(plot, heat, figures, "heatmap", 89 + 6 * len(contrasts), height)
 
     captions = {

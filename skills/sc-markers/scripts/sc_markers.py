@@ -244,7 +244,15 @@ def draw_figures(figures, profiles, p):
     height = max(85, 25 + 8 * profiles["group"].nunique())
     save_panel(plot, profiles, figures, "marker_dotplot", width, height)
 
-    plot = plot_heatmap(profiles, "group", "gene", Z_LABEL, limit=p["limit"])
+    plot = plot_heatmap(
+        profiles,
+        "group",
+        "gene",
+        Z_LABEL,
+        limit=p["limit"],
+        x_label="marker gene",
+        y_label="group",
+    )
     save_panel(plot, profiles, figures, "marker_heatmap", width, height)
 
 

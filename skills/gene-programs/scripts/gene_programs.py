@@ -335,7 +335,13 @@ def draw_figures(
         heat["mean_usage"] - means.transform("mean")
     ) / means.transform("std")
     plot = plot_heatmap(
-        heat, "program", col, "z-score of mean usage", limit=HEATMAP_LIMIT
+        heat,
+        "program",
+        col,
+        "z-score of mean usage",
+        limit=HEATMAP_LIMIT,
+        x_label="group",
+        y_label="gene program",
     )
     width = min(183, max(89, 50 + 6 * len(groups)))
     height = max(50, 25 + 6 * len(programs))
@@ -391,7 +397,13 @@ def draw_figures(
     tg["program"] = pd.Categorical(tg["program"], categories=programs)
     tg["gene"] = pd.Categorical(tg["gene"], categories=genes)
     plot = plot_heatmap(
-        tg, "program", "gene", "z-score of gene score", limit=HEATMAP_LIMIT
+        tg,
+        "program",
+        "gene",
+        "z-score of gene score",
+        limit=HEATMAP_LIMIT,
+        x_label="gene",
+        y_label="gene program",
     )
     save_panel(
         plot,

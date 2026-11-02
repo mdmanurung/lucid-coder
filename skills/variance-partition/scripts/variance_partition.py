@@ -356,7 +356,15 @@ def draw_figures(figures, fractions, order, top_genes, cancor, pal):
     heat["term_col"] = pd.Categorical(heat["term_col"], categories=terms)
     heat = heat.sort_values(["term_row", "term_col"]).reset_index(drop=True)
     # canCor lies in [0, 1]: white at 0, red at 1 on the diverging scale.
-    plot = plot_heatmap(heat, "term_row", "term_col", value, limit=1)
+    plot = plot_heatmap(
+        heat,
+        "term_row",
+        "term_col",
+        value,
+        limit=1,
+        x_label="model term",
+        y_label="model term",
+    )
     save_panel(plot, heat, figures, "cancor_heatmap", 89, 70)
 
 

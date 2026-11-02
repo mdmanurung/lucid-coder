@@ -310,7 +310,15 @@ def draw_cells(figures, acts, table, top, p):
     heat["source"] = pd.Categorical(heat["source"], categories=sources)
     label = f"mean {p['method'].upper()} activity ({UNIT})"
     heat = heat.rename(columns={"score": label})
-    plot = plot_heatmap(heat, "source", "group", label, limit=p["limit"])
+    plot = plot_heatmap(
+        heat,
+        "source",
+        "group",
+        label,
+        limit=p["limit"],
+        x_label="group",
+        y_label="transcription factor",
+    )
     width = min(183, max(89, 50 + 8 * heat["group"].nunique()))
     height = max(50, 20 + 5 * len(sources))
     save_panel(plot, heat, figures, "activity_heatmap", width, height)

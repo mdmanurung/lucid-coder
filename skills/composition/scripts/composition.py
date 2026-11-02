@@ -267,7 +267,19 @@ def draw_figures(figures, counts, props, meta, da, p):
     )
     long["sample"] = pd.Categorical(long["sample"], categories=order)
     long[group] = meta.loc[long["sample"].astype(str), group].to_numpy()
-    plot = plot_composition(long, "sample", "label", "cells", label_pal) + ROTATE_X
+    plot = (
+        plot_composition(
+            long,
+            "sample",
+            "label",
+            "cells",
+            label_pal,
+            x_label="sample",
+            y_label="% of cells",
+            fill_label="cell type",
+        )
+        + ROTATE_X
+    )
     save_panel(plot, long, figures, "composition", 120, 70)
     captions["composition"] = (
         f"Stacked bars of the share of cells per label in each of {len(order)} "

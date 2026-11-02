@@ -319,7 +319,13 @@ def draw_figures(figures, cells, dots, by_cluster, pal, seed, value_label):
     save_panel(plot + ROTATE_X, cells, figures, "confidence_box", 89, 89)
 
     plot = plot_heatmap(
-        by_cluster, "label", "cluster", "fraction of cluster", limit=HEATMAP_LIMIT
+        by_cluster,
+        "label",
+        "cluster",
+        "fraction of cluster",
+        limit=HEATMAP_LIMIT,
+        x_label="cluster",
+        y_label="transferred label",
     )
     # Fractions: white to red over 0-1, the upper half of the diverging scale.
     plot += scale_fill_gradient(low="white", high="#B2182B", limits=(0, HEATMAP_LIMIT))

@@ -16,7 +16,6 @@ import anndata as ad
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from plotnine import labs
 from plots import plot_scatter_fit
 from scipy import sparse, stats
 from skillkit import (
@@ -326,8 +325,12 @@ def draw_figures(figures, adata, per_cell, per_feature, method, isotypes):
             "pc1": per_cell["pc1"],
         }
     )
-    plot = plot_scatter_fit(depth, "log10_library_size", "pc1") + labs(
-        x="log10 library size (counts)", y=f"PC1 ({method})"
+    plot = plot_scatter_fit(
+        depth,
+        "log10_library_size",
+        "pc1",
+        x_label="log10 library size (counts)",
+        y_label=f"PC1 ({method})",
     )
     save_panel(plot, depth, figures, "depth_pc1", 89, 70)
 
@@ -361,9 +364,12 @@ def draw_figures(figures, adata, per_cell, per_feature, method, isotypes):
             "background_median_log": np.median(step_one[:, ~is_iso], axis=1),
         }
     )
-    plot = plot_scatter_fit(iso, "isotype_mean_log", "background_median_log") + labs(
-        x=f"mean isotype log(count + {DSB_PSEUDOCOUNT})",
-        y=f"median protein log(count + {DSB_PSEUDOCOUNT})",
+    plot = plot_scatter_fit(
+        iso,
+        "isotype_mean_log",
+        "background_median_log",
+        x_label=f"mean isotype log(count + {DSB_PSEUDOCOUNT})",
+        y_label=f"median protein log(count + {DSB_PSEUDOCOUNT})",
     )
     save_panel(plot, iso, figures, "isotype_vs_background", 89, 70)
 

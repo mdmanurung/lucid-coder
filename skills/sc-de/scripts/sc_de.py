@@ -19,7 +19,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import skillkit
-from plotnine import labs
 from plots import plot_box, plot_scatter_fit, plot_volcano
 from scipy import sparse, stats
 from theme import save_panel
@@ -380,8 +379,12 @@ def draw_figures(figures, table, data, p, term, effect):
         )
         shown = f"Box plot of {feature} per {term[0]} ({term[1]} vs {term[2]})"
     else:
-        plot = plot_scatter_fit(rows, term[0], feature) + labs(
-            x=f"{term[0]} (units of --input)", y=value_label
+        plot = plot_scatter_fit(
+            rows,
+            term[0],
+            feature,
+            x_label=f"{term[0]} (units of --input)",
+            y_label=value_label,
         )
         shown = f"Scatter plot of {feature} against {term[0]} with a least-squares line"
     save_panel(plot, rows, figures, "top_feature", PANEL_MM, PANEL_MM)

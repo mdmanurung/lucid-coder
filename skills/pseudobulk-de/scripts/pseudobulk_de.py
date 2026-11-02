@@ -457,7 +457,15 @@ def draw_figures(figures, counts, meta, de, p, factor, num, den):
     )
     heat["gene"] = pd.Categorical(heat["gene"], categories=top)
     heat["sample"] = pd.Categorical(heat["sample"], categories=order)
-    plot = plot_heatmap(heat, "gene", "sample", value, limit=HEATMAP_LIMIT)
+    plot = plot_heatmap(
+        heat,
+        "gene",
+        "sample",
+        value,
+        limit=HEATMAP_LIMIT,
+        x_label="sample",
+        y_label="gene",
+    )
     save_panel(plot, heat, figures, "top_genes_heatmap", 89, 89)
     return len(top_var), len(top)
 

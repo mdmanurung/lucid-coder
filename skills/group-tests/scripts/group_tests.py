@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import skillkit
-from plotnine import labs
 from plots import FEW_POINTS, plot_box, plot_scatter_fit
 from scipy import stats
 from theme import save_panel
@@ -273,8 +272,12 @@ def draw_figures(figures, data, table, p, levels):
             )
         else:
             rows = rows.sort_values([p["covariate"], "subject"])
-            plot = plot_scatter_fit(rows, p["covariate"], row.feature) + labs(
-                y=f"{row.feature} ({p['value_unit']})"
+            plot = plot_scatter_fit(
+                rows,
+                p["covariate"],
+                row.feature,
+                x_label=f"{p['covariate']} (units of --input)",
+                y_label=f"{row.feature} ({p['value_unit']})",
             )
             estimate = "rho" if p["test"] == "spearman" else "r"
             caption = (

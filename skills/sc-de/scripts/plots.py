@@ -239,6 +239,7 @@ def plot_box(
             method=test,
             p_adjust_method=p_adjust,
             paired=pair is not None,
+            label_size=7,
         )
         + scale_y_continuous(expand=(0.05, 0, 0.15, 0))
     )

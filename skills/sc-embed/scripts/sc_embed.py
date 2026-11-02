@@ -290,7 +290,16 @@ def draw_figures(figures, adata, p, by_cluster):
         plot = plot_embedding(umap, "umap_1", "umap_2", col, pal, axis_name="UMAP")
         save_panel(plot, umap, figures, name, 89, 75)
 
-    plot = plot_composition(by_cluster, "cluster", "batch", "n_cells", pals["batch"])
+    plot = plot_composition(
+        by_cluster,
+        "cluster",
+        "batch",
+        "n_cells",
+        pals["batch"],
+        x_label="cluster",
+        y_label="% of cells",
+        fill_label="batch",
+    )
     save_panel(plot, by_cluster, figures, "batch_composition", 89, 60)
 
 

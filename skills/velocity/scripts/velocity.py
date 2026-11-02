@@ -346,7 +346,14 @@ def draw_figures(figures, adata, p, levels, pal, cells, by_group, top):
 
     fate_pal = categorical_palette(by_group["terminal_state"].cat.categories)
     plot = plot_composition(
-        by_group, col, "terminal_state", "fate probability", fate_pal
+        by_group,
+        col,
+        "terminal_state",
+        "fate probability",
+        fate_pal,
+        x_label="group",
+        y_label="share of fate probability",
+        fill_label="terminal state",
     ) + theme(axis_text_x=element_text(rotation=45, ha="right"))
     save_panel(plot, by_group, figures, "fate_by_group", 89, 70)
 
