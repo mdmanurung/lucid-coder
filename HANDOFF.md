@@ -1,6 +1,6 @@
 # Handoff — lucid-coder readability eval, tasks 07-16
 
-**Updated:** 2026-11-02 · **Branch:** main · **Status:** 07-16 verdict D 12/13; phase 1 verdict D 5/6. Open: Python `__main__` rule (#7).
+**Updated:** 2026-11-02 · **Branch:** main · **Status:** 07-16 verdict D 12/13; phase 1 verdict D 5/6. Python `main()` guard added to rules/python.md (#7 closed).
 
 ## Check first
 Run `git log --oneline 80eb63b..HEAD` and `git status --short`. If either shows work this file does not mention, say so before anything else: State, Next action and Read first may be out of date, so re-check each against the code before acting on it.
