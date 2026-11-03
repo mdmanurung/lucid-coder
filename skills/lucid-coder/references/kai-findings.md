@@ -70,13 +70,13 @@ storage type per method.
 - **Counts rebuilt from log values.** 2 notebooks write inverted log values where counts belong. `sc_adata.X = (np.around(np.exp(sc_adata.X.toarray())) + 1).astype(int)` adds 1 where it should subtract 1, and it inverts normalised values, not counts (`scverse/spatialdata-notebooks/scverse_spatialdata_notebooks_03_annotate_visium_cell2location`). `nichecompass-reproducibility/..._data_preparation` writes `np.round(np.exp(X) - 1)` into `layers["counts"]` (3 cells). The one correct rebuild multiplies `expm1(X)` by the stored per-cell UMI totals over 10,000 (`theislab/Covid_meta_analysis/theislab_covid_meta_analysis_figure1cd`), so it needs the size factors.
 - **Aliased counts layer.** `v.layers["counts"] = v.X` with no `.copy()` appears in 78 notebooks. 53 then run in-place `normalize_total(v)` or `log1p(v)` on the same object before reassigning it. That is 9 repos, 39 notebooks from `teichlab/PanGIAtlas`. With a float `X`, the layer is normalised and logged too. With an integer `X`, `normalize_total` casts to a new float array, so the layer survives. `alias_test.py` shows both outcomes. `layers["counts"] = X.copy()` appears in 171 notebooks.
 
-### Proposed gotchas (PROPOSED)
+### Proposed gotchas (APPLIED 2026-11-03)
 
 - **The model will want to stash counts with `layers["counts"] = adata.X`** before normalising an input by hand. Do not. Without `.copy()`, the layer and `X` are one object. `normalize_total` and `log1p` then rewrite both when `X` is float, which is what `read_10x_h5` gives. 53 kai notebooks do this. The script keeps its own copy, so pass the raw file as it is. (tut, `alias.py`, `alias_test.py`)
 - **The model will want to rebuild counts with `np.expm1` or `np.exp(X) - 1`** when only a log-normalised `X` is at hand. Do not. That gives size-normalised values, not counts; one kai tutorial even adds 1 instead of subtracting it. Only stored library sizes make the rebuild exact. Ask for the raw counts. This extends the existing `.raw`/`.X` gotcha with the corpus case.
 - **The model will want to add `sc.pp.scale(max_value=10)`** as part of "normalising". Do not. Scaling is a separate, dense step for PCA; 87 kai log1p notebooks scale, but this skill's output is normalised, not scaled, and DE skills refuse scaled data.
 
-### Proposed grill-question citations (PROPOSED)
+### Proposed grill-question citations (APPLIED 2026-11-03)
 
 - `--target-sum`: "To what total is each cell scaled first? (kai tutorials: `1e4` in 195 of 376 `normalize_total` calls, `1e6` in 19, unset (median) in 128.)"
 - `--theta` and `--clip`: add "kai's 2 Pearson tutorials leave both at scanpy's defaults; that choice is still yours." It supports the existing gotcha against picking them silently.
@@ -93,12 +93,12 @@ storage type per method.
 - **Subsets without `.copy()`.** Writes into a bare subset are covered under `py.views` in `house-style.md`. A broader regex (`view.py`) counts 332 notebooks across 90 repos that write `.obs`, `.var`, `.X`, `.layers`, `.uns` or call an in-place `sc.pp`/`sc.tl` on such a subset. anndata warns (`ImplicitModificationWarning`) and turns the view into a copy, so the write lands in the subset and the parent is untouched. About 70 of the 332 also mute all warnings, and `ImplicitModificationWarning` is named in 0 notebooks. A QC example: `gran_adata = gran_adata[gran_adata.obs['percent_mito'] < ...]`, then `sc.pp.normalize_per_cell(gran_adata, ...)` (`ShalekLab/mTB_CD8_Depletion/shaleklab_mtb_cd8_depletion_0_preprocessing`).
 - **Muted warnings.** `filterwarnings("ignore")` with no category in 263 notebooks (64 repos; 264 in `house-style.md`, counted before comment stripping), plus `simplefilter("ignore")` in 54. `house-style.md` `code.warnings` already cites the first count.
 
-### Proposed gotchas (PROPOSED)
+### Proposed gotchas (APPLIED 2026-11-03)
 
 - **The model will want to copy a tutorial threshold** ("min_genes 200, mito 20%, as in the scanpy tutorial"). Do not. kai tutorials use 200 in 39 of 106 notebooks, then 100 to 700. The mito cutoff ranges from 5% to 50%, and fractions and percents are mixed (`mt_frac < 0.2` and `pct_counts_mt < 20` are the same cut). Ask, and state the unit `--max-pct-mito` takes (percent).
 - **The model will want to run Scrublet once on a merged object** because tutorials do. Do not; 17 of 28 kai notebooks call it once with no `batch_key`. This adds the corpus count to the existing pooled-object gotcha.
 
-### Proposed grill-question citations (PROPOSED)
+### Proposed grill-question citations (APPLIED 2026-11-03)
 
 - `--mito-prefix`: "(kai: `MT-` 80 notebooks, `mt-` 40, both 7.)"
 - `--min-genes`: "(kai: 200 in 39 of 106 notebooks; 100-700 in the rest.)"
@@ -117,12 +117,12 @@ storage type per method.
 - **MAST.** `zlm(` appears in 3 notebooks, all in `theislab/organoid_dexamethasone_stimulation`: `zlm(formula = ~treatment + ngeneson, sca=sca_sub)` with `doLRT='treatmentVeh'`. The CDR covariate is in all 3, and none has a random effect. Their gene filter is `rowSums(assay(sca_sub)) != 0`, which drops only all-zero genes.
 - **Downsampling seeds.** `sc.pp.subsample` appears in 72 notebooks; 57 leave `random_state` at its default 0, and 15 set it (42 ×6, 0 ×6). A data frame or `.obs` is sampled with `.sample()` and no `random_state` in 15 notebooks, against 2 with it. `np.random.choice` appears in 88 notebooks, 58 with no seed anywhere in the notebook. Those two are truly unseeded.
 
-### Proposed gotchas (PROPOSED)
+### Proposed gotchas (APPLIED 2026-11-03)
 
 - **The model will want to point `--layer` at whatever `X` holds** because scanpy DE "just works" on it. Do not. scanpy silently tests `.raw` when it exists. In 11 kai notebooks, a scaled `X` gave sensible results only because `.raw` held log values. This script reads exactly `--layer` (or `X`) and never `.raw`, so ask which matrix holds the log-normalised values.
 - **The model will want to run mast mode by condition because tutorials call `rank_genes_groups(groupby="disease")`.** Do not; 26 kai notebooks test a condition at cell level. This adds the corpus count to the existing donor-level gotcha.
 
-### Proposed grill-question citations (PROPOSED)
+### Proposed grill-question citations (APPLIED 2026-11-03)
 
 - `--cdr`: "(kai's only MAST tutorials, 3 notebooks in one repo, include it: `~treatment + ngeneson`.)"
 - `--min-frac`: "(kai's MAST tutorials drop only all-zero genes; the fraction is yours.)"
@@ -138,14 +138,14 @@ storage type per method.
 - **Paired design without the patient term.** Two liana notebooks run PyDESeq2 on Kang 2018 with `design_factors=condition_key` alone, though their markdown says the data are "8 pooled patient lupus samples, each before and after IFN-beta stimulation". The DESeq2 cell also starts with `%%capture` and `quiet = True`, so fit warnings are hidden (`saezlab/liana-py/saezlab_liana_py_targeted`, and its copy in `saezlab/lianaplus_manuscript`). Designs elsewhere: `["disease", "sex"]` ×2, `['disease', 'sex', 'assay']` ×1; the rest are single factors.
 - **R engines.** `DESeqDataSetFromMatrix` 2, `DGEList` 6 (mostly differential abundance), `voom` 4, `dreamlet` 0.
 
-### Proposed gotchas (PROPOSED)
+### Proposed gotchas (APPLIED 2026-11-03)
 
 - **The model will want to pre-filter the pseudobulk with `filter_by_expr`** (or `filter_genes`) before the script, as decoupler's tutorials do. Do not. The script filters by `--min-frac`, and DESeq2 filters again independently. A third filter changes which genes are tested and goes unrecorded. 14 of 16 kai DESeq2 notebooks stack two filters, and one stacks three.
 - **The model will want to sum a normalised layer** because it is called `normalised_counts`. Do not; DESeq2 and dreamlet need raw counts. This adds the corpus case to the existing `counts ... must be non-negative integers` gotcha.
 - **The model will want to drop the patient term on Kang-style data because the tutorial did.** Do not. The liana tutorial fits `condition` alone on 8 patients measured before and after stimulation. This adds a source to the existing gotcha.
 - **The model will want to wrap a run in `%%capture` or `quiet=True`** to tidy a notebook. Do not; that hides convergence and Cook's warnings. Read `result.json` and the log instead.
 
-### Proposed grill-question citations (PROPOSED)
+### Proposed grill-question citations (APPLIED 2026-11-03)
 
 - `--min-cells`: "(kai: 10 in 14 of 16 `get_pseudobulk` calls that set it.)"
 - A per-sample count floor such as `min_counts=1000` (13 of 16 kai calls) has no flag in this skill. **PROPOSED for discussion only:** ask whether the user wants one, or keep it out and say why in `maintainer.md`. Do not add it without approval.
@@ -161,12 +161,12 @@ storage type per method.
 - **Cells mode.** `rankby_group` or `rank_sources_groups` sets `method="t-test_overestim_var"` in 11 of 11 notebooks. 19 notebooks run ULM or MLM on an AnnData, and 0 of those notebooks scale that object. decoupler calls pass `use_raw=False` in 12 notebooks. Old decoupler defaulted to `use_raw=True` and read `.raw` silently.
 - **Contrast mode.** The 11 notebooks that name the DE column score `stat`, for example `DeseqStats(...)` then `results_df[["stat"]].T` (`saezlab/corneto/saezlab_corneto_advanced_carnival`). Two more score log fold changes (`run_mlm(mat=logFCs, ...)`, `saezlab/marco_kidney_singlecell/..._ccrcc_ass1_final`). None scores `padj` or `-log10(p)`.
 
-### Proposed gotchas (PROPOSED)
+### Proposed gotchas (APPLIED 2026-11-03)
 
 - **The model will want to pick PROGENy `top=500` or `5000` from a tutorial** when exporting the network. Do not. kai uses both (500 ×6, 5000 ×8), and the choice changes every score. Ask, and record the value with the network file.
 - **The model will want to feed an h5ad whose `.raw` holds the log values and whose `X` is scaled.** Do not. Old decoupler read `.raw` silently, which is why 12 kai notebooks pass `use_raw=False` to a decoupler call. This script reads `X` only and refuses scaled data, so ask where the log-normalised matrix is.
 
-### Proposed grill-question citations (PROPOSED)
+### Proposed grill-question citations (APPLIED 2026-11-03)
 
 - `--method`: "(kai: ULM 41 notebooks, MLM 12.)"
 - `--tmin`: "(kai leaves decoupler's default in all but 2 notebooks.)"

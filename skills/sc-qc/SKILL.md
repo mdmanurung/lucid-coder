@@ -109,16 +109,16 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--adata` | Which h5ad holds the unfiltered cells? | `examples/demo.h5ad` |
 | `--layer` (optional) | Which layer holds the raw counts? Absent means `X`. | absent (`X`) |
 | `--sample-col` | Which obs column names the sample (one 10x library)? | `sample` |
-| `--mito-prefix` | Which prefix marks mitochondrial genes (`MT-` human, `mt-` mouse)? | `MT-` |
+| `--mito-prefix` | Which prefix marks mitochondrial genes (`MT-` human, `mt-` mouse)? (tut: `MT-` in 80 kai notebooks, `mt-` in 40, both in 7.) | `MT-` |
 | `--mode` | Fixed thresholds for every sample (`fixed`), or outliers per sample by MAD (`mad`)? | `mad` |
-| `--min-genes` (fixed) | Fewest genes detected for a kept cell? | — |
+| `--min-genes` (fixed) | Fewest genes detected for a kept cell? (tut: 200 in 39 of 106 kai notebooks; 100-700 in the rest.) | — |
 | `--max-genes` (fixed) | Most genes detected for a kept cell? | — |
 | `--min-counts` (fixed) | Fewest UMI counts for a kept cell? | — |
-| `--max-pct-mito` (fixed) | Highest % mitochondrial counts for a kept cell? | — |
-| `--mads-counts` (mad) | How many MADs from the median of log1p counts, each side? | `5` |
+| `--max-pct-mito` (fixed) | Highest % mitochondrial counts for a kept cell? In percent. (tut: kai cutoffs run 5-50%; 23 notebooks write it as the fraction 0.2.) | — |
+| `--mads-counts` (mad) | How many MADs from the median of log1p counts, each side? (tut: 5, 5 and 3 for counts, genes and mito in the sc-best-practices pattern, 15 kai notebooks, mostly one repo.) | `5` |
 | `--mads-genes` (mad) | How many MADs from the median of log1p genes, each side? | `5` |
 | `--mads-mito` (mad) | How many MADs above the median % mito? | `3` |
-| `--expected-doublet-rate` | Which doublet rate does the 10x loading table give for these libraries' recovered cells? | `0.08` |
+| `--expected-doublet-rate` | Which doublet rate does the 10x loading table give for these libraries' recovered cells? (tut: kai uses 0.1, 0.02 or 0.06, never tied to the 10x loading table.) | `0.08` |
 | `--doublet-threshold` | Let Scrublet pick a cutoff per sample (`auto`), or one fixed score in (0, 1)? | `auto` |
 | `--seed` | Which seed for Scrublet? | `0` |
 | `--reference` | Which genome build and annotation release named the genes (e.g. `GRCh38, GENCODE 44`)? Recorded in `result.json`. | `synthetic demo genes, no genome build` |
@@ -199,7 +199,15 @@ composition) sums `failed_qc_per_sample` and `doublets_per_sample` per condition
 
 - **The model will want to run Scrublet on the pooled object** to save time.
   Do not. Doublets form within one library; pooled scores mix samples with
-  different depths and doublet rates. The script runs it per sample.
+  different depths and doublet rates. The script runs it per sample. Tutorials
+  run it pooled (tut: 17 of 28 kai Scrublet notebooks call it once with no
+  `batch_key`).
+- **The model will want to copy a tutorial threshold** ("min_genes 200, mito
+  20%, as in the scanpy tutorial"). Do not. kai uses 200 in 39 of 106
+  notebooks, then 100 to 700. Mito cutoffs run from 5% to 50%, and fractions
+  and percents are mixed: `mt_frac < 0.2` and `pct_counts_mt < 20` are the same
+  cut. Ask, and say that `--max-pct-mito` takes percent (tut: 59 of 2,845 kai
+  notebooks set a mito cutoff).
 - **The model will want one global MAD threshold** across samples. Do not. A
   shallow sample then loses most of its cells; `--mode mad` is per sample by design.
 - **The model will want to tune thresholds after seeing the violins** or the

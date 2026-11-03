@@ -137,18 +137,18 @@ Each row is a grill question. Ask the user; never fill one in.
 |---|---|---|---|
 | `--input` | `cells` or `contrast` | Score each cell of an h5ad, or one DE contrast? | `cells` |
 | `--network` | network TSV | Which exported network file (CollecTRI for TFs, PROGENy for pathways)? | `examples/demo_network.tsv` |
-| `--method` | `ulm` or `mlm` | Univariate (ULM, one source at a time) or multivariate (MLM, sources fitted jointly)? | `ulm` |
-| `--tmin` | minimum targets per source | How many of a source's targets must be in the data for it to be scored? | `5` |
+| `--method` | `ulm` or `mlm` | Univariate (ULM, one source at a time) or multivariate (MLM, sources fitted jointly)? (tut: ULM in 41 kai notebooks, MLM in 12.) | `ulm` |
+| `--tmin` | minimum targets per source | How many of a source's targets must be in the data for it to be scored? (tut: kai leaves decoupler's default in all but 2 notebooks.) | `5` |
 | `--n-top` | top sources in the figures | How many top sources per group (cells) or in total (contrast) go in the figures? | `2` |
 | `--reference` | genome build and annotation release of the gene names | Which genome build and annotation were the genes counted against (e.g. `GRCh38, GENCODE 44`)? | `synthetic demo genes, no genome build` |
 | `--context` | biological context of the data | Species, tissue or cell type, condition and dataset? | `synthetic demo: 3 groups x 60 cells, no real tissue` |
 | `--seed` | seed | Which seed? (Recorded; no step draws random numbers.) | `0` |
 | `--adata` (cells) | input h5ad | Which h5ad holds the log-normalised cells? | `examples/demo.h5ad` |
 | `--groupby` (cells) | obs column of groups | Which obs column holds the clusters or labels? | `group` |
-| `--rank-method` (cells) | `t-test_overestim_var`, `t-test` or `wilcoxon` | Which test compares each group's cell scores with the rest? | `t-test_overestim_var` |
+| `--rank-method` (cells) | `t-test_overestim_var`, `t-test` or `wilcoxon` | Which test compares each group's cell scores with the rest? (tut: `t-test_overestim_var` in 11 of 11 kai notebooks; a tutorial value, not a default.) | `t-test_overestim_var` |
 | `--limit` (cells) | heatmap colour saturation | At which absolute mean activity should the heatmap colours saturate? | `3` |
 | `--de-table` (contrast) | DE table | Which DE table holds the contrast? | `examples/demo_de.tsv` |
-| `--stat-col` (contrast) | statistic column | Which column to score: the Wald or t `stat`, or `log2_fc`? | `stat` |
+| `--stat-col` (contrast) | statistic column | Which column to score: the Wald or t `stat`, or `log2_fc`? (tut: `stat` in all 11 kai notebooks that name a column; log fold change in 2.) | `stat` |
 | `--contrast` (contrast) | contrast label | What label names this contrast in the tables? | `g1_vs_g2` |
 | `--outdir` | new output directory | Which new directory gets the outputs? It must not exist. | `tf_activity_demo` |
 
@@ -243,6 +243,10 @@ outdir/
 - **The model will want to download CollecTRI or PROGENy inside the run.** Do
   not. The run is offline; export the network once with the calls above and
   pass the file, so the run records which network it used.
+- **The model will want to pick PROGENy `top=500` or `5000` from a tutorial**
+  when exporting the network. Do not. kai uses both, and the choice changes
+  every score. Ask, and record the value in the network file name (tut: 500 in
+  6 kai notebooks, 5000 in 8).
 - **The model will want to lower `--tmin`** when a favourite TF lands in
   `sources_dropped.tsv`. Do not. A source with few targets in the data gives an
   unstable score; report it as dropped, and ask the user before any rerun.
@@ -270,7 +274,9 @@ outdir/
   the TF's own transcript is not used.
 - **The model will want to feed scaled or raw-count data** past the
   `does not look log-normalised` error. Do not. Ask the user where the
-  log-normalised matrix is.
+  log-normalised matrix is. An h5ad whose `X` is scaled and whose `.raw` holds
+  the log values fails here: old decoupler read `.raw` silently, but this
+  script reads `X` only (tut: 12 of 2,845 kai notebooks pass `use_raw=False`).
 - **The model will want to fill in a missing argument** with a "standard" value
   (ulm, tmin 5, the corpus `t-test_overestim_var`). Do not. Ask, or run `--demo`
   only when the user asked for one.

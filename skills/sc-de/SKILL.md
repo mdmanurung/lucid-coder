@@ -153,9 +153,9 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--log-base` (mast) | Is the expression natural log (`e`, scanpy `log1p`) or `2`? | `e` |
 | `--cell-type-col`, `--cell-type` (mast) | Which obs column and which cell type? | `cell_type`, `T` |
 | `--donor-col` (mast) | Which obs column names the donor? | `donor` |
-| `--n-cells-per-donor` (mast) | Downsample to how many cells per donor (per term level), or `all`? | `50` |
-| `--min-frac` (mast) | In what fraction of the kept cells must a gene be detected? | `0.1` |
-| `--cdr` (mast) | Add the cellular detection rate (`cngeneson`) as a covariate, `yes` or `no`? | `yes` |
+| `--n-cells-per-donor` (mast) | Downsample to how many cells per donor (per term level), or `all`? (tut: 15 kai notebooks sample a data frame with no seed, and 58 call `np.random.choice` with no seed; this script always seeds with `--seed`.) | `50` |
+| `--min-frac` (mast) | In what fraction of the kept cells must a gene be detected? (tut: kai's MAST tutorials drop only all-zero genes; the fraction is yours.) | `0.1` |
+| `--cdr` (mast) | Add the cellular detection rate (`cngeneson`) as a covariate, `yes` or `no`? (tut: kai's only MAST tutorials, 3 notebooks in one repo, include it: `~treatment + ngeneson`.) | `yes` |
 | `--input`, (lm) | Which long TSV holds the values? | `examples/demo_npx.tsv` |
 | `--outdir` | Which new directory gets the outputs? It must not exist. | given by the user |
 
@@ -239,7 +239,14 @@ is blue, the other red, jitter ±0.2 box widths with `--seed`. `skillkit.py`,
   Cells are the unit only when the condition was assigned to each cell (a
   per-cell perturbation, such as a CRISPR guide). When the condition belongs to
   the donor or sample (disease, stimulation of a whole sample), the donor is the
-  unit: run `pseudobulk-de`, or at least add `(1|donor)`.
+  unit: run `pseudobulk-de`, or at least add `(1|donor)`. Tutorials call
+  `rank_genes_groups(groupby="disease")`, which is no reason to copy them (tut:
+  26 of 2,845 kai notebooks test a condition at cell level).
+- **The model will want to point `--layer` at whatever `X` holds** because
+  scanpy DE "just works" on it. Do not. scanpy silently tests `.raw` when it
+  exists; a scaled `X` gave sensible results only because `.raw` held log
+  values (tut: 11 of 2,845 kai notebooks). This script reads exactly `--layer`
+  (or `X`) and never `.raw`, so ask which matrix holds the log-normalised values.
 - **The model will want to read a filtered gene as unexpressed.** Do not. A gene
   under `--min-frac` was not tested; non-detection is not absence.
 - **The model will want to report MAST p-values as donor-level evidence.** Do

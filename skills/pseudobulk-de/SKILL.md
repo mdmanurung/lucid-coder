@@ -124,9 +124,9 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--cell-type` | Which cell type do we test? With `--cell-type-col none`, the label the report gives that population. | `T` |
 | `--sample-col` | Which obs column names the sample (one library per donor and condition)? | `sample` |
 | `--donor-col` | Which obs column names the donor? A donor with several kept samples needs a donor term in `--design` (fixed or `(1|donor)`). | `patient` |
-| `--design` | Which design formula? Does a subject give more than one sample (then `(1|subject)`, dreamlet), and which covariates enter? | `~ patient + condition`; with `--engine dreamlet`, `~ condition + (1|patient)` |
+| `--design` | Which design formula? Does a subject give more than one sample (then `(1|subject)`, dreamlet), and which covariates enter? (tut: the liana Kang tutorial omits the patient term for paired data.) | `~ patient + condition`; with `--engine dreamlet`, `~ condition + (1|patient)` |
 | `--contrast` | Which factor, numerator and denominator (`factor,numerator,denominator`)? | `condition,stim,ctrl` |
-| `--min-cells` | How many cells must a sample have in this cell type to be kept? | `10` |
+| `--min-cells` | How many cells must a sample have in this cell type to be kept? (tut: 10 in 14 of 16 kai `get_pseudobulk` calls that set it.) | `10` |
 | `--min-frac` | In what fraction of this cell type's cells must a gene be detected? | `0.1` |
 | `--padj-max` | Which adjusted-p cutoff marks a gene significant? | `0.05` |
 | `--lfc-min` | Which absolute log2 fold change must a significant gene exceed? | `1.0` |
@@ -214,7 +214,18 @@ outdir/
   the result; a second analysis has none of the fixed filters or provenance.
 - **The model will want to drop the patient term** when a paired design gives
   few hits or a convergence warning. Do not. Dropping it changes the estimand
-  from a within-patient to a between-group effect. Ask the user.
+  from a within-patient to a between-group effect. Ask the user. The liana
+  tutorial fits `condition` alone on 8 patients measured before and after
+  stimulation; do not copy it (tut: 2 kai notebooks, `saezlab/liana-py` and its
+  copy).
+- **The model will want to pre-filter the pseudobulk with `filter_by_expr`**
+  (or `filter_genes`) before the script, as decoupler's tutorials do. Do not.
+  The script filters by `--min-frac`, and DESeq2 filters again independently. A
+  third filter changes which genes are tested and goes unrecorded (tut: 14 of 16
+  kai DESeq2 notebooks stack two filters, and one stacks three).
+- **The model will want to wrap a run in `%%capture` or `quiet=True`** to tidy
+  a notebook. Do not; that hides convergence and Cook's warnings. Read
+  `result.json` and the log instead (tut: the liana Kang tutorial does both).
 - **The model will want to relax `--padj-max` or `--lfc-min`** after seeing few
   significant genes. Do not. Thresholds are the user's answers, fixed before the
   run; report the count as it is.
@@ -251,7 +262,9 @@ outdir/
   ask which genome build and annotation release made the counts.
 - **The model will want to feed normalised or log values** to "fix" a
   `counts ... must be non-negative integers` error. Do not. Point `--layer` at the
-  raw counts or ask the user where they are.
+  raw counts or ask the user where they are. A layer named `normalised_counts`
+  holds normalised values, not counts; DESeq2 and dreamlet need raw counts (tut:
+  1 of 30 kai `get_pseudobulk` notebooks sums one).
 
 ## Engine rule: repeated measures use dreamlet
 
