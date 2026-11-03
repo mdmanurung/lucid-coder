@@ -148,7 +148,7 @@ storage type per method.
 ### Proposed grill-question citations (APPLIED 2026-11-03)
 
 - `--min-cells`: "(kai: 10 in 14 of 16 `get_pseudobulk` calls that set it.)"
-- A per-sample count floor such as `min_counts=1000` (13 of 16 kai calls) has no flag in this skill. **PROPOSED for discussion only:** ask whether the user wants one, or keep it out and say why in `maintainer.md`. Do not add it without approval.
+- A per-sample count floor such as `min_counts=1000` (13 of 16 kai calls) has no flag in this skill. **Decided 2026-11-03: a note on the `--min-cells` grill row, no flag.** Was: ask whether the user wants one, or keep it out and say why in `maintainer.md`. Do not add it without approval.
 - `--design`: "Does a subject give more than one sample? (kai: the liana Kang tutorial omits the patient term for paired data.)"
 
 ## tf-activity

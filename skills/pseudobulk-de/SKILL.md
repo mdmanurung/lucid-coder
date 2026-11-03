@@ -126,7 +126,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--donor-col` | Which obs column names the donor? A donor with several kept samples needs a donor term in `--design` (fixed or `(1|donor)`). | `patient` |
 | `--design` | Which design formula? Does a subject give more than one sample (then `(1|subject)`, dreamlet), and which covariates enter? (tut: the liana Kang tutorial omits the patient term for paired data.) | `~ patient + condition`; with `--engine dreamlet`, `~ condition + (1|patient)` |
 | `--contrast` | Which factor, numerator and denominator (`factor,numerator,denominator`)? | `condition,stim,ctrl` |
-| `--min-cells` | How many cells must a sample have in this cell type to be kept? (tut: 10 in 14 of 16 kai `get_pseudobulk` calls that set it.) | `10` |
+| `--min-cells` | How many cells must a sample have in this cell type to be kept? (tut: 10 in 14 of 16 kai `get_pseudobulk` calls that set it. kai also drops samples under `min_counts=1000` summed counts in 13 of 16 calls; this skill has no count floor, so ask whether a low-count sample should be dropped by hand before the run.) | `10` |
 | `--min-frac` | In what fraction of this cell type's cells must a gene be detected? | `0.1` |
 | `--padj-max` | Which adjusted-p cutoff marks a gene significant? | `0.05` |
 | `--lfc-min` | Which absolute log2 fold change must a significant gene exceed? | `1.0` |
