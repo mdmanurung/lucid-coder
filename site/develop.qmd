@@ -23,8 +23,17 @@ Hooks, rules and templates:
 npm test   # node --test tests/*.test.js
 ```
 
-Each pipeline skill has its own pytest suite. Run it with the exact `uv run`
-line in that skill's `references/maintainer.md`, for example:
+The pixi `dev` environment holds every skill's dependencies plus pytest and
+node, so one command runs the plugin tests and every skill suite:
+
+```bash
+pixi install -e dev
+pixi run -e dev test
+```
+
+The suites are slow on a network file system (minutes each), so run them per
+skill in parallel when you can. To run one suite without pixi, use the exact
+`uv run` line in that skill's `references/maintainer.md`, for example:
 
 ```bash
 cd skills/group-tests
