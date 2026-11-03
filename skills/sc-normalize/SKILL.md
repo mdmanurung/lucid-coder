@@ -156,8 +156,8 @@ required for that method and refused for the others.
 | `--seed` | Which seed for the dsb GMM and the diagnostic PCA? | `0` |
 | `--reference` | Which genome build and annotation release named the genes (e.g. `GRCh38, GENCODE 44`)? For dsb, which antibody panel and release? Recorded in `result.json`. | `synthetic demo features, no genome build` |
 | `--context` | Species, tissue or cell type, condition and dataset? | `synthetic demo: 3 groups x 200 cells, RNA and ADT, no real tissue` |
-| `--target-sum` | log1p: to what total is each cell scaled first? | `10000` |
-| `--theta` | pearson: which NB overdispersion theta (100 in Lause et al.)? | `100` |
+| `--target-sum` | log1p: to what total is each cell scaled first? (tut: `1e4` in 195 of 376 kai `normalize_total` notebooks, `1e6` in 19, unset (median) in 128.) | `10000` |
+| `--theta` | pearson: which NB overdispersion theta (100 in Lause et al.)? (tut: both kai Pearson notebooks keep scanpy's defaults for `theta` and `clip`; the choice is still yours.) | `100` |
 | `--gene-id-col` | log1p/pearson: which `var` column holds the Ensembl gene ids (`var_names` are the symbols)? `none` if the source has no ids; `gene_id` is then NA. | `gene_ids` |
 | `--clip` | pearson: clip residuals to +-what (scanpy suggests sqrt(n cells))? | `25` |
 | `--empty-droplets` | dsb: which h5ad holds the ADT counts of empty droplets, and how were they chosen? | `examples/demo_empty.h5ad` |
@@ -184,7 +184,8 @@ dsb` switches to the ADT demo files.
    - `pearson`: `normalize_pearson_residuals(theta=--theta, clip=--clip)`;
    - `dsb`: `mu.prot.pp.dsb(cells, empty, pseudocount=10, denoise_counts=True,
      isotype_controls=..., scale_factor="standardize", random_state=--seed)`.
-5. **Copy** the dense normalised X into `layers[--layer-out]`.
+5. **Copy** the normalised X into `layers[--layer-out]`: sparse for `log1p`
+   (from sparse counts), dense for `pearson` and `dsb`.
 6. **Diagnostics**: per-cell library size, normalised total and detected
    features; per-feature mean and variance before and after; PC1 from a
    2-component arpack PCA (seeded, all features, centred, unscaled) and its
@@ -206,7 +207,7 @@ outdir/
 ├── report.md                  # params, summary, figures with captions
 ├── result.json                # method, n_cells, n_features, n_features_dropped, status_counts, gene_id_col, pc1_depth_abs_spearman, layer_out, seed, params, reference, context, chat_summary_lines (first: "Context: ..."), preferred_artifacts
 ├── data/
-│   └── normalized.h5ad        # X normalised (dense), layers["counts"] input, layers[--layer-out] = X
+│   └── normalized.h5ad        # X normalised (log1p sparse; pearson, dsb dense), layers["counts"] input, layers[--layer-out] = X
 ├── tables/
 │   ├── per_cell_summary.tsv   # cell, library_size, normalised_total, n_detected, pc1
 │   └── gene_mean_variance.tsv # feature, gene_id (not dsb), mean_counts, var_counts, mean_normalised, var_normalised, status
@@ -254,8 +255,10 @@ of `templates/`; a test fails when they drift.
   Write "analytic Pearson residuals (Lause et al. 2021)", and note that
   SCTransform v2 approximates the same model.
 - **The model will want to pick empty droplets by a UMI range itself** (the
-  corpus used `empty_counts_range=(1.2, 2.8)`). Do not. Which barcodes are empty
-  is the user's call; ask for the file and how it was made.
+  corpus used `empty_counts_range=(1.2, 2.8)`; a kai muon tutorial uses
+  `(1.5, 2.8)`, tut: 1 of 2 kai dsb notebooks). Do not. Two sources give two
+  ranges. Which barcodes are empty is the user's call; ask for the file and how
+  it was made.
 - **The model will want to drop `--isotype-controls`** when the panel has none.
   Do not. Stop and tell the user; dsb without isotypes is a different
   correction and is not offered here.
@@ -265,6 +268,18 @@ of `templates/`; a test fails when they drift.
 - **The model will want to copy between `.raw` and `.X`** to "restore" counts
   or stash a normalised copy. Do not. Raw counts live in `layers["counts"]`
   only; a log-normalised `X` cannot give counts back without its size factors.
+  `np.expm1(X)` or `np.exp(X) - 1` gives size-normalised values, not counts; one
+  kai tutorial even adds 1 instead of subtracting it (tut: 2 of 2,845 kai
+  notebooks write such values where counts belong). Ask for the raw counts.
+- **The model will want to stash counts with `layers["counts"] = adata.X`**
+  before normalising an input by hand. Do not. Without `.copy()`, the layer and
+  `X` are one object. `normalize_total` and `log1p` then rewrite both when `X`
+  is float, as `read_10x_h5` gives. The script keeps its own copy, so pass the
+  raw file as it is (tut: 53 of 2,845 kai notebooks).
+- **The model will want to add `sc.pp.scale(max_value=10)`** as part of
+  "normalising". Do not. Scaling is a separate, dense step for PCA. This
+  skill's output is normalised, not scaled, and the DE skills refuse scaled
+  data (tut: 87 of 530 kai `log1p` notebooks scale).
 - **The model will want to guess what an unknown h5ad holds.** Do not. Check a
   few rows first: integers mean counts; `np.expm1(X[:5]).sum(1)` near one total
   means log1p-normalised; negative values mean residuals or scaled data. Then

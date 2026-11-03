@@ -249,7 +249,9 @@ def normalise(adata, empty, p):
                 scale_factor="standardize",
                 random_state=p["seed"],
             )
-    adata.X = dense(adata.X)
+    # log1p keeps the sparse input sparse; residuals and dsb are dense anyway.
+    if method != "log1p":
+        adata.X = dense(adata.X)
     adata.layers[p["layer_out"]] = adata.X.copy()
     return dropped
 
@@ -259,16 +261,17 @@ def tables(adata, seed):
     from sklearn.decomposition import PCA
 
     counts = adata.layers["counts"]
+    x = dense(adata.X)
     per_cell = pd.DataFrame(
         {
             "cell": adata.obs_names,
             "library_size": np.asarray(counts.sum(axis=1)).ravel(),
-            "normalised_total": adata.X.sum(axis=1),
+            "normalised_total": x.sum(axis=1),
             "n_detected": np.asarray((counts > 0).sum(axis=1)).ravel(),
         }
     )
     pca = PCA(n_components=N_DIAG_PCS, svd_solver="arpack", random_state=seed)
-    per_cell["pc1"] = pca.fit_transform(adata.X)[:, 0]
+    per_cell["pc1"] = pca.fit_transform(x)[:, 0]
     per_cell = per_cell.sort_values("cell", ignore_index=True)
 
     counts = dense(counts).astype(float)
@@ -277,8 +280,8 @@ def tables(adata, seed):
             "feature": adata.var_names,
             "mean_counts": counts.mean(axis=0),
             "var_counts": counts.var(axis=0, ddof=1),
-            "mean_normalised": adata.X.mean(axis=0),
-            "var_normalised": adata.X.var(axis=0, ddof=1),
+            "mean_normalised": x.mean(axis=0),
+            "var_normalised": x.var(axis=0, ddof=1),
         }
     ).sort_values("feature", ignore_index=True)
     return per_cell, per_feature
@@ -335,7 +338,7 @@ def draw_figures(figures, adata, per_cell, per_feature, method, isotypes):
     save_panel(plot, depth, figures, "depth_pc1", 89, 70)
 
     top = per_feature.nlargest(N_TOP_SHOWN, "var_normalised")["feature"].tolist()
-    values = pd.DataFrame(adata[:, top].X, columns=top).melt(
+    values = pd.DataFrame(dense(adata[:, top].X), columns=top).melt(
         var_name="feature", value_name="value"
     )
     fig, ax = plt.subplots(layout="constrained")

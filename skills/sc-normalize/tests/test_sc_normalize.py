@@ -15,6 +15,7 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import sparse
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SCRIPT = SKILL_DIR / "scripts" / "sc_normalize.py"
@@ -144,10 +145,14 @@ def test_layers(pearson_out, log1p_out):
     for out in (pearson_out, log1p_out):
         norm = ad.read_h5ad(out / "data" / "normalized.h5ad")
         assert (norm.layers["counts"] != raw.X).nnz == 0
-        assert np.array_equal(norm.X, norm.layers["normalized"])
-    # log1p of counts scaled to 1e4: expm1 of each row sums to 1e4.
+    pearson = ad.read_h5ad(pearson_out / "data" / "normalized.h5ad")
+    assert np.array_equal(pearson.X, pearson.layers["normalized"])
+    # log1p keeps the sparse counts sparse in X and the output layer.
     log1p = ad.read_h5ad(log1p_out / "data" / "normalized.h5ad")
-    assert np.allclose(np.expm1(log1p.X).sum(axis=1), 1e4)
+    assert sparse.issparse(log1p.X) and sparse.issparse(log1p.layers["normalized"])
+    assert (log1p.X != log1p.layers["normalized"]).nnz == 0
+    # log1p of counts scaled to 1e4: expm1 of each row sums to 1e4.
+    assert np.allclose(log1p.X.expm1().sum(axis=1), 1e4)
 
 
 def test_dsb_separates_positive_populations(dsb_out):
