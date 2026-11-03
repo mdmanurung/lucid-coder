@@ -62,6 +62,7 @@ metadata:
       - dplyr
       - purrr
       - forcats
+      - mice  # --missing impute only
   demo_data:
     - path: examples/demo.tsv
       description: synthetic, 24 subjects x 3 visits, 30 features, 6 planted time effects, 1 singular fit
@@ -101,7 +102,8 @@ Do not work around it.
 | covariates | TSV columns | every other name in `--formula`; text columns become factors with levels in sorted order, numbers stay numeric | `age`, `sex` |
 
 One row per feature, subject and time; a repeat is an error. A row with a
-missing value in a column the formula uses is dropped and counted. Labels are
+missing `feature`, `subject`, `time` or `value` is dropped and counted. A missing
+covariate stops the run until the user answers `--missing`. Labels are
 read as text, so `01` stays `01`. Values are already on the scale to model
 (CLR, vst, log CPM, NPX); the script does not transform them.
 
@@ -129,11 +131,13 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--context` | Species, tissue or cell type, condition and dataset? It opens the report and the chat summary. | `synthetic demo: 24 subjects, 3 visits, 30 features, no real tissue` |
 | `--input` | Which TSV holds the values? | `examples/demo.tsv` |
 | `--formula` | Which fixed covariates beside time? The form is `value ~ time + covariates + (1\|subject)`; `a:b` and `a*b` interactions allowed, no other random term. | `value ~ time + age + (1\|subject)` |
-| `--time-type` | Is time a set of visits (`factor`, one coefficient per visit against the reference) or a number with a linear trend (`numeric`, one slope)? | `factor` |
-| `--reference-time` | Which visit is the baseline? For `numeric`, time is shifted so this value is 0; the slope does not change. | `1` |
+| `--time-type` | Is time a set of visits (`factor`, one coefficient per visit against the reference), a number with a linear trend (`numeric`, one slope) or a number with a curved trend (`spline`, a natural spline)? | `factor` |
+| `--knots` | Only for `spline`: how many interior knots? They sit at time quantiles, the same for every feature, and `result.json` records them. At most the number of distinct times minus 2. | not asked |
+| `--reference-time` | Which visit is the baseline? For `numeric`, time is shifted so this value is 0; the slope does not change. For `spline` it must be a number but the fit does not use it. | `1` |
 | `--value-unit` | What unit or scale is `value` on (e.g. `CLR`, `NPX, log2`)? It labels the y axis and the forest x axis. | `a.u.` |
 | `--time-unit` | What unit is `time` in (e.g. `visit`, `week`, `day`)? It labels the x axis. | `visit` |
-| `--term` | Which coefficient is tested? R names it `time<level>` for a visit (`time3` = visit 3 minus the reference) or `time` for a slope. | `time3` |
+| `--term` | Which coefficient is tested? R names it `time<level>` for a visit (`time3` = visit 3 minus the reference) or `time` for a slope. For `spline`, `time` is the joint F test of all spline columns. | `time3` |
+| `--missing` | Only when a formula covariate has a missing value: drop those rows (`complete-case`) or impute them (`impute`: `mice`, pooled with Rubin's rules)? No default; the run stops and names the covariate until it is answered. | not asked |
 | `--adjust` | Correct across features with `bh` (FDR) or `bonferroni` (FWER)? | `bh` |
 | `--padj-max` | Which adjusted-p cutoff marks a feature significant? | `0.05` |
 | `--n-plot` | How many top features get a trajectory figure? | `4` |
@@ -141,7 +145,9 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--outdir` | Which new directory gets the outputs? It must not exist. | given by the user |
 
 The last column is **demo-only, not defaults**. `--demo` alone pins all of them;
-beside `--demo` only `--outdir` may be given.
+beside `--demo` only `--outdir` may be given. Ask `--knots` only for spline time
+and `--missing` only after the run reports a missing covariate; giving either
+when it does not apply is an error.
 
 ```bash
 python scripts/longitudinal.py \
@@ -161,18 +167,30 @@ python scripts/longitudinal.py --demo --outdir demo_out
 
 1. **Validate** arguments: value ranges; `--formula` has `value` on the left,
    `time` and exactly one `(1|subject)` on the right, and only column names,
-   `:` or `*` otherwise. A numeric `--reference-time` for `--time-type numeric`.
+   `:` or `*` otherwise. A numeric `--reference-time` for `--time-type numeric`
+   or `spline`; `--knots` with `spline` only.
 2. **Read** the TSV: keep `feature`, `subject`, `time`, `value` and the formula's
-   columns; drop rows with a missing value and count them per time; refuse a
+   columns; drop rows with a missing value and count them per time (under
+   `--missing impute`, rows missing only a covariate stay); refuse a
    repeated (feature, subject, time), an absent factor reference time and a
-   rank-deficient fixed design.
+   rank-deficient fixed design. For `spline`, place the interior knots at time
+   quantiles over all rows, once for every feature.
 3. **Fit** each feature in `lmer.R`: `lmerTest::lmer(formula, data)` with REML
    (the lme4 default). Factor time has the reference as its first level; numeric
    time is `time - reference`. `--term` must be a fixed-effect column of the
-   model matrix, or the run stops and lists the valid names. Each fit records
-   estimate, SE, Satterthwaite df, t and p for `--term`, `isSingular()`, whether
-   the optimizer converged, and every lme4 warning or message. A fit that errors
-   keeps its row with NA statistics and the error text.
+   model matrix, or the run stops and lists the valid names. Spline time is the
+   `splines::ns()` basis on those knots (columns `time1` to `time<knots+1>`);
+   `--term time` is then the joint Satterthwaite F test of those columns
+   (`lmerTest::contest`). Each fit records estimate, SE, Satterthwaite df, t and
+   p for `--term` (num_df, F, denominator df and p for the joint test),
+   `isSingular()`, whether the optimizer converged, and every lme4 warning or
+   message. A fit that errors keeps its row with NA statistics and the error
+   text. Under `--missing impute`, each feature runs `mice` (m = 5, seeded) on
+   one row per subject holding the imputed covariates and the subject's mean
+   value, fits the model on each completed table and pools the `--term`
+   coefficient with Rubin's rules (`mice::pool.scalar`, the mean Satterthwaite
+   df as the complete-data df). A feature is singular if any imputation is, and
+   converged only if all are.
 4. **Correct** across the features with a p-value (`--adjust`); NA stays NA.
    Singular and unconverged fits stay in the family.
 5. **Call** significance: `padj < --padj-max`. Sort by padj, then feature, NA last.
@@ -182,13 +200,15 @@ python scripts/longitudinal.py --demo --outdir demo_out
 ## Output structure
 
 `model_results.tsv` has one row per feature: feature, estimate, se, df, t,
-pvalue, padj, significant, singular, converged, n_obs, n_subjects, fit_message.
+num_df, f, pvalue, padj, significant, singular, converged, n_obs, n_subjects,
+fit_message. `num_df` and `f` are filled only for the spline joint test, which
+leaves estimate, se and t empty and draws no forest plot.
 Figures are named by padj rank, `top01` to `top<n-plot>`; the demo draws four.
 
 ```
 outdir/
 ├── report.md                  # params, fit counts, figures with padj captions
-├── result.json                # context, term, n_features, n_fitted, n_significant, n_singular, n_not_converged, n_rows_dropped, n_rows_dropped_by_time, significant/singular/not_converged/failed_features, params, seed, chat_summary_lines, preferred_artifacts
+├── result.json                # context, term, n_features, n_fitted, n_significant, n_singular, n_not_converged, n_rows_dropped, n_rows_dropped_by_time, time_knots, missing_covariates, significant/singular/not_converged/failed_features, params, seed, chat_summary_lines, preferred_artifacts
 ├── tables/
 │   └── model_results.tsv
 ├── figures/
@@ -271,6 +291,15 @@ PNG and source CSV, with no title and no significance stars:
   A p-value is not a probability of the hypothesis; padj bounds an error rate.
 - **The model will want to read the red mean line as the model fit.** It is the
   raw mean per time; the tested estimate adjusts for the covariates.
+- **The model will want to pick `--missing` itself** or impute "to keep the
+  rows". Do not. It is the user's answer; complete-case is the behaviour they
+  get unless they choose otherwise. Imputation handles covariates fixed within a
+  subject only (a varying one stops the run), uses only the imputed covariates
+  and the subject's mean value as predictors, and cannot pool the spline joint
+  test; say so when the user picks it.
+- **The model will want to read spline knots as change points.** They are
+  quantiles of time that shape the basis; the joint test asks whether any
+  change over time exists, not where.
 
 ## Maintainer notes
 

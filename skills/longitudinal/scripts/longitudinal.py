@@ -38,6 +38,8 @@ REQUIRED = [
     "n_plot",
     "seed",
 ]
+# Asked only when they apply: --knots for spline time, --missing for a covariate NA.
+OPTIONAL = ["knots", "missing"]
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
     "context": "synthetic demo: 24 subjects, 3 visits, 30 features, no real tissue",
@@ -52,6 +54,8 @@ DEMO = {
     "padj_max": 0.05,
     "n_plot": 4,
     "seed": 0,
+    "knots": None,
+    "missing": None,
 }
 
 ERRORS = {
@@ -73,6 +77,16 @@ ERRORS = {
     "choose one of: {choices}",
     "r_failed": "lmer.R failed with exit {code}: {tail}",
     "no_tests": "no feature could be fitted; first lmer message: {message}",
+    "knots_needed": "--time-type spline needs --knots",
+    "knots_unused": "--knots is used only with --time-type spline",
+    "missing_needed": "formula covariates have missing values ({detail}); "
+    "give --missing complete-case or impute",
+    "missing_unused": "--missing is used only when a formula covariate has a "
+    "missing value",
+    "impute_varies": "--missing impute needs covariates fixed within subject; "
+    "varies: {cols}",
+    "impute_joint": "--missing impute pools one coefficient; the spline joint test "
+    "of --term time needs --missing complete-case",
 }
 
 NAME = r"[A-Za-z_][\w.]*"
@@ -98,7 +112,7 @@ def parse_args(argv):
     parser.add_argument("--input")
     parser.add_argument("--formula")
     parser.add_argument("--term")
-    parser.add_argument("--time-type", choices=["factor", "numeric"])
+    parser.add_argument("--time-type", choices=["factor", "numeric", "spline"])
     parser.add_argument("--reference-time")
     parser.add_argument("--value-unit")
     parser.add_argument("--time-unit")
@@ -106,7 +120,9 @@ def parse_args(argv):
     parser.add_argument("--padj-max", type=float)
     parser.add_argument("--n-plot", type=int)
     parser.add_argument("--seed", type=int)
-    return skillkit.parse_required(parser, REQUIRED, DEMO, argv)
+    parser.add_argument("--knots", type=int)
+    parser.add_argument("--missing", choices=["complete-case", "impute"])
+    return skillkit.parse_required(parser, REQUIRED, DEMO, argv, optional=OPTIONAL)
 
 
 def check_values(p):
@@ -120,12 +136,19 @@ def check_values(p):
             "--reference-time",
             p["reference_time"],
             numeric_ref,
-            "a number for --time-type numeric",
+            f"a number for --time-type {p['time_type']}",
         ),
     ]
     for arg, value, ok, rule in rules:
         if not ok:
             fail("bad_value", arg=arg, rule=rule, value=value)
+    spline = p["time_type"] == "spline"
+    if spline and p["knots"] is None:
+        fail("knots_needed")
+    if not spline and p["knots"] is not None:
+        fail("knots_unused")
+    if spline and p["term"] == "time" and p["missing"] == "impute":
+        fail("impute_joint")
     formula = p["formula"]
     if len(re.findall(SUBJECT, formula)) != 1:
         fail("no_subject_term", value=formula)
@@ -142,7 +165,10 @@ def is_number(text):
 
 
 def read_values(p, names):
-    """Step 2: read, keep the formula's columns, drop missing rows, refuse repeats."""
+    """Step 2: read, keep the formula's columns, drop missing rows, refuse repeats.
+
+    A covariate NA is dropped with its row (complete-case) or kept for mice (impute).
+    """
     path = Path(p["input"])
     if not path.is_file():
         fail("missing_file", path=path)
@@ -152,26 +178,68 @@ def read_values(p, names):
     for col in cols:
         if col not in data.columns:
             fail("missing_column", col=col)
-    for col in ["value", "time"] if p["time_type"] == "numeric" else ["value"]:
+    for col in ["value"] if p["time_type"] == "factor" else ["value", "time"]:
         parsed = pd.to_numeric(data[col], errors="coerce")
         if (parsed.isna() & data[col].notna()).any():
             fail("not_numeric", col=col)
         data[col] = parsed
     n_rows = len(data)
+    covariates = [c for c in cols if c not in ("feature", "subject", "time", "value")]
+    has_na = data[covariates].isna()
+    if has_na.any().any() and p["missing"] is None:
+        detail = ", ".join(f"{c}: {n} rows" for c, n in has_na.sum().items() if n)
+        fail("missing_needed", detail=detail)
+    if not has_na.any().any() and p["missing"] is not None:
+        fail("missing_unused")
+    imputed = has_na.columns[has_na.any()].tolist()
+    if p["missing"] == "impute":
+        per_subject = data.groupby("subject")[imputed].nunique(dropna=False)
+        varies = per_subject.columns[(per_subject > 1).any()].tolist()
+        if varies:
+            fail("impute_varies", cols=", ".join(varies))
+    na_rows = data[imputed].isna().any(axis=1)
+    imputation = {
+        "missing": p["missing"],
+        "covariates": imputed,
+        "n_rows": int(na_rows.sum()),
+        "n_subjects": int(data.loc[na_rows, "subject"].nunique()),
+    }
+    keep = cols if p["missing"] != "impute" else ["feature", "subject", "time", "value"]
     # Drops per group: rows with a missing field, counted by their visit.
-    missing = data.loc[data[cols].isna().any(axis=1), "time"].dropna()
+    missing = data.loc[data[keep].isna().any(axis=1), "time"].dropna()
     dropped = {
         str(t): int((missing == t).sum())
         for t in sorted(data["time"].dropna().unique())
     }
-    data = data[cols].dropna()
+    data = data.dropna(subset=keep)[cols]
     if p["time_type"] == "factor" and p["reference_time"] not in set(data["time"]):
         fail("reference_absent", value=p["reference_time"])
     repeated = int(data.duplicated(["feature", "subject", "time"], keep=False).sum())
     if repeated:
         fail("duplicate_rows", n=repeated)
-    check_rank(data, names, p)
-    return data, n_rows - len(data), dropped
+    check_rank(data.dropna(), names, p)
+    return data, n_rows - len(data), dropped, imputation
+
+
+def spline_knots(time, p):
+    """Interior knots at time quantiles (as ns() places them) and the time range.
+
+    Fixed once across features, so every feature is fitted on the same basis.
+    """
+    k = p["knots"]
+    interior = np.quantile(time, np.linspace(0, 1, k + 2))[1:-1].tolist()
+    boundary = [float(time.min()), float(time.max())]
+    n_times = time.nunique()
+    ok = (
+        1 <= k <= n_times - 2
+        and (np.diff([boundary[0], *interior, boundary[1]]) > 0).all()
+    )
+    if not ok:
+        rule = (
+            f"an integer from 1 to {n_times - 2} (distinct times - 2), distinct knots"
+        )
+        fail("bad_value", arg="--knots", rule=rule, value=k)
+    return {"interior": interior, "boundary": boundary}
 
 
 def check_rank(data, names, p):
@@ -187,7 +255,7 @@ def check_rank(data, names, p):
     skillkit.check_design_rank(meta, fixed)
 
 
-def run_lmer(data, p):
+def run_lmer(data, p, knots):
     """Step 3: lmer.R fits one model per feature; returns its table and versions."""
     rscript = os.environ.get("RSCRIPT") or shutil.which("Rscript")
     if not rscript or not Path(rscript).is_file():
@@ -207,6 +275,9 @@ def run_lmer(data, p):
             str(p["reference_time"]),
             str(p["seed"]),
             str(out),
+            ",".join(map(str, knots["interior"])) if knots else "",
+            ",".join(map(str, knots["boundary"])) if knots else "",
+            p["missing"] or "complete-case",
         ]
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False, env=env)
         lines = proc.stderr.strip().splitlines()
@@ -237,7 +308,7 @@ def adjust(pvalues, method):
 
 def time_axis(values, p):
     """x positions: visit index for factor time (reference first), else the number."""
-    if p["time_type"] == "numeric":
+    if p["time_type"] != "factor":
         return values.astype(float), None
     ref = p["reference_time"]
     levels = [ref, *sorted(set(values) - {ref})]
@@ -288,6 +359,7 @@ def draw_trajectories(rows, levels, p, value_label):
 def draw_figures(figures, data, table, p, family):
     """Step 6: spaghetti per top feature, forest, p-value histogram."""
     captions = {}
+    joint = p["time_type"] == "spline" and p["term"] == "time"
     top = table.dropna(subset=["padj"]).head(p["n_plot"])
     _, levels = time_axis(data["time"], p)
     n_subjects = data["subject"].nunique()
@@ -307,12 +379,21 @@ def draw_figures(figures, data, table, p, family):
         plt.close(fig)
         n_gap = int(wide.isna().any(axis=1).sum())
         n_absent = n_subjects - len(wide)
+        test = (
+            f"joint F {row.f:.3g} on {row.num_df:g} and {row.df:.3g} df"
+            if joint
+            else f"{p['term']} estimate {row.estimate:.3g}"
+        )
         captions[name] = (
             f"Line plot of {row.feature} over time; grey lines join one subject's "
             f"visits and break at a missed visit (subjects with a gap: {n_gap}; "
             f"dropped, no values: {n_absent}). Red: mean with 95% CI (t). Mixed-model "
-            f"{p['term']} estimate {row.estimate:.3g}, padj {row.padj:.2g} ({family})."
+            f"{test}, padj {row.padj:.2g} ({family})."
         )
+
+    # A joint F test has no single estimate to draw.
+    if joint:
+        return captions | pvalue_histogram(table, figures, p)
 
     forest = table.dropna(subset=["padj"]).head(N_FOREST).iloc[::-1]
     half = stats.t.ppf(0.975, forest["df"]) * forest["se"]
@@ -343,6 +424,11 @@ def draw_figures(figures, data, table, p, family):
         f"padj < {p['padj_max']}, hollow points are singular or unconverged fits."
     )
 
+    return captions | pvalue_histogram(table, figures, p)
+
+
+def pvalue_histogram(table, figures, p):
+    """Raw p-values of the fitted features in 20 bins; returns its caption."""
     tested = table.dropna(subset=["pvalue"])
     fig, ax = plt.subplots(layout="constrained")
     ax.hist(
@@ -352,19 +438,20 @@ def draw_figures(figures, data, table, p, family):
     ax.set_ylabel("features")
     save_panel(fig, tested[["feature", "pvalue"]], figures, "pvalue_hist", 89, 70)
     plt.close(fig)
-    captions["pvalue_hist"] = (
-        f"Histogram of raw {p['term']} p-values for {len(tested)} fitted features in "
-        "20 bins of width 0.05; a flat floor with a peak near 0 is expected."
-    )
-    return captions
+    return {
+        "pvalue_hist": f"Histogram of raw {p['term']} p-values for {len(tested)} "
+        "fitted features in 20 bins of width 0.05; a flat floor with a peak near 0 "
+        "is expected."
+    }
 
 
 def analyse(argv, argv_as_run):
     p = parse_args(argv)
     names = check_values(p)
     skillkit.seed_everything(p["seed"])
-    data, n_dropped, dropped = read_values(p, names)
-    fits, r_versions = run_lmer(data, p)
+    data, n_dropped, dropped, imputation = read_values(p, names)
+    knots = spline_knots(data["time"], p) if p["time_type"] == "spline" else None
+    fits, r_versions = run_lmer(data, p, knots)
 
     n_fitted = int(fits["pvalue"].notna().sum())
     if not n_fitted:
@@ -379,6 +466,8 @@ def analyse(argv, argv_as_run):
             "se",
             "df",
             "t",
+            "num_df",
+            "f",
             "pvalue",
             "padj",
             "significant",
@@ -405,10 +494,28 @@ def analyse(argv, argv_as_run):
     singular = table.loc[table["singular"].eq(True), "feature"].tolist()
     not_converged = table.loc[table["converged"].eq(False), "feature"].tolist()
     failed = table.loc[table["pvalue"].isna(), "feature"].tolist()
+    # The missing-covariate choice and the spline knots ride on the first line.
+    choice = {
+        None: "",
+        "complete-case": "complete-case, those rows dropped",
+        "impute": "multiple imputation (mice, m = 5, pooled with Rubin's rules)",
+    }[p["missing"]]
+    notes = []
+    if knots:
+        notes.append(
+            f"natural-spline time, interior knots {knots['interior']}, boundary "
+            f"{knots['boundary']}"
+        )
+    if choice:
+        notes.append(
+            f"{', '.join(imputation['covariates'])} missing in {imputation['n_rows']} "
+            f"rows of {imputation['n_subjects']} subjects: {choice}"
+        )
     summary = [
         f"{n_fitted} of {len(table)} features fitted ({p['formula']}, term "
         f"{p['term']}); {n_dropped} input rows dropped (missing value), per time: "
         + ", ".join(f"{k} {v}" for k, v in dropped.items())
+        + "".join(f"; {n}" for n in notes)
         + ".",
         f"{len(singular)} singular and {len(not_converged)} unconverged fits, kept "
         f"and flagged; {len(failed)} features without a p-value.",
@@ -417,7 +524,8 @@ def analyse(argv, argv_as_run):
         + (f" and {len(sig) - 10} more." if len(sig) > 10 else "."),
     ]
     title = f"Longitudinal mixed models: {p['term']}"
-    skillkit.write_report(outdir, title, p, REQUIRED, summary, captions)
+    keys = [*REQUIRED, *OPTIONAL]
+    skillkit.write_report(outdir, title, p, keys, summary, captions)
     result = {
         "term": p["term"],
         "n_features": len(table),
@@ -427,6 +535,8 @@ def analyse(argv, argv_as_run):
         "n_not_converged": len(not_converged),
         "n_rows_dropped": n_dropped,
         "n_rows_dropped_by_time": dropped,
+        "time_knots": knots,
+        "missing_covariates": imputation,
         "significant_features": sig,
         "singular_features": singular,
         "not_converged_features": not_converged,
@@ -437,13 +547,13 @@ def analyse(argv, argv_as_run):
     artifacts = [
         "report.md",
         "tables/model_results.tsv",
-        "figures/forest.png",
+        *["figures/forest.png"] * ("forest" in captions),
         *[f"figures/{n}.png" for n in captions if n.startswith("top")],
     ]
     skillkit.write_result(outdir, result, summary, artifacts, context=p["context"])
     packages = ["numpy", "pandas", "scipy", "matplotlib", "plotnine"]
     skillkit.write_reproducibility(
-        outdir, __file__, p, REQUIRED, argv_as_run, packages, extra=r_versions
+        outdir, __file__, p, keys, argv_as_run, packages, extra=r_versions
     )
     return outdir
 

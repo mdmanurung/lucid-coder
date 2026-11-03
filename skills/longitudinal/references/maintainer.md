@@ -15,6 +15,19 @@ F01-F06 significant (estimates 1.38-1.65, planted 1.5), flags F30 as the one
 singular fit and has no unconverged or failed fit. With `--time-type numeric
 --term time` the same six are significant, with slopes near 0.75.
 
+With `--time-type spline --knots 1 --term time` (issue #24) the one interior
+knot sits at visit 2, boundary 1 and 3; on three visits that spline spans the
+same space as factor time, so the joint F test (2 df) finds the same six.
+Blanking `age` for S03 and S07 (the NA fixture in the tests) drops 180 rows
+under `complete-case` and keeps them under `impute`; both find the same six.
+
+Impute ceiling: `mice` runs per feature on one row per subject (imputed
+covariates and the subject's mean value), so a covariate must be fixed within
+subject and the other covariates are not predictors. A multilevel method
+(`2lonly.pmm` for a subject-level covariate, `2l.pan` for a varying one) is the
+upgrade. The joint spline test is not pooled (it would need D1 or D2); that
+combination stops.
+
 ## Corpus sources
 
 Paths relative to

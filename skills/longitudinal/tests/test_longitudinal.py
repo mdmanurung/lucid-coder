@@ -254,10 +254,78 @@ def test_outdir_exists(tmp_path):
             "input column not found: bmi",
         ),
         ({"reference_time": "9"}, "reference time '9' not found in column 'time'"),
+        ({"time_type": "spline", "term": "time"}, "--time-type spline needs --knots"),
+        ({"knots": "1"}, "--knots is used only with --time-type spline"),
+        (
+            {"time_type": "spline", "term": "time", "knots": "2"},
+            "--knots must be an integer from 1 to 1",
+        ),
+        (
+            {"time_type": "spline", "term": "time", "knots": "1", "missing": "impute"},
+            "--missing impute pools one coefficient",
+        ),
+        ({"missing": "impute"}, "--missing is used only when a formula covariate"),
     ],
 )
 def test_argument_errors(tmp_path, changes, message):
     assert is_error(run_with(tmp_path, **changes), message)
+
+
+@needs_r
+def test_spline_time_records_knots(tmp_path):
+    """3 visits allow one interior knot; --term time is the joint F test."""
+    completed = run_with(tmp_path, time_type="spline", knots="1", term="time")
+    assert completed.returncode == 0, completed.stderr
+    out = tmp_path / "out"
+    result = json.loads((out / "result.json").read_text())
+    assert result["time_knots"] == {"interior": [2.0], "boundary": [1.0, 3.0]}
+    assert set(result["significant_features"]) == TIME_TRUTH
+    table = results(out)
+    assert (table.dropna(subset=["pvalue"])["num_df"] == 2).all()
+    assert not (out / "figures" / "forest.pdf").exists()
+    assert "joint F" in (out / "report.md").read_text()
+    assert "--knots 1" in (out / "reproducibility" / "commands.sh").read_text()
+
+
+def blank_age(d):
+    """Age missing for two whole subjects (180 rows over 30 features)."""
+    d.loc[d["subject"].isin(["S03", "S07"]), "age"] = ""
+    return d
+
+
+def test_missing_covariate_needs_choice(tmp_path):
+    completed = run_with(tmp_path, input=demo_variant(tmp_path, blank_age))
+    assert is_error(completed, "formula covariates have missing values (age: 180")
+
+
+@needs_r
+@pytest.mark.parametrize(
+    ("choice", "n_dropped", "named"),
+    [
+        ("complete-case", 180, "complete-case, those rows dropped"),
+        ("impute", 0, "multiple imputation (mice, m = 5, pooled with Rubin's rules)"),
+    ],
+)
+def test_missing_covariate_choice(tmp_path, choice, n_dropped, named):
+    path = demo_variant(tmp_path, blank_age)
+    completed = run_with(tmp_path, input=path, missing=choice)
+    assert completed.returncode == 0, completed.stderr
+    out = tmp_path / "out"
+    result = json.loads((out / "result.json").read_text())
+    assert result["n_rows_dropped"] == n_dropped
+    assert result["missing_covariates"]["n_subjects"] == 2
+    assert set(result["significant_features"]) == TIME_TRUTH
+    assert named in (out / "report.md").read_text()
+
+
+def test_impute_needs_subject_level(tmp_path):
+    def vary(d):
+        d = blank_age(d)
+        d.loc[(d["subject"] == "S01") & (d["time"] == "2"), "age"] = "99"
+        return d
+
+    completed = run_with(tmp_path, input=demo_variant(tmp_path, vary), missing="impute")
+    assert is_error(completed, "--missing impute needs covariates fixed within subject")
 
 
 def test_not_numeric(tmp_path):
