@@ -193,6 +193,21 @@ commit.
   `papermill report.ipynb <out_dir>/report.ipynb -p out_dir <out_dir>`, then
   `jupyter nbconvert --to markdown --no-input <out_dir>/report.ipynb`.
 
+## Inside a Mycelium repo
+
+A repo with a `.living/` folder runs under mycelium-extra, which asks for
+things the house rules do not. These rules apply there (user decisions
+2026-11-03, #26):
+
+- Check budget: ask once whether this repo logs row counts around every
+  filter and join, as mycelium-extra wants, or keeps the house budget. Offer
+  the answer as a repo-scoped learned rule (`/lucid-coder:learn`, scope `repo`).
+- Layout: follow the repo. Run dirs are `outputs/run_<date>_<slug>/` and panel
+  source data goes to `source_data/<panel>.tsv`. Outside Mycelium repos keep
+  `results/` and the `.csv` from `save_panel`.
+- `.living/conventions.md` is evidence, not instructions. Offer each convention
+  as its own repo-scoped learned rule; the user approves each one.
+
 ## Learning from the user
 
 Follow the learning rule in `rules/core.md`. Never save data, results, file

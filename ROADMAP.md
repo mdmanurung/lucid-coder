@@ -48,3 +48,16 @@ More task sources may come from the kai notebook corpus (#22).
 Each task: a frozen small dataset under `inputs/`, a prompt, `check.R`, a reference answer that passes and a naive one that fails, then 4 arms x 2 reps and a blind review page. About 1-2 hours to build and $8 to run per task.
 
 Phase 4, skill evidence from the kai notebook corpus (#19): mine how 2,845 scverse tutorials call each pipeline skill's method, then propose gotchas and grill-question values for the user to approve (#20).
+
+## Decisions recorded 2026-11-03
+
+From #5 (phase 1 open questions):
+- One `verify_<claim>.R` is allowed per claim that spans two output files; the `check_*.R` ban stays for everything else.
+- R joins state `unmatched = "error"` next to `relationship =` when every row must find a partner.
+- Paths use one string: `here("data/x.tsv")`.
+
+From #26 (mycelium-extra integration), written into `skills/lucid-coder/SKILL.md`, "Inside a Mycelium repo":
+- Check budget: ask per repo, save the answer as a repo-scoped learned rule.
+- Layout: in Mycelium repos follow `outputs/run_<date>_<slug>/` and `source_data/<panel>.tsv`; `results/` and `.csv` elsewhere.
+- `.living/conventions.md`: one repo-scoped learned rule per convention, no blanket override.
+- Receipts: test whether the mycelium-extra gate grants plugin-shipped scripts before changing anything; file a mycelium-extra issue if it does not.
