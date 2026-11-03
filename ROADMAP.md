@@ -60,4 +60,4 @@ From #26 (mycelium-extra integration), written into `skills/lucid-coder/SKILL.md
 - Check budget: ask per repo, save the answer as a repo-scoped learned rule.
 - Layout: in Mycelium repos follow `outputs/run_<date>_<slug>/` and `source_data/<panel>.tsv`; `results/` and `.csv` elsewhere.
 - `.living/conventions.md`: one repo-scoped learned rule per convention, no blanket override.
-- Receipts: test whether the mycelium-extra gate grants plugin-shipped scripts before changing anything; file a mycelium-extra issue if it does not.
+- Receipts: tested 2026-11-03 on mycelium-extra 0.16.1. The gate ignores scripts outside the repo (no grant, no receipt), filed as mycelium-extra#5. Until it is fixed, run pipeline skills through a repo wrapper named in the plan.
