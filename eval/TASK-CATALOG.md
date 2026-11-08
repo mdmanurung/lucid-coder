@@ -50,7 +50,7 @@ Differences from the plan above:
 - #4 (10): the input is a DE table, so the raw-counts arm of the trap cannot occur; only the gene-ID trap is tested.
 - 08, 10, 13 and 15 prompts run `uv run ... --with-requirements requirements.txt`, the same pinned lock the gate and rerun use. run.sh must copy `eval/envs/python-tasks.txt` to `requirements.txt` in each Python run repo (the task-folder file has a relative `-r` that does not resolve there).
 - 07 ships `LICENSE-GPL-3.0.txt`; only that folder is GPL-3.0, the repository licence is undecided.
-- Known soft spots, recorded in each `check.R`: 09 does not catch per-mouse proportion t-tests or per-mouse quasi-binomial GLMs (only 2 infected mice, too little power to call the depleted types); its up-type rule is Enterocyte log_fc > 0 and q < 0.25, so crumblr, crumblr robust, edgeR QL, t-tests, quasi-binomial and limma on logits all pass while the pooled cells-as-unit test fails; 12 and 13 do not check `qc_summary.tsv` or `combined.h5ad`, which their prompts ask for.
+- Known soft spots, recorded in each `check.R`: 09 does not catch per-mouse proportion t-tests or per-mouse quasi-binomial GLMs (only 2 infected mice, too little power to call the depleted types); its up-type rule is Enterocyte log_fc > 0 and q < 0.25, so crumblr, crumblr robust, edgeR QL, t-tests, quasi-binomial and limma on logits all pass while the pooled cells-as-unit test fails; 12 now checks `qc_summary.tsv` against truth and its own `cells_qc.tsv` (2026-11-08); 13 checks only that `combined.h5ad` exists, because the R module has no h5ad reader.
 
 ## Next tier
 

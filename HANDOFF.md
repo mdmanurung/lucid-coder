@@ -1,6 +1,6 @@
 # Handoff — lucid-coder readability eval, tasks 07-16
 
-**Updated:** 2026-11-02 · **Branch:** main · **Status:** 07-16 verdict D 12/13; phase 1 verdict D 5/6. Python `main()` guard added to rules/python.md (#7 closed).
+**Updated:** 2026-11-08 · **Branch:** main · **Status:** 07-16 verdict D 12/13; phase 1 verdict D 5/6. Python `main()` guard added to rules/python.md (#7 closed).
 
 ## Check first
 Run `git log --oneline 80eb63b..HEAD` and `git status --short`. If either shows work this file does not mention, say so before anything else: State, Next action and Read first may be out of date, so re-check each against the code before acting on it.
@@ -9,6 +9,7 @@ Run `git log --oneline 80eb63b..HEAD` and `git status --short`. If either shows 
 Show whether persona + house (arm D) makes analysis code more readable to a human than baseline Opus (arm A). The user ranks human readability above correctness. Done means the user's blind picks plus the LLM-judge scores for tasks 07-16, unblinded and summarised.
 
 ## Next action
+2026-11-08: docs synced to the built state (11f8cdc); review pages take `--seed` and balance sides per task (242d776); task 12 gates `qc_summary.tsv`, task 13 gates that `combined.h5ad` exists. Waiting on the user: approve the gate thresholds for 07c, 08b, 09b (plan table in `~/.claude/plans/plan-all-the-above-shimmering-nautilus.md`), then a paid run (about $8 per task). #3 and #4 still wait on people.
 2026-11-03: closed #5, #19-#22, #24, #26. #3 waits on a colleague: packet at eval/results/second-reader.zip (gitignored), first-reader picks in each run's review/first-reader.json or picks.tsv, compare with eval/compare-readers.js. #4 waits on more learned rules from real use. mycelium-extra#5 filed (gate ignores repo-external scripts).
 #27 (2026-11-02): pixi `dev` env installed (7.6 GB); `pixi run -e dev test` runs node tests then every skill suite. In dev, 20 of 22 suites pass after: with_status concat fix (cec1c1a), demos regenerated under pandas 2.3.3 and stub-Rscript tests for longitudinal/mashr (a35cc21). velocity fixed too (seeded eigsh v0 for pseudotime; pygpcca warnings import), so all 22 suites pass in dev; #27 closed. Suites take 7-56 min each on this file system; run them in parallel per skill.
 #23 done 2026-11-02: label args in all 15 pipeline plot calls, Python stat_pwc label_size=7, 21 plots.py copies resynced. Skill pytest suites in the pixi default env fail identically before and after (anndata nullable-string writes, a pandas FutureWarning, velocity deps missing); worth its own issue.

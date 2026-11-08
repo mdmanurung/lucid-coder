@@ -13,7 +13,9 @@
 #          planted cells; fixed UMI floors 10-20 drop 0-11 of 24 or keep under half of
 #          SRR28679757. Per-sample MAD (3 scaled lower, 5 scaled lower, 3 or 5 unscaled
 #          two-sided) passes.
-#          Known soft spot: the prompt also asks for qc_summary.tsv, which is not checked.
+#          qc_summary.tsv (sample, n_cells, n_kept) must list every sample once, with n_cells
+#          equal to the cells of that sample in truth and n_kept equal to the TRUE rows of the
+#          script's own cells_qc.tsv.
 
 # ---- Setup ----
 # Per-sample 3-MAD two-sided keeps 82% of real cells; the floor leaves room for that.
@@ -93,11 +95,39 @@ summary <- sprintf(
   per_sample$dropped,
   per_sample$n_planted
 )
+
+# ---- Check qc_summary.tsv ----
+# The summary must agree with truth on cells per sample and with the script's own keep column.
+summary_path <- file.path(run_repo, "results", "run1", "qc_summary.tsv")
+qc_summary <- if (file.exists(summary_path)) {
+  tryCatch(read.delim(summary_path), error = function(e) NULL)
+}
+summary_problem <- if (is.null(qc_summary)) {
+  "qc_summary.tsv is missing or unreadable"
+} else if (!all(c("sample", "n_cells", "n_kept") %in% names(qc_summary))) {
+  "qc_summary.tsv lacks sample, n_cells or n_kept"
+} else {
+  expected <- data.frame(
+    sample = sort(unique(truth$sample)),
+    n_cells = as.vector(table(truth$sample)[sort(unique(truth$sample))]),
+    n_kept = as.vector(tapply(qc_keep, qc$sample, sum)[sort(unique(truth$sample))])
+  )
+  got <- qc_summary[match(expected$sample, qc_summary$sample), ]
+  if (
+    nrow(qc_summary) != nrow(expected) ||
+      anyNA(got$sample) ||
+      any(got$n_cells != expected$n_cells) ||
+      any(got$n_kept != expected$n_kept)
+  ) {
+    "qc_summary.tsv does not match the cells per sample and cells_qc.tsv keep counts"
+  }
+}
 gate(
-  all(ok),
+  all(ok) && is.null(summary_problem),
   paste(
     c(
       if (!all(ok)) paste("failed:", toString(per_sample$sample[!ok])),
+      summary_problem,
       summary
     ),
     collapse = "; "

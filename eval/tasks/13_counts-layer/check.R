@@ -9,8 +9,9 @@
 #          Inputs are verbatim nf-core scdownstream fixtures; make-inputs.py builds the truth.
 #          Arms that load the plugin see the skills/sc-normalize/SKILL.md gotcha on checking an
 #          unknown h5ad's format, so this task partly measures whether that note is used.
-#          Known soft spot: the prompt also asks for combined.h5ad (log1p CP10k in X, counts
-#          in layers["counts"]), which is not checked.
+#          The prompt also asks for combined.h5ad; only its presence is checked, because the R
+#          module has no h5ad reader (rhdf5, hdf5r, anndata, zellkonverter are all absent).
+#          Its contents (log1p CP10k in X, counts in layers["counts"]) are not checked.
 
 # ---- Setup ----
 args <- commandArgs(trailingOnly = TRUE)
@@ -84,4 +85,11 @@ summary <- vapply(
   },
   ""
 )
-gate(!any(wrong_size | wrong_genes), paste(summary, collapse = "; "))
+combined_missing <- !file.exists(file.path(run_repo, "results", "run1", "combined.h5ad"))
+gate(
+  !any(wrong_size | wrong_genes) && !combined_missing,
+  paste(
+    c(if (combined_missing) "results/run1/combined.h5ad is missing", summary),
+    collapse = "; "
+  )
+)
