@@ -50,6 +50,7 @@ const cases = [
   ['02py_metadata-join', '02_summarise-samples.py', /wrong or missing condition\/batch/],
   ['03py_figure-palette', '03_plot-proportions.py', /proportions_by-condition\.csv/],
   ['08_pathway-activity', '08_score-pathways.py', /JAK-STAT score 23\.47/],
+  ['08b_pathway-from-counts', '08b_score-pathways.py', /JAK-STAT score 23\.47/],
   ['10_gene-ids', '10_score-tfs.py', /229 TFs scored/],
   ['13_counts-layer', '13_combine-labs.py', /lab_b: 128\/128 library_size wrong/],
   ['15_regulator-sign', '15_score-regulators.py', /T2 mean score in B = 3\.20/],

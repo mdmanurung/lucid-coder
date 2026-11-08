@@ -1,0 +1,17 @@
+sample	replicate	label
+patient_101_ctrl	patient_101	ctrl
+patient_1015_ctrl	patient_1015	ctrl
+patient_1016_ctrl	patient_1016	ctrl
+patient_1039_ctrl	patient_1039	ctrl
+patient_107_ctrl	patient_107	ctrl
+patient_1244_ctrl	patient_1244	ctrl
+patient_1256_ctrl	patient_1256	ctrl
+patient_1488_ctrl	patient_1488	ctrl
+patient_101_stim	patient_101	stim
+patient_1015_stim	patient_1015	stim
+patient_1016_stim	patient_1016	stim
+patient_1039_stim	patient_1039	stim
+patient_107_stim	patient_107	stim
+patient_1244_stim	patient_1244	stim
+patient_1256_stim	patient_1256	stim
+patient_1488_stim	patient_1488	stim

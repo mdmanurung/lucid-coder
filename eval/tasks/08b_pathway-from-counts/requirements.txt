@@ -1,0 +1,2 @@
+# Pinned env with decoupler and scanpy; score.js and python.test.js read this file.
+-r ../../envs/python-tasks.txt
