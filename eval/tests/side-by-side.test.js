@@ -61,22 +61,44 @@ test('--arms A,D builds two-column panels per task from scripts/', () => {
   assert.ok(data.panels.every(p => p.columns.length === 2 && p.columns.every(c => /# [AD]$/.test(c.code))));
 });
 
-test('two arms: each arm is on the left in half the panels, odd count off by one', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sbs-balance-'));
-  for (const task of ['01_a', '02_b', '03_c', '04_d', '05_e', '06_f', '07_g']) {
+// Three tasks, each with a load and a write panel (even), or load only (odd).
+function pairRoot(prefix, tasks) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  for (const [task, banners] of tasks) {
     for (const arm of ['A', 'D']) {
       const dir = path.join(root, `${task}_${arm}_r1`, 'repo', 'scripts');
       fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(path.join(dir, `${task}.R`), `# Load data ----\nx <- 1\n`);
+      fs.writeFileSync(path.join(dir, `${task}.R`), banners.map(b => `# ${b} ----\nx <- 1\n`).join(''));
     }
   }
-  // Independent per-panel shuffles pass one run with p = 70/128, all 20 with p ~ 6e-6.
+  return root;
+}
+const aLeftCount = (key, prefix) => key.filter(([id, label, , arm]) => id.startsWith(prefix) && label === 'W' && arm === 'A').length;
+
+test('two arms: arm A leads in half the panels of every task and of the pool', () => {
+  const root = pairRoot('sbs-balance-', [
+    ['01_a', ['Load data', 'Write outputs']], ['02_b', ['Load data', 'Write outputs']],
+    ['03_c', ['Load data']], ['04_d', ['Load data']], ['05_e', ['Load data']],
+  ]);
+  // Independent per-panel shuffles pass one run with p ~ 0.1, all 20 with p ~ 1e-20.
   for (let i = 0; i < 20; i++) {
-    const { panels, key } = armPanels(root, '1', ['A', 'D'], null, false);
+    const { panels, key } = armPanels(root, '1', ['A', 'D'], null, false, i);
     assert.strictEqual(panels.length, 7);
-    const aLeft = key.filter(([, label, , arm]) => label === 'W' && arm === 'A').length;
-    assert.ok(aLeft === 3 || aLeft === 4, `A on the left in ${aLeft} of 7`);
+    for (const task of ['01', '02']) assert.strictEqual(aLeftCount(key, task), 1, `A leads task ${task} in ${aLeftCount(key, task)} of 2`);
+    const pooled = aLeftCount(key, '');
+    assert.ok(pooled === 3 || pooled === 4, `A on the left in ${pooled} of 7`);
   }
+});
+
+test('the same seed rebuilds the same key and --seed is written to the meta file', () => {
+  const root = pairRoot('sbs-seed-', [['01_a', ['Load data', 'Write outputs']], ['02_b', ['Load data', 'Write outputs']], ['03_c', ['Load data']]]);
+  const keys = [11, 11, 12, 13, 14].map(seed => JSON.stringify(armPanels(root, '1', ['A', 'D'], null, false, seed).key));
+  assert.strictEqual(keys[0], keys[1]);
+  assert.ok(new Set(keys).size > 1, 'different seeds give different keys');
+  const out = path.join(root, 'out');
+  const r = spawnSync('node', [path.join(__dirname, '..', 'side-by-side.js'), root, out, '--arms', 'A,D', '--seed', '7'], { encoding: 'utf8' });
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(out, 'side-by-side-meta.json'), 'utf8')).seed, 7);
 });
 
 test('a script without banners turns that task into one whole-script panel', () => {
