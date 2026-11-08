@@ -28,7 +28,7 @@ Ranking: a trap a gate can check with one number or sign; a known answer from th
 
 ## Built (2026-10-29)
 
-All ten are built. Their gates run in `eval/tests/gates.test.js` (R) and `eval/tests/python.test.js` (Python): the reference passes and the naive answer fails under the harness itself. No arm has been run on them yet. Inputs are frozen; each task folder holds its own builder (`make-inputs.*` or `make-data.R`), not `eval/fixtures/make-fixtures.R`. Python tasks run in the env their `requirements.txt` names (`eval/envs/python-tasks.txt`, decoupler 2.3.1).
+All ten are built. Their gates run in `eval/tests/gates.test.js` (R) and `eval/tests/python.test.js` (Python): the reference passes and the naive answer fails under the harness itself. Arms A and D ran 07-09 and 10-16 as `gated-0716-20261101`; all three of 07, 08 and 09 passed in both arms. Inputs are frozen; each task folder holds its own builder (`make-inputs.*` or `make-data.R`), not `eval/fixtures/make-fixtures.R`. Python tasks run in the env their `requirements.txt` names (`eval/envs/python-tasks.txt`, decoupler 2.3.1).
 
 | # | Task id | Path | Gate status |
 |---|---------|------|-------------|
@@ -71,6 +71,6 @@ Differences from the plan above:
 
 ## Open before building
 
-- Python env: pertpy 1.0.2 is in the conda env `pertpy`, but import did not finish in 120 s on the login node; scCODA needs JAX. decoupler, pydeseq2 and liana availability in a uv env is not yet checked.
+- Python env: pertpy 1.0.2 is in the conda env `pertpy`, but import did not finish in 120 s on the login node; scCODA needs JAX. resolved: `eval/envs/python-tasks.txt` pins decoupler 2.3.1, pydeseq2 0.5.4, liana 1.10.0 and `pertpy[jax,de]` 1.4.0.
 - Downloads: figshare blocked size checks from this host. Build each fixture once, freeze it as a small table or h5ad under `eval/tasks/<id>/inputs/`, and never fetch at run time.
 - Version pins: gate on the pinned version's numbers; decoupler v1 and v2 give different scores on the same data.

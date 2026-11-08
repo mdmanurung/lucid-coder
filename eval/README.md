@@ -31,7 +31,7 @@ An earlier version used `--bare` with an API key; it was dropped because `--bare
 
 ## Tasks
 
-`eval/tasks/0N_*` are the R tasks. `01py_pseudobulk-de`, `02py_metadata-join` and `03py_figure-palette` are Python twins of 01 to 03: the same inputs, truth and `check.R`, and a prompt that asks for one Python script run through `uv run --python 3.12 --with pandas,scipy,matplotlib python`.
+`eval/tasks/0N_*` are the R tasks. `01py_pseudobulk-de`, `02py_metadata-join` and `03py_figure-palette` are Python twins of 01 to 03: the same inputs, truth and `check.R`, and a prompt that asks for one Python script run through `uv run --python 3.12 --with pandas,scipy,matplotlib,plotnine python`. Tasks 08, 10, 13, 15 and 15b use `--with-requirements requirements.txt`, which points at the pinned lock `eval/envs/python-tasks.txt` (decoupler 2.3.1, pydeseq2 0.5.4, liana 1.10.0, `pertpy[jax,de]` 1.4.0).
 Run them with `--tasks 01py,02py,03py`. The agent gets `Bash(uv:*)` for this; each task's `reference/` holds a house-style answer and `reference/naive/` a wrong one.
 
 ## Check the commands first
@@ -70,7 +70,7 @@ node eval/score.js eval/results/<timestamp>
 
 This appends one row per run to `eval/results/results.tsv` and skips runs already there.
 The script is the first `scripts/*.R` or `scripts/*.py` (never `00_legacy.*`); the language follows from the task id, so there is no language column.
-It reruns each script on a clean copy of the repo and calls the task's `check.R` for the gate: `Rscript` with a 120 s limit for `.R`, `uv run --python 3.12 --with pandas,scipy,matplotlib python` with a 600 s limit for `.py` (uv may fetch packages on its first call).
+It reruns each script on a clean copy of the repo and calls the task's `check.R` for the gate: `Rscript` with a 120 s limit for `.R`, `uv run --python 3.12 --with pandas,scipy,matplotlib,plotnine python` (or `--with-requirements requirements.txt` when the task has one) with a 600 s limit for `.py` (uv may fetch packages on its first call).
 For `.R` it then copies `templates/air.toml` and `templates/.lintr` into the repo and runs `air format --check` and lintr.
 For `.py` it copies `templates/ruff.toml` and runs `ruff format --check` (column `air_ok`, reported as "format check pass"), `ruff check` (`lint_count`) and `ruff check --select ERA001` (`commented_code_lines`).
 `header_complete` needs Purpose, Inputs, Outputs and Run in the first 20 lines; Notes is optional, as in `rules/core.md`.
@@ -133,4 +133,4 @@ All R runs use the R4_51 conda env (R 4.5.1 with tidyverse, limma, edgeR, IRkern
 node eval/side-by-side.js eval/results/<run-dir> eval/results/<run-dir>/review --rep 1 --human <panels.json>
 ```
 
-`--arms A,D` makes a two-column head-to-head; a results folder with several tasks gets one set of panels per task. This writes one page with a panel per analysis step: setup, load, filter and aggregate, fit, write, the report notebook and the SKILL.md Workflow section. Each panel shows the four arms as columns, shuffled per panel, so the reader compares one step at a time instead of scoring whole files in sequence. The reader picks a column, or no preference, and gives a reason. `side-by-side-key.tsv` maps each panel column to its run and stays out of git. Optional human panels show one step from four corpus repos; the repo names appear after a pick is saved.
+`--arms A,D` makes a two-column head-to-head; a results folder with several tasks gets one set of panels per task. This writes one page with a panel per analysis step: setup, load, filter and aggregate, fit, write, the report notebook and the SKILL.md Workflow section. Each panel shows the four arms as columns, shuffled per panel in four-arm pages; in two-arm pages the sides are balanced across panels (each arm leads in half of them), so the reader compares one step at a time instead of scoring whole files in sequence. The reader picks a column, or no preference, and gives a reason. `side-by-side-key.tsv` maps each panel column to its run and stays out of git. Optional human panels show one step from four corpus repos; the repo names appear after a pick is saved.

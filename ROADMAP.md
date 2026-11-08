@@ -1,6 +1,6 @@
 # Roadmap
 
-Status on 2026-10-28: **development paused; the plugin is in real use.** Tracking lives in GitHub issues under the roadmap issue; this file is the plan they come from.
+Status on 2026-11-08 (v0.5.0): **the plugin is in real use; phases 1 to 3 are mostly done.** Open: #3 (second reader) and #4 (learned rules) wait on people. Tracking lives in GitHub issues under the roadmap issue; this file is the plan they come from.
 
 ## Where things stand (v0.4.0)
 
@@ -17,35 +17,21 @@ Status on 2026-10-28: **development paused; the plugin is in real use.** Trackin
 - Correct the agent in the session; say "always" or "never" for a lasting rule, and accept the offer to save it (`/lucid-coder:learn`). Learned rules are the main input when development resumes.
 - Note any habit the agent overdoes (extra knobs, audit prints, extra figures) or underdoes, with the file it happened in.
 
-## When development resumes
+## Phases
 
-Phase 1, measure what exists (no new tasks):
-1. Run tasks 01, 05, 06 and the Python twins (01py, 02py, 03py) under persona + house.
-2. A second reader judges the existing review pages, to check the picks are not one person's taste.
-3. Fold learned rules from real use into `house.md` or the persona.
-4. Decide the open questions: `verify_*.R` cross-artefact scripts; `unmatched = "error"` as part of the join default; the `here()` path form.
-5. Add **tut** counts from the kai notebook corpus to existing house-style rows (#21).
+Phase 1, measure what exists. Done except two items:
+1. Done (#2, 2026-11-02): tasks 01, 05, 06 and the Python twins under persona + house. D won 5 of 6 panels.
+2. Open (#3): a second reader judges the existing review pages. The packet is `eval/results/second-reader.zip`; compare with `eval/compare-readers.js`.
+3. Open (#4): fold learned rules from real use into `house.md` or the persona.
+4. Done (#5, 2026-11-03): see "Decisions recorded 2026-11-03".
+5. Done (#21): tut counts from the kai notebook corpus added to house-style rows.
 
-Phase 2, harness fixes:
-- Balance column positions in two-arm review pages automatically (position bias found by hand on 2026-10-28).
-- A Python counterpart to `house.md`; the persona and house rules were only measured on R.
-- A Python env for eval tasks: decoupler v2, PyDESeq2, LIANA, pertpy with JAX. Pin decoupler v2 (LIANA >= 1.7 requires it).
+Phase 2, harness fixes. Done:
+- Two-arm review pages balance the arm sides (`a8ed619`, #6).
+- Python house rules in `rules/python.md` (#7).
+- Python env for eval tasks: the uv lock `eval/envs/python-tasks.txt` pins decoupler 2.3.1, pydeseq2 0.5.4, liana 1.10.0 and `pertpy[jax,de]` 1.4.0.
 
-Phase 3, new eval tasks (`eval/TASK-CATALOG.md`, sources in `eval/task-sources/`). Build first, each with its trap:
-1. Repeated visits: no donor random effect (real MOCHA data with the repo's own lmer answer).
-2. Pathway activity from a DE contrast: raw counts or unsigned statistic instead of the signed Wald stat (Kang 2018; JAK-STAT 17.15).
-3. Cell-type composition: per-type proportion tests or cells as the unit (Haber 2017; only Enterocytes rise).
-4. Gene identifiers: Ensembl IDs silently match few gene-set members.
-5. Contrast direction: alphabetical factor order flips every sign.
-6. Per-sample QC: one global cutoff wipes a low-depth sample.
-7. Counts in a layer: normalising data that is already log-transformed.
-8. Interaction contrast: comparing two DE lists instead of testing the interaction.
-9. Regulator sign: a network without weights turns a repressor positive.
-10. Visit and pair selection: duplicate runs or the wrong baseline visit.
-
-More task sources may come from the kai notebook corpus (#22).
-
-Each task: a frozen small dataset under `inputs/`, a prompt, `check.R`, a reference answer that passes and a naive one that fails, then 4 arms x 2 reps and a blind review page. About 1-2 hours to build and $8 to run per task.
+Phase 3, new eval tasks. Done: all ten catalog tasks are built as 07 to 16, plus 07b and 15b (`eval/TASK-CATALOG.md`). Arms A and D passed the gates of 07 to 16 almost everywhere, so the gates sit at the ceiling. Next: harder variants with fewer hints, then the catalog's next tier.
 
 Phase 4, skill evidence from the kai notebook corpus (#19): mine how 2,845 scverse tutorials call each pipeline skill's method, then propose gotchas and grill-question values for the user to approve (#20).
 
