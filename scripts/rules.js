@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const { parseArgs } = require('util');
-const { dataDir, repoInfo, sha256, RULE_MAX } = require('../hooks/lib');
+const { dataDir, repoInfo, sha256, ruleProblem, STATUSES } = require('../hooks/lib');
 const { harvest, markSeen } = require('../hooks/memory');
 
 const USAGE = `Usage: node scripts/rules.js <command>
@@ -16,15 +16,9 @@ const USAGE = `Usage: node scripts/rules.js <command>
   supersede <new-id> <old-id>
   reject <id>
   retire <id>
-  trust
+  trust --show | trust --sha256 <hash>
   harvest [--since-last] [--json] | harvest --mark-seen`;
 
-const STATUSES = ['proposed', 'active', 'rejected', 'superseded', 'retired'];
-const SOURCES = ['user-correction', 'user-preference', 'repo-review'];
-const MEMORY_SOURCE = /^user-memory:(?!\.\.?\/)[^\s/]+\/[^\s/]+\.md$/;
-const TOPIC = /^[a-z]+(\.[a-z0-9_]+)+$/;
-const SECRET = /Bearer\s|AKIA[0-9A-Z]{16}|ghp_|sk-[A-Za-z0-9]{20,}|-----BEGIN|(secret|password|token)\s*=/i;
-const ABS_PATH = /\/home\/|\/Users\/|\b[A-Za-z]:\\/;
 const REPO_FILE = 'lucid-coder.rules.json';
 
 function die(msg, code = 1) {
@@ -38,35 +32,6 @@ const scopeKey = s => [s.kind, s.language || s.repo || s.glob || ''].join(':');
 
 function scopeText(s) {
   return s.kind === 'global' ? 'global' : `${s.kind}: ${s.language || s.repo || s.glob}`;
-}
-
-// Returns the first problem with a rule, or null.
-function ruleProblem(r) {
-  if (!r || typeof r !== 'object') return 'a rule is not an object';
-  if (!/^r-\d{4,}$/.test(r.id || '')) return `bad id ${r.id}`;
-  if (!TOPIC.test(r.topic || '')) return `${r.id}: topic "${r.topic}" must look like r.pipe or user.my_topic`;
-  const s = r.scope || {};
-  if (s.kind === 'language' && !['r', 'python'].includes(s.language)) return `${r.id}: language scope needs --language r or python`;
-  if (s.kind === 'file-glob' && !s.glob) return `${r.id}: file-glob scope needs --glob`;
-  if (s.kind === 'repo' && !s.repo) return `${r.id}: repo scope needs a repo id`;
-  if (!['global', 'language', 'repo', 'file-glob'].includes(s.kind)) return `${r.id}: scope must be global, language, repo or file-glob`;
-  if (!r.statement) return `${r.id}: --statement is required`;
-  if (!r.why) return `${r.id}: --why is required`;
-  for (const field of ['statement', 'why', 'good', 'bad']) {
-    const v = r[field];
-    if (v == null) continue;
-    if (typeof v !== 'string') return `${r.id}: ${field} must be text`;
-    if (/[\r\n]/.test(v)) return `${r.id}: ${field} must be one line; remove the newline`;
-    if (field !== 'why' && v.length > RULE_MAX) return `${r.id}: ${field} is ${v.length} chars; keep it to ${RULE_MAX}`;
-    if (SECRET.test(v)) return `${r.id}: ${field} looks like it holds a secret; remove it`;
-    if (field !== 'why' && ABS_PATH.test(v)) return `${r.id}: ${field} holds an absolute path; use a repo-relative path`;
-  }
-  if (/^\s*#/.test(r.statement) || /^\s*#/.test(r.why)) return `${r.id}: statement and why cannot start with #`;
-  if (!STATUSES.includes(r.status)) return `${r.id}: unknown status ${r.status}`;
-  if (!SOURCES.includes(r.source) && !MEMORY_SOURCE.test(r.source || '')) {
-    return `${r.id}: source must be one of ${SOURCES.join(', ')} or user-memory:<project>/<file>.md`;
-  }
-  return null;
 }
 
 function load() {
@@ -194,11 +159,18 @@ const commands = {
     console.log('Retired ' + id);
   },
 
-  trust(store) {
+  // --show prints the file and its hash from one read; --sha256 trusts only
+  // that content, so an edit between review and trust is refused.
+  trust(store, args, opts) {
     const repo = currentRepo();
     const file = path.join(repo.root, REPO_FILE);
     if (!fs.existsSync(file)) die(`No ${REPO_FILE} at the root of this repo (${repo.root}).`);
-    const hash = sha256(fs.readFileSync(file));
+    const text = fs.readFileSync(file);
+    const hash = sha256(text);
+    if (opts.show) return console.log(`${text.toString('utf8').trimEnd()}\nsha256 ${hash}`);
+    if (opts.sha256 != null && opts.sha256.toLowerCase() !== hash) {
+      die(`Not trusted: ${REPO_FILE} now has sha256 ${hash}, not the reviewed ${opts.sha256}. Review it again.`);
+    }
     store.trusted = store.trusted.filter(t => t.repo !== repo.id);
     store.trusted.push({ repo: repo.id, sha256: hash, trusted: today() });
     save(store);
@@ -223,8 +195,8 @@ function main() {
     parsed = parseArgs({
       allowPositionals: true,
       options: Object.fromEntries(
-        ['status', 'topic', 'scope', 'language', 'glob', 'repo', 'statement', 'why', 'good', 'bad', 'source']
-          .map(k => [k, { type: 'string' }]).concat(['json', 'since-last', 'mark-seen'].map(k => [k, { type: 'boolean' }]))),
+        ['status', 'topic', 'scope', 'language', 'glob', 'repo', 'statement', 'why', 'good', 'bad', 'source', 'sha256']
+          .map(k => [k, { type: 'string' }]).concat(['json', 'since-last', 'mark-seen', 'show'].map(k => [k, { type: 'boolean' }]))),
     });
   } catch (e) {
     die(`${e.message}\n${USAGE}`);

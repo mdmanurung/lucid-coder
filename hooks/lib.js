@@ -137,26 +137,41 @@ function readTiers(langs) {
   return tiers;
 }
 
-const SKIP_DIRS = new Set(['.git', 'node_modules', 'renv', '.venv', '__pycache__', 'results']);
+const SKIP_DIRS = new Set(['.git', 'node_modules', 'renv', '.venv', '__pycache__', 'results',
+  'data', '.pixi', '.snakemake', 'work', '.claude']);
 const LANG_EXT = { '.r': 'r', '.rmd': 'r', '.qmd': 'r', '.py': 'python', '.ipynb': 'python' };
 const DETECT_DEPTH = 3;
+// SessionStart has a 5 s timeout and homes may sit on a network share, so the
+// scan stops after SCAN_MS or SCAN_ENTRIES entries and keeps what it found.
+const SCAN_MS = 1000;
+const SCAN_ENTRIES = 20000;
 
 // Which of r/python the tree under cwd uses, as a Set. Sync scan to depth 3,
-// stops once both are found; any fs error leaves what was found so far.
-function detectLanguages(cwd) {
+// stops once both are found or the budget runs out; never throws.
+function detectLanguages(cwd, { budgetMs = SCAN_MS, maxEntries = SCAN_ENTRIES } = {}) {
   const found = new Set();
+  const deadline = Date.now() + budgetMs;
+  let entries = 0;
+  const spent = () => found.size === 2 || ++entries > maxEntries || Date.now() >= deadline;
   const walk = (dir, depth) => {
-    if (found.size === 2 || depth > DETECT_DEPTH) return;
-    let entries = [];
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return; }
-    for (const entry of entries) {
-      if (found.size === 2) return;
-      if (entry.isDirectory()) {
-        if (!SKIP_DIRS.has(entry.name)) walk(path.join(dir, entry.name), depth + 1);
-        continue;
+    if (depth > DETECT_DEPTH) return;
+    let handle;
+    try { handle = fs.opendirSync(dir); } catch (e) { return; }
+    try {
+      // opendir reads in chunks, so a huge directory is cut off at the cap.
+      for (let entry; (entry = handle.readSync()) !== null;) {
+        if (spent()) return;
+        if (entry.isDirectory()) {
+          if (!SKIP_DIRS.has(entry.name)) walk(path.join(dir, entry.name), depth + 1);
+          continue;
+        }
+        const lang = LANG_EXT[path.extname(entry.name).toLowerCase()];
+        if (lang) found.add(lang);
       }
-      const lang = LANG_EXT[path.extname(entry.name).toLowerCase()];
-      if (lang) found.add(lang);
+    } catch (e) {
+      // an fs error leaves what was found so far
+    } finally {
+      try { handle.closeSync(); } catch (e) {}
     }
   };
   walk(cwd, 0);
@@ -202,8 +217,20 @@ function setLang(value, cwd = process.cwd()) {
   const key = langKey(cwd);
   if (LANG_VALUES[value]) map[key] = value;
   else delete map[key];
-  fs.mkdirSync(stateDir(), { recursive: true });
-  fs.writeFileSync(langPath(), JSON.stringify(map));
+  writeAtomic(langPath(), JSON.stringify(map));
+}
+
+// Temp file plus rename, so a crash never leaves a half-written file.
+function writeAtomic(file, text) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(tmp, text);
+    fs.renameSync(tmp, file);
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch (e2) {}
+    throw e;
+  }
 }
 
 // Tier languages for this session: the override flag wins over detection.
@@ -211,6 +238,42 @@ function languages(cwd) {
   const lang = readLang(cwd);
   if (lang !== 'auto') return LANG_VALUES[lang];
   return ['r', 'python'].filter(l => detectLanguages(cwd).has(l));
+}
+
+const STATUSES = ['proposed', 'active', 'rejected', 'superseded', 'retired'];
+const SOURCES = ['user-correction', 'user-preference', 'repo-review'];
+const MEMORY_SOURCE = /^user-memory:(?!\.\.?\/)[^\s/]+\/[^\s/]+\.md$/;
+const TOPIC = /^[a-z]+(\.[a-z0-9_]+)+$/;
+const SECRET = /Bearer\s|AKIA[0-9A-Z]{16}|ghp_|sk-[A-Za-z0-9]{20,}|-----BEGIN|(secret|password|token)\s*=/i;
+const ABS_PATH = /\/home\/|\/Users\/|\b[A-Za-z]:\\/;
+
+// Returns the first problem with a rule, or null.
+function ruleProblem(r) {
+  if (!r || typeof r !== 'object') return 'a rule is not an object';
+  if (!/^r-\d{4,}$/.test(r.id || '')) return `bad id ${r.id}`;
+  if (!TOPIC.test(r.topic || '')) return `${r.id}: topic "${r.topic}" must look like r.pipe or user.my_topic`;
+  const s = r.scope || {};
+  if (s.kind === 'language' && !['r', 'python'].includes(s.language)) return `${r.id}: language scope needs --language r or python`;
+  if (s.kind === 'file-glob' && !s.glob) return `${r.id}: file-glob scope needs --glob`;
+  if (s.kind === 'repo' && !s.repo) return `${r.id}: repo scope needs a repo id`;
+  if (!['global', 'language', 'repo', 'file-glob'].includes(s.kind)) return `${r.id}: scope must be global, language, repo or file-glob`;
+  if (!r.statement) return `${r.id}: --statement is required`;
+  if (!r.why) return `${r.id}: --why is required`;
+  for (const field of ['statement', 'why', 'good', 'bad']) {
+    const v = r[field];
+    if (v == null) continue;
+    if (typeof v !== 'string') return `${r.id}: ${field} must be text`;
+    if (/[\r\n]/.test(v)) return `${r.id}: ${field} must be one line; remove the newline`;
+    if (field !== 'why' && v.length > RULE_MAX) return `${r.id}: ${field} is ${v.length} chars; keep it to ${RULE_MAX}`;
+    if (SECRET.test(v)) return `${r.id}: ${field} looks like it holds a secret; remove it`;
+    if (field !== 'why' && ABS_PATH.test(v)) return `${r.id}: ${field} holds an absolute path; use a repo-relative path`;
+  }
+  if (/^\s*#/.test(r.statement) || /^\s*#/.test(r.why)) return `${r.id}: statement and why cannot start with #`;
+  if (!STATUSES.includes(r.status)) return `${r.id}: unknown status ${r.status}`;
+  if (!SOURCES.includes(r.source) && !MEMORY_SOURCE.test(r.source || '')) {
+    return `${r.id}: source must be one of ${SOURCES.join(', ')} or user-memory:<project>/<file>.md`;
+  }
+  return null;
 }
 
 const UNTRUSTED = 'lucid-coder.rules.json in this repo is not trusted; run /lucid-coder:rules trust after reviewing it.';
@@ -242,9 +305,13 @@ function readActiveRules(langs) {
       rules.notice = UNTRUSTED;
       return rules;
     }
+    // Trusted text can still be malformed; the store's own checks apply to it.
+    let skipped = 0;
     for (const r of JSON.parse(text).rules || []) {
-      if (r && r.status === 'active') rules.push({ ...r, scope: { kind: 'repo', repo: repo.id } });
+      if (ruleProblem(r)) skipped++;
+      else if (r.status === 'active') rules.push({ ...r, scope: { kind: 'repo', repo: repo.id } });
     }
+    if (skipped) rules.notice = `${skipped} rules in lucid-coder.rules.json fail validation and were skipped.`;
   } catch (e) {
     // no repo file, or a broken one: skip it
   }
@@ -399,4 +466,5 @@ module.exports = {
   readTiers, detectLanguages, readLang, setLang, languages,
   escapeRule, render, writeOutput, readStdin, readEnv,
   dataDir, rememberDataDir, repoInfo, sha256, RULE_MAX,
+  ruleProblem, writeAtomic, STATUSES, SOURCES,
 };

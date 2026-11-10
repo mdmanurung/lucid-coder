@@ -106,7 +106,14 @@ readStdin(payload => {
     const match = prompt.toLowerCase().match(COMMAND);
     if (match) {
       const arg = match[1] || 'status';
-      if (arg !== 'status') setMode(arg);
+      if (arg !== 'status') {
+        try {
+          setMode(arg);
+        } catch (e) {
+          writeOutput('UserPromptSubmit', `LUCID-CODER: could not write the mode flag (${e.code || e.message}); mode unchanged`);
+          process.exit(0);
+        }
+      }
       // Rules are injected at session start, so a change only lands after /clear or a new session.
       const when = arg === 'status' ? '' : ' (from the next session start or /clear)';
       writeOutput('UserPromptSubmit', (readMode() === 'off' ? 'LUCID-CODER OFF' : 'LUCID-CODER ON') + when);

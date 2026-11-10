@@ -62,12 +62,15 @@ function parseMemory(text) {
 }
 
 // Every memory file as { file, dir }, from directory listings only (no reads).
-function memoryFiles() {
+// The nudge passes a deadline and a cap; past either it returns what it has.
+function memoryFiles({ deadline = Infinity, maxEntries = Infinity } = {}) {
   const root = path.join(configDir(), 'projects');
   let dirs = [];
   try { dirs = fs.readdirSync(root).sort(); } catch (e) { return []; }
   const out = [];
+  let listed = 0;
   for (const dir of dirs) {
+    if (++listed > maxEntries || Date.now() >= deadline) break;
     const memDir = path.join(root, dir, 'memory');
     let files = [];
     try { files = fs.readdirSync(memDir).filter(f => f.endsWith('.md') && f !== 'MEMORY.md').sort(); } catch (e) { continue; }
@@ -152,16 +155,21 @@ function markSeen() {
 // One line for SessionStart, or ''. Never throws. Reading every memory costs
 // seconds on a network home, so it lists dirs, stats files and reads at most
 // NUDGE_CAP files newer than the last scan; before any scan it reads none.
+// Listing and stats share one budget of NUDGE_MS and NUDGE_ENTRIES project dirs.
 const NUDGE_CAP = 20;
-function memoryNudge() {
+const NUDGE_MS = 1000;
+const NUDGE_ENTRIES = 2000;
+function memoryNudge({ budgetMs = NUDGE_MS, maxEntries = NUDGE_ENTRIES } = {}) {
   try {
     if (!nudgeOn()) return '';
-    const files = memoryFiles();
+    const deadline = Date.now() + budgetMs;
+    const files = memoryFiles({ deadline, maxEntries });
     if (!files.length) return '';
     const { scanned, seen } = readSeen();
     const since = scanned ? Date.parse(scanned) : NaN;
     if (Number.isNaN(since)) return 'Preferences in Claude Code memory not yet reviewed; /lucid-coder:learn --from-memory';
     const newer = files.filter(({ file }) => {
+      if (Date.now() >= deadline) return false;
       try { return fs.statSync(file).mtimeMs > since; } catch (e) { return false; }
     });
     if (newer.length > NUDGE_CAP) return `${NUDGE_CAP}+ new preferences in memory; /lucid-coder:learn --from-memory to review`;

@@ -247,11 +247,17 @@ test('repo-scope rule is injected only in its own repo', () => {
   assert.match(inOther, /GLOB RULE/);
 });
 
+// A team rule that passes the store's own checks.
+const teamRule = (statement, extra = {}) => ({
+  id: 'r-0009', topic: 'user.t9', scope: { kind: 'global' }, status: 'active',
+  statement, why: 'Team decision.', source: 'repo-review', ...extra,
+});
+
 test('repo rules file loads only while its trusted hash matches', () => {
   const home = setup();
   const repo = fakeRepo(home, 'atlas', 'git@github.com:lab/atlas.git');
   const file = path.join(repo, 'lucid-coder.rules.json');
-  const team = s => JSON.stringify({ rules: [{ ...rule(9), scope: { kind: 'global' }, statement: s }] });
+  const team = s => JSON.stringify({ rules: [teamRule(s)] });
   const notice = /lucid-coder\.rules\.json in this repo is not trusted/;
 
   fs.writeFileSync(file, team('TEAM RULE'));
@@ -351,4 +357,106 @@ test('untrusted lucid-coder.yaml: odd paths, in-repo binaries, overflow and non-
   const z = out();
   assert.strictEqual(z.status, 0);
   assert.match(z.stdout, /lucid-coder\.yaml is malformed/);
+});
+
+test('trusted team rules that fail validation are skipped with one notice', () => {
+  const home = setup();
+  const repo = fakeRepo(home, 'atlas', 'git@github.com:lab/atlas.git');
+  fs.writeFileSync(path.join(repo, 'lucid-coder.rules.json'), JSON.stringify({ rules: [
+    teamRule('GOOD RULE'),
+    teamRule('BAD ID', { id: 'r-9', topic: 'user.bad_id' }),
+    teamRule('NO WHY', { id: 'r-0010', topic: 'user.no_why', why: undefined }),
+    teamRule('SECRET token=abc', { id: 'r-0011', topic: 'user.secret' }),
+  ] }));
+  assert.strictEqual(runAt('scripts/rules.js', home, repo, 'trust').status, 0);
+  const out = runAt('hooks/activate.js', home, repo).stdout;
+  assert.match(out, /GOOD RULE/);
+  assert.doesNotMatch(out, /BAD ID|NO WHY|token=abc/);
+  assert.match(out, /3 rules in lucid-coder\.rules\.json fail validation and were skipped\./);
+});
+
+test('detectLanguages stops at its time budget and entry cap without throwing', () => {
+  const home = setup();
+  const tree = langTree(home, ['a/x.R']);
+  assert.deepStrictEqual([...detectLanguages(tree, { budgetMs: 0 })], [], 'budget spent before the first entry');
+  // Entry 1 is a/, entry 2 is a/x.R.
+  assert.deepStrictEqual([...detectLanguages(tree, { maxEntries: 1 })], []);
+  assert.deepStrictEqual([...detectLanguages(tree, { maxEntries: 2 })], ['r']);
+  const skipped = ['data/d.R', '.pixi/p.py', '.snakemake/s.py', 'work/w.R', '.claude/c.py'];
+  assert.deepStrictEqual([...detectLanguages(langTree(home, skipped))], []);
+});
+
+test('activate emits core from a directory with 30,000 entries', () => {
+  const home = setup();
+  const big = fs.mkdtempSync(path.join(home, 'big-'));
+  for (let i = 0; i < 30000; i++) fs.writeFileSync(path.join(big, `f${i}.txt`), '');
+  fs.writeFileSync(path.join(big, 'zz.R'), '');
+  const r = run('activate.js', home, { cwd: big });
+  assert.strictEqual(r.status, 0);
+  assert.match(r.stdout, /^LUCID-CODER ACTIVE/);
+  assert.match(r.stdout, /## Habits/);
+});
+
+// memoryNudge reads the env on each call; a child process keeps it from leaking.
+function nudgeIn(home, opts) {
+  const code = `process.stdout.write(require(${JSON.stringify(path.join(root, 'hooks', 'memory.js'))}).memoryNudge(${JSON.stringify(opts)}))`;
+  return spawnSync(process.execPath, ['-e', code], {
+    env: { ...process.env, HOME: home, CLAUDE_CONFIG_DIR: home, CLAUDE_PLUGIN_DATA: path.join(home, 'data') },
+    encoding: 'utf8',
+  });
+}
+
+function memoryHome() {
+  const home = setup();
+  const mem = path.join(home, 'projects', '-p', 'memory');
+  fs.mkdirSync(mem, { recursive: true });
+  fs.writeFileSync(path.join(mem, 'a.md'), '---\ntype: feedback\ndescription: x\n---\nbody\n');
+  return home;
+}
+
+test('memory nudge returns what it has at its budget and never throws', () => {
+  const home = memoryHome();
+  assert.match(nudgeIn(home, {}).stdout, /not yet reviewed/);
+  for (const opts of [{ budgetMs: 0 }, { maxEntries: 0 }]) {
+    const r = nudgeIn(home, opts);
+    assert.strictEqual(r.status, 0, r.stderr);
+    assert.strictEqual(r.stdout, '', JSON.stringify(opts));
+  }
+});
+
+test('activate writes the core text, then the nudge', () => {
+  const out = run('activate.js', memoryHome()).stdout;
+  assert.match(out, /^LUCID-CODER ACTIVE[\s\S]*## Habits[\s\S]*\n\nPreferences in Claude Code memory not yet reviewed/);
+});
+
+test('setLang writes through a temp file and leaves the old file on failure', () => {
+  const home = setup();
+  const saved = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = home;
+  const { setLang, readLang } = require('../hooks/lib');
+  const flag = path.join(home, '.lucid-coder-lang');
+  const rename = fs.renameSync;
+  try {
+    setLang('r', home);
+    assert.strictEqual(readLang(home), 'r');
+    const before = fs.readFileSync(flag, 'utf8');
+    fs.renameSync = () => { throw new Error('disk full'); };
+    assert.throws(() => setLang('python', home), /disk full/);
+    fs.renameSync = rename;
+    assert.strictEqual(fs.readFileSync(flag, 'utf8'), before, 'old file untouched');
+    assert.deepStrictEqual(fs.readdirSync(home).filter(f => f.endsWith('.tmp')), [], 'no temp file left');
+  } finally {
+    fs.renameSync = rename;
+    if (saved === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = saved;
+  }
+});
+
+test('/lucid-coder off says so when the flag cannot be written', () => {
+  const home = setup();
+  const notDir = path.join(home, 'not-a-dir');
+  fs.writeFileSync(notDir, '');
+  const r = run('prompt.js', home, { input: JSON.stringify({ prompt: '/lucid-coder off' }), env: { CLAUDE_CONFIG_DIR: notDir } });
+  assert.strictEqual(r.status, 0);
+  assert.match(r.stdout, /^LUCID-CODER: could not write the mode flag \(\w+\); mode unchanged$/);
 });
