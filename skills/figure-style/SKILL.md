@@ -154,7 +154,7 @@ caption instead of filling it with a common default.
 | Distributions | Jittered points; median crossbar under 10 per group, box from 10 | `plot_box(..., jitter_width=, seed=)` |
 | Volcano | Blue down, red up, grey rest, dashed cut-offs, top N per direction labelled only when asked | `plot_volcano(..., n_label=)` |
 | Dot plot | Area = fraction expressing with a grey-circle size legend at 25/50/75/100%, viridis mean with a unit colourbar | `plot_dotplot(..., mean_label=)` |
-| UMAP | No frame, corner arrows, label-keyed palette, rasterised points | `plot_embedding(..., axis_name="UMAP")` |
+| UMAP | No frame, corner arrows (R: fixed 10 mm, `ARROW_MM`; Python: 20% of the data range), label-keyed palette, rasterised points | `plot_embedding(..., axis_name="UMAP")` |
 | Feature on UMAP | viridis, high on top, unit in colourbar | `plot_feature` |
 | Multi-panel figure | Exact mm cells on a 183 or 89 mm page, bold letters a, b, c at 10 pt, one shared legend in its own cell | `compose_figure(..., widths_mm=)`, `get_legend()` (R only) |
 
