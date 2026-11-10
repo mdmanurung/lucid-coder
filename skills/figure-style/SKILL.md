@@ -135,7 +135,7 @@ caption instead of filling it with a common default.
     tested" or "not detected", and never a 0 or the colour of "no change". On a
     log axis, non-detects sit at a sentinel under a labelled LOD line.
 11. **One build, three files.** `ggpubr::theme_pubr(base_size = 8)` (Python:
-    `theme_classic(base_size = 8)` in `theme.py`); text geoms in pt
+    `theme_classic(base_size = 8)` in `theme.py`), sizes from `FONT_PT`; text geoms in pt
     (`size.unit = "pt"`); zoom with `coord_cartesian()`, never scale limits;
     facet strips left, outside, no box; size in mm (89 single column, 183 double);
     `cairo_pdf` plus a PNG for review plus the source-data CSV of the plotted
@@ -156,6 +156,24 @@ caption instead of filling it with a common default.
 | Dot plot | Area = fraction expressing with a grey-circle size legend at 25/50/75/100%, viridis mean with a unit colourbar | `plot_dotplot(..., mean_label=)` |
 | UMAP | No frame, corner arrows, label-keyed palette, rasterised points | `plot_embedding(..., axis_name="UMAP")` |
 | Feature on UMAP | viridis, high on top, unit in colourbar | `plot_feature` |
+| Multi-panel figure | Exact mm cells on a 183 or 89 mm page, bold letters a, b, c at 10 pt, one shared legend in its own cell | `compose_figure(..., widths_mm=)`, `get_legend()` (R only) |
+
+## Assembling a figure
+
+- **Page.** Width is `PAGE_MM`: 89 mm single column, 183 mm double. In R,
+  `compose_figure(panels, height_mm, widths_mm = c(...))` gives each panel an
+  exact mm cell; the cells must add up to the page. Pass the same size to
+  `save_panel()`, with the panels' data bound by
+  `dplyr::bind_rows(a = d1, b = d2, .id = "panel")` as the source CSV.
+- **Letters.** Panels are lettered a, b, c in the order given, bold at
+  `FONT_PT[["large"]]`; a legend cell gets no letter.
+- **One legend.** Drop it from every panel (`theme(legend.position = "none")`)
+  and add `get_legend(one_panel)` as its own cell.
+- **One font hierarchy.** `FONT_PT` in `theme.*`: main 8 pt (axes, legends),
+  small 6 pt (in-plot labels, the floor), tiny 5 pt (dense secondary text
+  only), large 10 pt (letters). Never set a text size by hand.
+- **Python.** No twin yet: lay out with plotnine-extra `|`, `/` and
+  `plot_layout()`, at the same page widths and `FONT_PT`.
 
 ## A form not in the table
 

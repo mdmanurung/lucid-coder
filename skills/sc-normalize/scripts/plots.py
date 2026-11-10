@@ -63,6 +63,7 @@ from plotnine import (
 )
 
 from palettes import palette_for
+from theme import FONT_PT
 
 # Matplotlib colormaps for skills that still draw their own matplotlib panels.
 diverging = LinearSegmentedColormap.from_list(
@@ -79,6 +80,7 @@ ROTATE_X = theme(axis_text_x=element_text(rotation=90, ha="center", va="top"))
 # fig.embedding: no frame, ticks, tick labels or axis titles; corner arrows instead.
 NO_AXES = theme(
     panel_border=element_blank(),
+    axis_line=element_blank(),
     panel_grid=element_blank(),
     axis_text=element_blank(),
     axis_ticks=element_blank(),
@@ -120,14 +122,20 @@ def corner_arrows(df, axis_name):
     return [
         annotate("segment", x=x0, y=y0, xend=x0 + dx, yend=y0, arrow=head),
         annotate("segment", x=x0, y=y0, xend=x0, yend=y0 + dy, arrow=head),
-        annotate("text", x=x0 + dx / 2, y=y0 - dy / 4, label=f"{axis_name} 1", size=7),
+        annotate(
+            "text",
+            x=x0 + dx / 2,
+            y=y0 - dy / 4,
+            label=f"{axis_name} 1",
+            size=FONT_PT["small"],
+        ),
         annotate(
             "text",
             x=x0 - dx / 4,
             y=y0 + dy / 2,
             label=f"{axis_name} 2",
             angle=90,
-            size=7,
+            size=FONT_PT["small"],
         ),
     ]
 
@@ -168,7 +176,9 @@ def plot_volcano(
     shown = df[df["direction"] != "ns"]
     if n_label is not None:
         shown = shown.sort_values("padj").groupby("direction").head(n_label)
-    return p + geom_text(aes(label="label"), data=shown, va="bottom", size=6)
+    return p + geom_text(
+        aes(label="label"), data=shown, va="bottom", size=FONT_PT["small"]
+    )
 
 
 def plot_box(
@@ -239,7 +249,7 @@ def plot_box(
             method=test,
             p_adjust_method=p_adjust,
             paired=pair is not None,
-            label_size=7,
+            label_size=FONT_PT["small"],
         )
         + scale_y_continuous(expand=(0.05, 0, 0.15, 0))
     )
@@ -445,7 +455,7 @@ def plot_scatter_fit(data, x, y, label=None, *, title=None, x_label=None, y_labe
     if label is None:
         return p
     df["label"] = data[label]
-    return p + geom_text(aes(label="label"), va="bottom", size=6)
+    return p + geom_text(aes(label="label"), va="bottom", size=FONT_PT["small"])
 
 
 if __name__ == "__main__":

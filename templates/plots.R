@@ -32,6 +32,7 @@ rotate_x <- function() theme(axis.text.x = element_text(angle = 90, hjust = 1, v
 no_axes <- function() {
   theme(
     panel.border = element_blank(),
+    axis.line = element_blank(),
     panel.grid = element_blank(),
     axis.text = element_blank(),
     axis.ticks = element_blank(),
@@ -70,14 +71,22 @@ corner_arrows <- function(x, y, axis_name) {
   list(
     annotate("segment", x = x0, y = y0, xend = x0 + dx, yend = y0, arrow = head),
     annotate("segment", x = x0, y = y0, xend = x0, yend = y0 + dy, arrow = head),
-    annotate("text", x = x0 + dx / 2, y = y0 - dy / 4, label = paste(axis_name, 1), size = 2.5),
+    annotate(
+      "text",
+      x = x0 + dx / 2,
+      y = y0 - dy / 4,
+      label = paste(axis_name, 1),
+      size = FONT_PT[["small"]],
+      size.unit = "pt"
+    ),
     annotate(
       "text",
       x = x0 - dx / 4,
       y = y0 + dy / 2,
       label = paste(axis_name, 2),
       angle = 90,
-      size = 2.5
+      size = FONT_PT[["small"]],
+      size.unit = "pt"
     )
   )
 }
@@ -123,7 +132,14 @@ plot_volcano <- function(
     shown <- shown[order(shown[[padj]]), ]
     shown <- shown[stats::ave(shown[[padj]], shown$direction, FUN = seq_along) <= n_label, ]
   }
-  p + geom_text(aes(label = .data[[label]]), data = shown, vjust = -0.5, size = 2.5)
+  p +
+    geom_text(
+      aes(label = .data[[label]]),
+      data = shown,
+      vjust = -0.5,
+      size = FONT_PT[["small"]],
+      size.unit = "pt"
+    )
 }
 
 # Box per group with the rows on top; pair joins the same id across groups.
@@ -188,8 +204,8 @@ plot_box <- function(
       method.args = list(paired = !is.null(pair)),
       p.adjust.method = p_adjust,
       label = "p.adj = {p.adj.format}",
-      # ggpubr's default is 3.88 mm (about 11 pt); match the 8 pt theme.
-      label.size = 7 / .pt
+      # ggpubr's default is 3.88 mm (about 11 pt); use the in-plot label size.
+      label.size = FONT_PT[["small"]] / .pt
     ) +
     scale_y_continuous(expand = expansion(mult = c(0.05, 0.15)))
 }
@@ -345,7 +361,70 @@ plot_scatter_fit <- function(
   if (is.null(label)) {
     return(p)
   }
-  p + geom_text(aes(label = .data[[label]]), vjust = -0.5, size = 2.5)
+  p +
+    geom_text(
+      aes(label = .data[[label]]),
+      vjust = -0.5,
+      size = FONT_PT[["small"]],
+      size.unit = "pt"
+    )
+}
+
+# fig.layout: one legend shared by several panels, as a grob for its own cell in
+# compose_figure(). Masks ggpubr::get_legend() and cowplot::get_legend(), which
+# return the same grob; this one stops unless the plot has exactly one legend box.
+get_legend <- function(plot) {
+  # On the right the legend stacks vertically, so it fits a narrow cell.
+  grob <- ggplotGrob(plot + theme(legend.position = "right"))
+  boxes <- grob$grobs[startsWith(grob$layout$name, "guide-box")]
+  boxes <- Filter(\(box) !inherits(box, "zeroGrob"), boxes)
+  if (length(boxes) != 1) {
+    stop(sprintf("get_legend: found %d legend boxes, expected 1", length(boxes)), call. = FALSE)
+  }
+  boxes[[1]]
+}
+
+# fig.layout: panels on a fixed page, lettered a, b, c in bold at FONT_PT[["large"]].
+# Each panel fills an exact mm cell (axes, titles and legend included), as in
+# exactplot; panels in different cells are not axis-aligned. `widths_mm` and
+# `heights_mm` must add up to the page; save with the same width_mm and height_mm.
+# A grob in `panels` (a get_legend() legend) gets no letter. `design` is a
+# patchwork layout string ("AB\nCC"; "#" leaves a cell empty).
+compose_figure <- function(
+  panels,
+  height_mm,
+  width_mm = PAGE_MM[["double"]],
+  widths_mm = width_mm,
+  heights_mm = height_mm,
+  design = NULL
+) {
+  if (!isTRUE(all.equal(c(sum(widths_mm), sum(heights_mm)), c(width_mm, height_mm)))) {
+    stop(
+      sprintf(
+        "compose_figure: cells add up to %g x %g mm, the page is %g x %g mm",
+        sum(widths_mm),
+        sum(heights_mm),
+        width_mm,
+        height_mm
+      ),
+      call. = FALSE
+    )
+  }
+  # Each ggplot carries its own letter, so the theme's tag margin keeps it clear of
+  # the panel title; a grob (a legend) gets none.
+  is_plot <- purrr::map_lgl(panels, \(panel) inherits(panel, "ggplot"))
+  panels[is_plot] <- purrr::map2(panels[is_plot], letters[seq_len(sum(is_plot))], \(panel, tag) {
+    panel + labs(tag = tag)
+  })
+  cells <- purrr::map(panels, \(panel) patchwork::wrap_elements(full = panel, ignore_tag = TRUE))
+  patchwork::wrap_plots(
+    cells,
+    ncol = if (is.null(design)) length(widths_mm),
+    widths = widths_mm,
+    heights = heights_mm,
+    design = design
+  ) +
+    patchwork::plot_annotation(theme = theme(plot.margin = margin(0)))
 }
 
 if (sys.nframe() == 0) {
@@ -512,6 +591,25 @@ if (sys.nframe() == 0) {
     save_panel(panels[[name]][[1]], panels[[name]][[2]], run_dir, name, 89, 60)
     stopifnot(file.exists(file.path(run_dir, paste0(name, ".pdf"))))
   }
+  # A double-column figure: two lettered panels and one shared legend cell.
+  no_legend <- theme(legend.position = "none")
+  figure <- compose_figure(
+    list(
+      panels$embedding[[1]] + no_legend,
+      panels$composition[[1]] + no_legend,
+      get_legend(panels$embedding[[1]])
+    ),
+    height_mm = 60,
+    widths_mm = c(70, 70, 43)
+  )
+  figure_data <- dplyr::bind_rows(a = cells, b = counts, .id = "panel")
+  save_panel(figure, figure_data, run_dir, "figure", PAGE_MM[["double"]], 60)
+  stopifnot(file.exists(file.path(run_dir, "figure.pdf")))
+  stopifnot(inherits(
+    try(compose_figure(list(panels$box[[1]]), 60, widths_mm = 89), silent = TRUE),
+    "try-error"
+  ))
+  stopifnot(inherits(try(get_legend(panels$volcano[[1]]), silent = TRUE), "try-error"))
   stopifnot(inherits(try(plot_volcano(de, "lfc", "q_value", 0.05, 1), silent = TRUE), "try-error"))
   stopifnot(inherits(
     try(

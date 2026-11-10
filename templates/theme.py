@@ -5,11 +5,21 @@ from pathlib import Path
 import matplotlib
 from plotnine import ggplot, theme, theme_classic, theme_set
 
+# One font hierarchy in pt, read by the theme and the text geoms in plots.py
+# (user-approved 2026-11-10, after exactplot): main 8 for axis and legend text,
+# small 6 for in-plot labels (the print floor), tiny 5 only for dense secondary
+# text, large 10 for panel letters. theme.R holds the same values.
+FONT_PT = {"main": 8, "small": 6, "tiny": 5, "large": 10}
+# Page widths in mm: one journal column or the full double-column page.
+PAGE_MM = {"single": 89, "double": 183}
+
 # Type 42 embeds editable TrueType text instead of outlines. plotnine has no
 # theme_pubr; theme_classic at 8 pt with the legend on top is its nearest twin
 # (R: theme_pubr(base_size = 8)).
-matplotlib.rcParams.update({"pdf.fonttype": 42, "ps.fonttype": 42, "font.size": 8})
-theme_set(theme_classic(base_size=8) + theme(legend_position="top"))
+matplotlib.rcParams.update(
+    {"pdf.fonttype": 42, "ps.fonttype": 42, "font.size": FONT_PT["main"]}
+)
+theme_set(theme_classic(base_size=FONT_PT["main"]) + theme(legend_position="top"))
 
 
 def save_panel(plot, data, run_dir, name, width_mm, height_mm):
