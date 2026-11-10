@@ -168,7 +168,8 @@ const commands = {
     const text = fs.readFileSync(file);
     const hash = sha256(text);
     if (opts.show) return console.log(`${text.toString('utf8').trimEnd()}\nsha256 ${hash}`);
-    if (opts.sha256 != null && opts.sha256.toLowerCase() !== hash) {
+    if (opts.sha256 == null) die(`trust needs --sha256 <hash>; run trust --show first and review the file.`);
+    if (opts.sha256.toLowerCase() !== hash) {
       die(`Not trusted: ${REPO_FILE} now has sha256 ${hash}, not the reviewed ${opts.sha256}. Review it again.`);
     }
     store.trusted = store.trusted.filter(t => t.repo !== repo.id);

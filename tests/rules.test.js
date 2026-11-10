@@ -115,10 +115,12 @@ test('repo scope stores the origin id; trust records the file hash', () => {
   assert.strictEqual(propose(ctx, { scope: 'repo' }).status, 0);
   assert.deepStrictEqual(JSON.parse(cli(ctx, 'list', '--json').stdout)[0].scope, { kind: 'repo', repo: 'github.com/lab/atlas' });
 
-  assert.strictEqual(cli(ctx, 'trust').status, 1);
+  assert.strictEqual(cli(ctx, 'trust', '--show').status, 1);
   fs.writeFileSync(path.join(ctx.repo, 'lucid-coder.rules.json'), '{"rules":[]}');
-  assert.strictEqual(cli(ctx, 'trust').status, 0);
-  assert.strictEqual(cli(ctx, 'trust').status, 0);
+  assert.strictEqual(cli(ctx, 'trust').status, 1, 'bare trust is refused');
+  const hash = cli(ctx, 'trust', '--show').stdout.match(/sha256 ([0-9a-f]{64})/)[1];
+  assert.strictEqual(cli(ctx, 'trust', '--sha256', hash).status, 0);
+  assert.strictEqual(cli(ctx, 'trust', '--sha256', hash).status, 0);
   const trusted = JSON.parse(fs.readFileSync(ctx.store, 'utf8')).trusted;
   assert.strictEqual(trusted.length, 1);
   assert.match(trusted[0].sha256, /^[0-9a-f]{64}$/);
