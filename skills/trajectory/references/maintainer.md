@@ -65,7 +65,7 @@ of `templates/`; a test fails when they drift.
 ## Corpus sources
 
 Paths relative to
-`/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
+`$LUCID_CORPUS` (your local copy of the cc_learnings corpus);
 row IDs from `docs/clawbio-determinism/parts/*.md`.
 
 - A-an-11, PAGA on annotation groups then PAGA-initialised UMAP:

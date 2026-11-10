@@ -31,7 +31,7 @@ combination stops.
 ## Corpus sources
 
 Paths relative to
-`/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`.
+`$LUCID_CORPUS` (your local copy of the cc_learnings corpus).
 Row IDs from `docs/clawbio-determinism/parts/C_disease.md` (lines
 24, 30, 73, 86); `CATALOGUE.md:62` groups C-pl-10 and C-pl-23 as line plots.
 
@@ -93,8 +93,8 @@ From `skills/longitudinal`:
 
 ```bash
 RSCRIPT=/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2/bin/Rscript \
-R_LIBS_USER=/exports/para-lipg-hpc/mdmanurung/R/4.5 \
-LD_LIBRARY_PATH=/home/mdmanurung/.local/lib/conda-gcc-runtime \
+R_LIBS_USER=${LUCID_R_LIBS_USER} \
+LD_LIBRARY_PATH=${LUCID_GCC_RUNTIME} \
 UV_CACHE_DIR=/tmp/uvcache PYTHONDONTWRITEBYTECODE=1 \
   uv run --python 3.12 --with numpy,pandas,scipy,matplotlib,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests

@@ -5,7 +5,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 ## Corpus sources
 
 Paths relative to
-`/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`.
+`$LUCID_CORPUS` (your local copy of the cc_learnings corpus).
 Row IDs from `docs/clawbio-determinism/parts/{B_pbmc,C_disease}.md`.
 
 | Row | Procedure | Source |
@@ -73,8 +73,8 @@ R comes from `$RSCRIPT`, else `Rscript` on PATH. On this HPC, from
 
 ```bash
 export RSCRIPT=/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2/bin/Rscript
-export R_LIBS_USER=/exports/para-lipg-hpc/mdmanurung/R/4.5
-export LD_LIBRARY_PATH=/home/mdmanurung/.local/lib/conda-gcc-runtime
+export R_LIBS_USER=${LUCID_R_LIBS_USER}
+export LD_LIBRARY_PATH=${LUCID_GCC_RUNTIME}
 UV_CACHE_DIR=$TMPDIR/uvcache PYTHONDONTWRITEBYTECODE=1 \
   uv run --python 3.12 --with anndata,numpy,pandas,scipy,matplotlib,plotnine-extra,pytest \
   python -m pytest -q -p no:cacheprovider tests

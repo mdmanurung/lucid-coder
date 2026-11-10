@@ -64,7 +64,7 @@ test fails when they drift.
 ## Corpus sources
 
 Paths relative to
-`/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`.
+`$LUCID_CORPUS` (your local copy of the cc_learnings corpus).
 Row IDs from `docs/clawbio-determinism/parts/*.md`.
 
 | Row | Procedure | Source |

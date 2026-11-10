@@ -21,7 +21,7 @@ of `templates/`; a test fails when they drift.
 ## Corpus sources
 
 Paths relative to
-`/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
+`$LUCID_CORPUS` (your local copy of the cc_learnings corpus);
 row IDs from `docs/clawbio-determinism/parts/*.md`.
 
 | ID | What | Source |
@@ -31,8 +31,8 @@ row IDs from `docs/clawbio-determinism/parts/*.md`.
 | C-an-40 | `cor.test(logFC_discovery, logFC_replication, method="spearman")` across cell types | `repos/single_cell_aging/05_Differential_gene_expression_analysis/06_Validation_Age_DE_across_cell_types_v2.ipynb:321-328` |
 
 The installed dreamlet skill documents `run_mash`, the E-an-09 path:
-`/home/mdmanurung/.claude/skills/dreamlet/SKILL.md` and
-`/home/mdmanurung/.claude/skills/dreamlet/references/mashr.md`. This skill matches
+`~/.claude/skills/dreamlet/SKILL.md` and
+`~/.claude/skills/dreamlet/references/mashr.md`. This skill matches
 its canonical covariances, `se = logFC / t` input and NA masking of unmeasured
 cells. It differs in two ways. `V` stays at identity, where `run_mash` runs
 `mash_estimate_corr_em`. `canonical+ed` adds ED covariances, which `run_mash`
@@ -86,8 +86,8 @@ The script finds Rscript from `RSCRIPT`, else `Rscript` on `PATH`. On this HPC:
 
 ```bash
 export RSCRIPT=/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2/bin/Rscript
-export LD_LIBRARY_PATH=/home/mdmanurung/.local/lib/conda-gcc-runtime
-export R_LIBS_USER=/exports/para-lipg-hpc/mdmanurung/R/4.5   # mashr 0.2.79, ashr 2.2.63
+export LD_LIBRARY_PATH=${LUCID_GCC_RUNTIME}
+export R_LIBS_USER=${LUCID_R_LIBS_USER}   # mashr 0.2.79, ashr 2.2.63
 ```
 
 From `skills/mashr-sharing` (the demo takes about a minute; R tests skip

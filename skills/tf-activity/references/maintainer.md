@@ -8,7 +8,7 @@ Reference skills checked against (`docs/pipeline-skills.md`): `decoupler`
 (`dc.mt.ulm`, `dc.pp.get_obsm`, `dc.tl.rankby_group`) and `S/decoupler-enrichment`.
 
 Paths relative to
-`/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
+`$LUCID_CORPUS` (your local copy of the cc_learnings corpus);
 row IDs from `docs/clawbio-determinism/parts/*.md`. The corpus
 uses decoupler 1.x names; the 2.x calls here are `dc.op.collectri`,
 `dc.op.progeny`, `dc.mt.ulm`, `dc.mt.mlm`, `dc.pp.get_obsm` and

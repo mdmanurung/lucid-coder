@@ -24,7 +24,7 @@ of `templates/`; a test fails when they drift.
 ## Corpus sources
 
 Paths relative to
-`/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
+`$LUCID_CORPUS` (your local copy of the cc_learnings corpus);
 row IDs from `docs/clawbio-determinism/parts/*.md`.
 
 | ID | What | Source |
@@ -84,8 +84,8 @@ The R engine needs (each R start loads variancePartition, about 2 minutes here):
 
 ```bash
 export RSCRIPT=/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2/bin/Rscript
-export LD_LIBRARY_PATH=/home/mdmanurung/.local/lib/conda-gcc-runtime
-export R_LIBS_USER=/exports/para-lipg-hpc/mdmanurung/R/4.5
+export LD_LIBRARY_PATH=${LUCID_GCC_RUNTIME}
+export R_LIBS_USER=${LUCID_R_LIBS_USER}
 ```
 
 From `skills/variance-partition`:

@@ -5,7 +5,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 ## Corpus sources
 
 Paths relative to
-`/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`.
+`$LUCID_CORPUS` (your local copy of the cc_learnings corpus).
 Row IDs from `docs/clawbio-determinism/CATALOGUE.md`.
 
 | Row | What it shows | Source |

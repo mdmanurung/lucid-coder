@@ -5,7 +5,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 ## Corpus sources
 
 Paths relative to
-`/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`:
+`$LUCID_CORPUS` (your local copy of the cc_learnings corpus):
 
 - Aggregation per sample and the 10% detection filter (`min_detection <- 0.1`):
   `repos/aifi-healthy-pbmc-reference/07-Pseudobulk/35-R_pseudobulk_seurat.ipynb:57`.
@@ -44,8 +44,8 @@ Tests, from `skills/pseudobulk-de` (the R tests skip without Rscript):
 ```bash
 UV_CACHE_DIR=/tmp/uvcache PYTHONDONTWRITEBYTECODE=1 \
   RSCRIPT=/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2/bin/Rscript \
-  R_LIBS_USER=/exports/para-lipg-hpc/mdmanurung/R/4.5 \
-  LD_LIBRARY_PATH=/home/mdmanurung/.local/lib/conda-gcc-runtime \
+  R_LIBS_USER=${LUCID_R_LIBS_USER} \
+  LD_LIBRARY_PATH=${LUCID_GCC_RUNTIME} \
   uv run --python 3.12 --with anndata,numpy,pandas,scipy,matplotlib,plotnine-extra,pydeseq2,pytest \
   python -m pytest -q -p no:cacheprovider tests
 ```
@@ -55,8 +55,8 @@ the minimal working environment is:
 
 ```bash
 export RSCRIPT=/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2/bin/Rscript
-export LD_LIBRARY_PATH=/home/mdmanurung/.local/lib/conda-gcc-runtime  # libstdc++ with GLIBCXX_3.4.29
-export R_LIBS_USER=/exports/para-lipg-hpc/mdmanurung/R/4.5           # holds DESeq2 1.50.2, dreamlet 1.8.0
+export LD_LIBRARY_PATH=${LUCID_GCC_RUNTIME}  # libstdc++ with GLIBCXX_3.4.29
+export R_LIBS_USER=${LUCID_R_LIBS_USER}           # holds DESeq2 1.50.2, dreamlet 1.8.0
 ```
 
 `R_HOME` is not needed. `module load statistical/R/4.5.2/gcc.8.5.0` sets the

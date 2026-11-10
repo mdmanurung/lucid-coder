@@ -5,7 +5,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 ## Corpus sources
 
 Paths relative to
-`/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
+`$LUCID_CORPUS` (your local copy of the cc_learnings corpus);
 rows from `docs/clawbio-determinism/parts/`.
 
 | Row | What it gave | Source |
@@ -68,8 +68,8 @@ fgsea needs Rscript from `RSCRIPT` or `PATH`. On this HPC:
 
 ```bash
 export RSCRIPT=/share/software/statistical/R/R-4.5.2/gcc-8.5.0/R-4.5.2/bin/Rscript
-export LD_LIBRARY_PATH=/home/mdmanurung/.local/lib/conda-gcc-runtime
-export R_LIBS_USER=/exports/para-lipg-hpc/mdmanurung/R/4.5   # fgsea 1.36.2
+export LD_LIBRARY_PATH=${LUCID_GCC_RUNTIME}
+export R_LIBS_USER=${LUCID_R_LIBS_USER}   # fgsea 1.36.2
 ```
 
 From `skills/enrichment` (fgsea tests skip without Rscript):

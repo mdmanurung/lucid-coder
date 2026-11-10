@@ -7,7 +7,7 @@ Every measure is reported on its own; nothing is averaged into one score.
 ## Arms
 
 All arms run `claude --safe-mode --no-session-persistence` with the same model, budget and tools, from a fresh git repo.
-The tools are `Read`, `Write`, `Edit` and `Bash` limited to `Rscript`, `uv`, `ls`, `mkdir`, `cat`, `head`, `air` and `ruff`.
+The tools are `Read`, `Write`, `Edit` and `Bash` limited to `Rscript`, `uv`, `ls`, `mkdir`, `cat`, `head`, `air`, `ruff`, `papermill`, `jupyter`, `python` and `python3` (`ALLOWED_TOOLS` in run.sh).
 The rules ask for `air format` or `ruff format` after every edit, so run.sh copies `templates/air.toml` and `templates/ruff.toml` into every repo before the run.
 
 | arm | what the model gets |
@@ -31,7 +31,7 @@ An earlier version used `--bare` with an API key; it was dropped because `--bare
 
 ## Tasks
 
-`eval/tasks/0N_*` are the R tasks. `01py_pseudobulk-de`, `02py_metadata-join` and `03py_figure-palette` are Python twins of 01 to 03: the same inputs, truth and `check.R`, and a prompt that asks for one Python script run through `uv run --python 3.12 --with pandas,scipy,matplotlib,plotnine python`. Tasks 08, 10, 13, 15 and 15b use `--with-requirements requirements.txt`, which points at the pinned lock `eval/envs/python-tasks.txt` (decoupler 2.3.1, pydeseq2 0.5.4, liana 1.10.0, `pertpy[jax,de]` 1.4.0).
+`eval/tasks/0N_*` are the R tasks. `01py_pseudobulk-de`, `02py_metadata-join` and `03py_figure-palette` are Python twins of 01 to 03: the same inputs, truth and `check.R`, and a prompt that asks for one Python script run through `uv run --python 3.12 --with pandas,scipy,matplotlib,plotnine python`. `score.js` reruns these scripts with the same four packages pinned to the lock (`--with pandas==2.3.3 --with scipy==1.18.1 --with matplotlib==3.11.2 --with plotnine==0.15.8`); their dependencies stay unpinned. The task prompts still name the unpinned command, so the agent's own run is not pinned. Tasks 08, 10, 13, 15 and 15b use `--with-requirements requirements.txt`, which points at the pinned lock `eval/envs/python-tasks.txt` (decoupler 2.3.1, pydeseq2 0.5.4, liana 1.10.0, `pertpy[jax,de]` 1.4.0).
 Run them with `--tasks 01py,02py,03py`. The agent gets `Bash(uv:*)` for this; each task's `reference/` holds a house-style answer and `reference/naive/` a wrong one.
 
 ## Check the commands first
@@ -59,6 +59,7 @@ eval/run.sh --tasks 01,02,03,04 --arms A,B,C,D --reps 2
 Runs go one at a time into `eval/results/<timestamp>/<task>_<arm>_r<rep>/`.
 Each holds `repo/` (the agent's working copy), `arm-prompt.md`, `claude.json`, `claude.stderr` and `meta.json`.
 `MODEL` (default `claude-opus-5-5`) and `BUDGET` (default 2 USD per run) override the defaults and land in meta.json.
+`model` in meta.json is the exact string passed to `--model`. meta.json also records `claude --version`, the lucid-coder git SHA and a dirty flag, the sha256 of the arm prompt text (of the empty string for arm A), the R prefix used, and the scored script with its sha256. The script hash sits in meta.json, not results.tsv, so the results.tsv columns stay as they are.
 
 **Cost cap:** 32 runs × $2 = $64 for the pilot, plus the judges below.
 
@@ -70,7 +71,7 @@ node eval/score.js eval/results/<timestamp>
 
 This appends one row per run to `eval/results/results.tsv` and skips runs already there.
 The script is the first `scripts/*.R` or `scripts/*.py` (never `00_legacy.*`); the language follows from the task id, so there is no language column.
-It reruns each script on a clean copy of the repo and calls the task's `check.R` for the gate: `Rscript` with a 120 s limit for `.R`, `uv run --python 3.12 --with pandas,scipy,matplotlib,plotnine python` (or `--with-requirements requirements.txt` when the task has one) with a 600 s limit for `.py` (uv may fetch packages on its first call).
+It reruns each script on a clean copy of the repo and calls the task's `check.R` for the gate: `Rscript` with a 120 s limit for `.R`, `uv run --python 3.12 --with pandas==2.3.3 --with scipy==1.18.1 --with matplotlib==3.11.2 --with plotnine==0.15.8 python` (or `--with-requirements requirements.txt` when the task has one) with a 600 s limit for `.py` (uv may fetch packages on its first call).
 For `.R` it then copies `templates/air.toml` and `templates/.lintr` into the repo and runs `air format --check` and lintr.
 For `.py` it copies `templates/ruff.toml` and runs `ruff format --check` (column `air_ok`, reported as "format check pass"), `ruff check` (`lint_count`) and `ruff check --select ERA001` (`commented_code_lines`).
 `header_complete` needs Purpose, Inputs, Outputs and Run in the first 20 lines; Notes is optional, as in `rules/core.md`.
@@ -125,7 +126,7 @@ node --test eval/tests/*.test.js
 
 `tasks/01sk_pseudobulk-de/` asks for the task 01 analysis packaged as a ClawBio skill. The agent writes `skills/pseudobulk-de/SKILL.md`, with frontmatter and the 11 required sections, an R script for data prep and model fitting, and `report.ipynb` (R kernel `ir`) for figures and the report. The script runs as `Rscript skills/pseudobulk-de/pseudobulk_de.R --input data --output <dir>` and writes `de.tsv`, `result.json` and `reproducibility/commands.sh`. Papermill runs the notebook with `-p out_dir <dir>`, and `jupyter nbconvert --to markdown --no-input` turns it into `report.md`. The gate checks the science, these files, and a `parameters` cell in the notebook. Run it with `BUDGET=5`: at $2, two of four arms ran out before rendering the notebook. `score.js` reruns only the script.
 
-All R runs use the R4_51 conda env (R 4.5.1 with tidyverse, limma, edgeR, IRkernel, papermill and pandoc); set `R_ROOT` to override. That env ships an old Claude Code, so `run.sh` resolves `claude` before it changes PATH.
+All R runs use the R4_51 conda env (R 4.5.1 with tidyverse, limma, edgeR, IRkernel, papermill and pandoc); set `R_ROOT` (or `LUCID_R_ENV`) to that env's prefix. Without either, run.sh and score.js use the prefix of the `Rscript` on PATH, which may be a different R. That env ships an old Claude Code, so `run.sh` resolves `claude` before it changes PATH.
 
 ## Side-by-side review
 

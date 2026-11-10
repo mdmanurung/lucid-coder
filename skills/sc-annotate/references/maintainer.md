@@ -5,7 +5,7 @@ Moved from SKILL.md so the agent reads only what it needs to run the script.
 ## Corpus sources
 
 Paths relative to
-`/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`
+`$LUCID_CORPUS` (your local copy of the cc_learnings corpus)
 (row IDs from `docs/clawbio-determinism/CATALOGUE.md` and `parts/*.md`):
 
 - B-an-03, C-an-07, D-an-01: CellTypist after `normalize_total(target_sum=1e4)`

@@ -23,8 +23,15 @@ const COLUMNS = ['run_id', 'task', 'arm', 'rep', 'exit_code', 'cost_usd', 'durat
   'functions_under3'];
 const EVAL_DIR = __dirname;
 const TEMPLATES = path.join(EVAL_DIR, '..', 'templates');
-// R4_51 conda env (R 4.5.1): tidyverse, limma, edgeR, IRkernel, papermill, pandoc. Override with R_ROOT.
-const R_ROOT = process.env.R_ROOT || '/exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51';
+// R env prefix (the R4_51 conda env: R 4.5.1, tidyverse, limma, edgeR, IRkernel, papermill,
+// pandoc). Set R_ROOT or LUCID_R_ENV; without either, the prefix of the Rscript on PATH is used.
+const rscriptPrefix = () => {
+  const r = spawnSync('sh', ['-c', 'command -v Rscript'], { encoding: 'utf8' });
+  return r.status === 0 ? path.dirname(path.dirname(r.stdout.trim())) : '';
+};
+const R_ROOT = process.env.R_ROOT || process.env.LUCID_R_ENV || rscriptPrefix();
+// Versions of the packages in --with, from the lock eval/envs/python-tasks.txt.
+const PY_PINS = ['pandas==2.3.3', 'scipy==1.18.1', 'matplotlib==3.11.2', 'plotnine==0.15.8'];
 const RERUN_MS = 120000;
 const PY_RERUN_MS = 600000;
 const GATE_MS = 600000;
@@ -80,7 +87,7 @@ const isPython = script => /\.py$/i.test(script);
 // more than pandas, scipy, matplotlib and plotnine lists its packages in its own requirements.txt.
 function pyArgs(taskDir) {
   const req = path.join(taskDir || '', 'requirements.txt');
-  const deps = taskDir && fs.existsSync(req) ? ['--with-requirements', req] : ['--with', 'pandas,scipy,matplotlib,plotnine'];
+  const deps = taskDir && fs.existsSync(req) ? ['--with-requirements', req] : PY_PINS.flatMap(p => ['--with', p]);
   return ['run', '--python', '3.12', ...deps, 'python'];
 }
 

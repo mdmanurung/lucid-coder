@@ -16,8 +16,12 @@ TASKS_DIR="${EVAL_TASKS_DIR:-$EVAL_DIR/tasks}"
 RESULTS_DIR="${EVAL_RESULTS_DIR:-$EVAL_DIR/results}"
 MODEL="${MODEL:-claude-opus-5-5}"
 BUDGET="${BUDGET:-2}"
-# R4_51 conda env (R 4.5.1): tidyverse, limma, edgeR, IRkernel, papermill, pandoc. Override with R_ROOT.
-R_ROOT="${R_ROOT:-/exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51}"
+# R env prefix (the R4_51 conda env: R 4.5.1, tidyverse, limma, edgeR, IRkernel, papermill,
+# pandoc). Set R_ROOT or LUCID_R_ENV; without either, the prefix of the Rscript on PATH is used.
+R_ROOT="${R_ROOT:-${LUCID_R_ENV:-}}"
+if [[ -z "$R_ROOT" ]] && command -v Rscript >/dev/null; then
+  R_ROOT="$(cd "$(dirname "$(command -v Rscript)")/.." && pwd)"
+fi
 ALLOWED_TOOLS=(Read Write Edit "Bash(Rscript:*)" "Bash(uv:*)" "Bash(ls:*)" "Bash(mkdir:*)" "Bash(cat:*)" "Bash(head:*)"
   "Bash(air:*)" "Bash(ruff:*)" "Bash(papermill:*)" "Bash(jupyter:*)"
   "Bash(python:*)" "Bash(python3:*)")
@@ -45,9 +49,16 @@ write_meta() {
   node -e '
     const a = process.argv;
     const meta = { task: a[2], arm: a[3], rep: Number(a[4]), model: a[5], budget: Number(a[6]),
-      start: a[7], end: a[8], exit_code: Number(a[9]), task_dir: a[10], arm_channel: a[11] };
+      start: a[7], end: a[8], exit_code: Number(a[9]), task_dir: a[10], arm_channel: a[11],
+      arm_prompt_sha256: a[12], claude_version: a[13], repo_sha: a[14], repo_dirty: a[15] === "1",
+      r_root: a[16], script: a[17] || null, script_sha256: a[18] || null };
     require("fs").writeFileSync(a[1], JSON.stringify(meta, null, 2) + "\n");
   ' "$@"
+}
+
+# The scored script, found the same way score.js finds it, and its sha256.
+scored_script() {
+  node -e 'console.log(require(process.argv[1]).findScript(process.argv[2]) || "")' "$EVAL_DIR/score.js" "$1"
 }
 
 tasks=""
@@ -93,6 +104,11 @@ if ((!dry_run)); then
   else
     mkdir "$out" 2>/dev/null || die "$out already exists; wait a second and rerun"
   fi
+  # Run from $out: the test stub for claude writes ../args.txt relative to its cwd.
+  CLAUDE_VERSION="$(cd "$out" && "$CLAUDE_BIN" --version 2>/dev/null | head -n 1)" || CLAUDE_VERSION=unknown
+  REPO_SHA="$(git -C "$EVAL_DIR/.." rev-parse HEAD 2>/dev/null)" || REPO_SHA=unknown
+  REPO_DIRTY=0
+  [[ -z "$(git -C "$EVAL_DIR/.." status --porcelain 2>/dev/null)" ]] || REPO_DIRTY=1
 fi
 
 for task_id in "${task_ids[@]}"; do
@@ -144,8 +160,11 @@ for task_id in "${task_ids[@]}"; do
         cp "$EVAL_DIR/../templates/theme.py" "$run_dir/repo/scripts/"
       fi
       git -C "$run_dir/repo" init -q
+      # Arm A appends nothing, so its prompt hash is the hash of the empty string.
+      arm_sha="$(printf '' | sha256sum | cut -d' ' -f1)"
       if [[ "$arm" != "A" ]]; then
         node "$EVAL_DIR/arm-prompt.js" "$arm" "$lang" >"$arm_file"
+        arm_sha="$(sha256sum "$arm_file" | cut -d' ' -f1)"
       fi
 
       echo "run.sh: $task arm $arm rep $rep" >&2
@@ -160,8 +179,12 @@ for task_id in "${task_ids[@]}"; do
           "$CLAUDE_BIN" --safe-mode --no-session-persistence -p "$(<"$prompt_file")" "${claude_tail[@]}" \
           </dev/null >"$run_dir/claude.json" 2>"$run_dir/claude.stderr"
       ) || rc=$?
+      script="$(scored_script "$run_dir/repo")"
+      script_sha=""
+      [[ -z "$script" ]] || script_sha="$(sha256sum "$run_dir/repo/$script" | cut -d' ' -f1)"
       write_meta "$run_dir/meta.json" "$task" "$arm" "$rep" "$MODEL" "$BUDGET" \
-        "$start" "$(date -u +%FT%TZ)" "$rc" "$task_dir" "$channel"
+        "$start" "$(date -u +%FT%TZ)" "$rc" "$task_dir" "$channel" \
+        "$arm_sha" "$CLAUDE_VERSION" "$REPO_SHA" "$REPO_DIRTY" "$R_ROOT" "$script" "$script_sha"
       # An account-level API error (credits, auth) fails every later run too; stop here.
       api_error="$(node -e 'try { const j = require(process.argv[1]); if (j.terminal_reason === "api_error") console.log(j.result) } catch (e) {}' "$run_dir/claude.json")"
       [[ -z "$api_error" ]] || die "API error in $task arm $arm rep $rep: $api_error; stopping"

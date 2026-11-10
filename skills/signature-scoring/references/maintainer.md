@@ -8,7 +8,7 @@ Reference skills checked against (`docs/pipeline-skills.md`): `decoupler` and
 `S/decoupler-enrichment` (`dc.mt.aucell`, its `score_aucell` obsm key).
 
 Paths relative to
-`/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
+`$LUCID_CORPUS` (your local copy of the cc_learnings corpus);
 row IDs from `docs/clawbio-determinism/parts/*.md`.
 
 | ID | What | Source |

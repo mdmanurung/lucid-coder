@@ -8,7 +8,7 @@ Reference skills checked against (`docs/pipeline-skills.md`): `scanpy-plotting`
 and `S/single-cell-best-practices` (`references/differential_analysis.md`).
 
 Paths relative to
-`/exports/para-lipg-hpc/mdmanurung/mycelium-extra/plans/_DONE/lucidcoder/docs/cc_learnings`;
+`$LUCID_CORPUS` (your local copy of the cc_learnings corpus);
 row IDs from `docs/clawbio-determinism/parts/*.md`.
 
 | ID | What | Source |
