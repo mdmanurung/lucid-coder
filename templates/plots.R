@@ -61,34 +61,22 @@ n_labels <- function(groups) {
   \(g) sprintf("%s\n(n = %d)", g, as.integer(n[g]))
 }
 
-# fig.embedding: two short arrows at the bottom-left, "UMAP 1" and "UMAP 2".
-corner_arrows <- function(x, y, axis_name) {
-  x0 <- min(x)
-  y0 <- min(y)
-  dx <- 0.2 * (max(x) - x0)
-  dy <- 0.2 * (max(y) - y0)
-  head <- arrow(length = unit(1.3, "mm"), type = "closed")
-  list(
-    annotate("segment", x = x0, y = y0, xend = x0 + dx, yend = y0, arrow = head),
-    annotate("segment", x = x0, y = y0, xend = x0, yend = y0 + dy, arrow = head),
-    annotate(
-      "text",
-      x = x0 + dx / 2,
-      y = y0 - dy / 4,
-      label = paste(axis_name, 1),
-      size = FONT_PT[["small"]],
-      size.unit = "pt"
-    ),
-    annotate(
-      "text",
-      x = x0 - dx / 4,
-      y = y0 + dy / 2,
-      label = paste(axis_name, 2),
-      angle = 90,
-      size = FONT_PT[["small"]],
-      size.unit = "pt"
+# fig.embedding: two arrows at the bottom-left, "UMAP 1" and "UMAP 2". Fixed length in mm, so
+# arrows match across panels and figures; drawn in panel units, so the data range is not needed.
+corner_arrows <- function(axis_name) {
+  pad <- grid::unit(ARROW_PAD_MM, "mm")
+  len <- grid::unit(ARROW_MM, "mm")
+  head <- grid::arrow(length = grid::unit(1.3, "mm"), type = "closed")
+  label_gp <- grid::gpar(fontsize = FONT_PT[["small"]])
+  arrows <- grid::gTree(
+    children = grid::gList(
+      grid::segmentsGrob(pad, pad, pad + len, pad, arrow = head),
+      grid::segmentsGrob(pad, pad, pad, pad + len, arrow = head),
+      grid::textGrob(paste(axis_name, 1), x = pad + len / 2, y = pad / 2, gp = label_gp),
+      grid::textGrob(paste(axis_name, 2), x = pad / 2, y = pad + len / 2, rot = 90, gp = label_gp)
     )
   )
+  annotation_custom(arrows, xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf)
 }
 
 # Points, scattermore when installed, for dense point clouds.
@@ -219,7 +207,7 @@ plot_embedding <- function(data, x, y, colour, pal, axis_name, title = NULL) {
     embedding_points() +
     scale_colour_manual(values = pal) +
     coord_equal() +
-    corner_arrows(data[[x]], data[[y]], axis_name) +
+    corner_arrows(axis_name) +
     labs(colour = colour, title = title) +
     no_axes()
 }
@@ -232,7 +220,7 @@ plot_feature <- function(data, x, y, value, axis_name, value_label, title = NULL
     geom_point(size = 0.3) +
     scale_colour_viridis_c() +
     coord_equal() +
-    corner_arrows(data[[x]], data[[y]], axis_name) +
+    corner_arrows(axis_name) +
     labs(colour = value_label, title = title) +
     no_axes()
 }

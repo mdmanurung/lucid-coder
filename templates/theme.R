@@ -9,6 +9,10 @@ FONT_PT <- c(main = 8, small = 6, tiny = 5, large = 10)
 # Page widths in mm for compose_figure() and save_panel(): one journal column or
 # the full double-column page (user-approved 2026-11-10).
 PAGE_MM <- c(single = 89, double = 183)
+# Embedding corner arrows (exactplot's xp_umap_axis default): 10 mm long, so every UMAP
+# in a figure carries the same arrow; the pad leaves room for the axis labels.
+ARROW_MM <- 10
+ARROW_PAD_MM <- 4
 
 # theme_pubr at the main size: the lab default (user pick 2026-10-28); panel
 # letters bold at the large size.
