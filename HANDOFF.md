@@ -1,51 +1,44 @@
-# Handoff — lucid-coder readability eval, tasks 07-16
+# Handoff — lucid-coder eval: variants run scored, readability review next
 
-**Updated:** 2026-11-08 · **Branch:** main · **Status:** 07-16 verdict D 12/13; phase 1 verdict D 5/6. Python `main()` guard added to rules/python.md (#7 closed).
+**Written:** 2026-11-09 13:29 CET · **Branch:** main @ 45f3465 · **Status:** 07c, 08b, 09b built and run (A and D, 3 reps); all 18 gates pass; arms not separated by gates.
 
 ## Check first
-Run `git log --oneline 80eb63b..HEAD` and `git status --short`. If either shows work this file does not mention, say so before anything else: State, Next action and Read first may be out of date, so re-check each against the code before acting on it.
+Run `git log --oneline 45f3465..HEAD` and `git status --short`. If either shows work this file does not mention, say so before anything else: State, Next action and Read first may be out of date, so re-check each against the code before acting on it.
 
 ## Goal
-Show whether persona + house (arm D) makes analysis code more readable to a human than baseline Opus (arm A). The user ranks human readability above correctness. Done means the user's blind picks plus the LLM-judge scores for tasks 07-16, unblinded and summarised.
+Show whether persona + house (arm D) makes analysis code more readable to a human than baseline Opus (arm A). The user ranks human readability above correctness. Done means the user's blind picks on the newest tasks, unblinded and summarised.
 
 ## Next action
-2026-11-08: docs synced to the built state (11f8cdc); review pages take `--seed` and balance sides per task (242d776); task 12 gates `qc_summary.tsv`, task 13 gates that `combined.h5ad` exists. Built and gated 07c, 08b, 09b (44df612, 9172f5f); thresholds approved by the user 2026-11-08/09. Run `gated-variants-20261109` (A and D, 3 reps) started 2026-11-09; score it with `node eval/score.js eval/results/gated-variants-20261109`. Soft spots: 08b's band lets four wrong vectors through under the paired fit (only NFkB padj rejects them); 09b passes edgeR with default TMM, and its naive crumblr fails on Stem alone (q 0.032). #3 and #4 still wait on people.
-2026-11-03: closed #5, #19-#22, #24, #26. #3 waits on a colleague: packet at eval/results/second-reader.zip (gitignored), first-reader picks in each run's review/first-reader.json or picks.tsv, compare with eval/compare-readers.js. #4 waits on more learned rules from real use. mycelium-extra#5 filed (gate ignores repo-external scripts).
-#27 (2026-11-02): pixi `dev` env installed (7.6 GB); `pixi run -e dev test` runs node tests then every skill suite. In dev, 20 of 22 suites pass after: with_status concat fix (cec1c1a), demos regenerated under pandas 2.3.3 and stub-Rscript tests for longitudinal/mashr (a35cc21). velocity fixed too (seeded eigsh v0 for pseudotime; pygpcca warnings import), so all 22 suites pass in dev; #27 closed. Suites take 7-56 min each on this file system; run them in parallel per skill.
-#23 done 2026-11-02: label args in all 15 pipeline plot calls, Python stat_pwc label_size=7, 21 plots.py copies resynced. Skill pytest suites in the pixi default env fail identically before and after (anndata nullable-string writes, a pandas FutureWarning, velocity deps missing); worth its own issue.
-New gated tasks 07b (NAs; wide drop) and 15b (A vs B test; samples are replicates) built 2026-11-02, gates proven in gates.test.js / python.test.js. Run `gated-07b15b-20261102` (A, D x2): 07b all 4 pass (both arms drop NAs per TF). 15b: A 1/2, D 0/2 pass; D ran a cell-level Welch, reasoning that sample is crossed with group and not stated to be a donor. The 15b prompt now names `sample` as the donor; rerun `gated-15b-donor-20261102`: A 2/2, D 2/2 pass (paired test on sample means). So the earlier fails were prompt ambiguity, and 15b is at ceiling once the donor is named.
-Py rerun (2026-11-02, `py-main-20261102`, arm D only, 01py-03py x2): the new `main()` guard was taken up 6/6, gates 6/6, step comments in all; one header (02py r2) dropped the `Purpose:` label.
-Phase 1 #2 done (2026-11-02): user picked D in 5/6 panels (01, 05, 06, 02py, 03py); A won 01py. Gates 48/48; header A 0/12, D 12/12; checks A 54, D 20; cost A $7.13, D $8.15. Judges at ceiling (Sonnet q2 A 4.67, D 4.92). Python gap from the reasons: the user wants `if __name__ == "__main__":` by default (only A used it), plus D's header and comments. That contradicts `rules/python.md` "flat top-level code"; #7 stays open for it. `review/key-with-picks.tsv`.
-
-Done 2026-11-01: user picked D in 12/13 panels (all 9 whole-script panels and 3 of 4 task-14 sections; A only on 14_fit, "X is verbose but tolerable; W needs comments if extracting >2 results"). `review/picks-unblinded.tsv`. LLM judges at ceiling (q2 A 4.00/4.05 vs D 4.05/4.45). Next: decide on committing results and the open items.
+Build the blind A vs D page for the variants run (the user has not said yet): `node eval/side-by-side.js eval/results/gated-variants-20261109 eval/results/gated-variants-20261109/review --arms A,D --rep 1`. Ask the user before sending it anywhere.
 
 ## State
-- Uncommitted: `eval/results/results.tsv` (+40 rows for gated-0716); `.claude/` untracked.
-- Tests: 69/69 pass (`node --test tests/*.test.js`; npm is not on PATH, node is in `~/.local/bin`).
-- Results: gates A 19/20 and D 19/20. Both fails are task 12 (low-depth SRR28679757 kept 0/360 cells). Table only, no figure: `results.tsv` rows `gated-0716-20261101/*`.
-- Results: D has the full header 20/20 vs A 0/20, and 28 checks vs A's 65. Cost A $4.17, D $5.09.
-- Reviewer read of the code: D reports drops, refuses run-dir overwrite and stops on an unmapped ID. A drops NAs silently (07, 08) and uses cells as replicates in 15 (the gate passed it anyway).
-- Review page: https://claude.ai/artifact/QGgGghQP3DQMXPB6v7E1q1 (republished 2026-11-01 under m.d.manurung@lumc.nl) (db capability, `picks` collection empty), 13 panels, rep 1, A vs D. The key is in `review/side-by-side-key.tsv`; do not read it before the user finishes.
+- Uncommitted: `eval/results/results.tsv` (+18 rows, `gated-variants-20261109/*`); `.claude/` untracked. Committing results.tsv is the user's call.
+- Tests run this session and passing: `eval/tests/side-by-side.test.js`, `compare-readers.test.js`, the gates for 07c, 09b, 12, 13 (`gates.test.js`) and 08b (`python.test.js`). The full suite was not rerun.
+- Results: 07c A 3/3, D 3/3 (median log10 p shift 0.16, max 0.26, tolerance 0.75). 08b A 3/3, D 3/3 (all six used the donor-paired design: JAK-STAT 14.89). 09b A 3/3, D 3/3 (all six used the Goblet reference). `table fallback: gate pass/fail counts are binary per run`; rows in `results.tsv`.
+- Assumed, not run: that the 07c prompt hides the donor from a model beyond what these six runs show; the 08b and 09b gate soft spots below were not stress-tested with other methods.
 
 ## Locked decisions
-- Next priority was the 07-16 gated run, preceded by language-neutral house.md (80eb63b). Three-reviewer team discussion (user, 2026-11-01).
 - Human readability matters more than correctness for this plugin (user, 2026-11-01).
 - Keep both tiers, persona core + house rules (5-1 blind, 2026-10-28).
 - Rule caps: core.md 3327/3350, house.md 1153/1200, r.md 1482/1500; a new rule needs a cut.
+- Variant gates (user, 2026-11-08/09): 07c keeps `LOG10_P_TOL <- 0.75` and renames `donor_id` to `pid`; 08b ships the same 2,345 genes as 08 and passes JAK-STAT in 14.3-17.3 plus NFkB positive with padj < 0.05; 09b is 4 vs 4 mice, 6 types, Enterocyte x10, dispersion 0.1, padj 0.05, seed 1; run scope A and D, 3 reps.
+- Decisions 2026-11-03: one `verify_<claim>.R` per claim spanning two outputs; R joins state `unmatched = "error"` when every row must match; paths use `here("data/x.tsv")` (see `ROADMAP.md`).
 
 ## Dead ends — do not redo
-- Gate-only comparison on 07-16 hits the ceiling: baseline Opus passes the traps, so it cannot separate the arms.
-- B/#4 "fold learned rules": first learned rule r-0001 (comments.steps, global) saved 2026-11-01 from the 14_fit pick; one rule is not enough to fold yet.
-- Pruning `.claude/worktrees/`: all 12 have uncommitted files (1-35 each); check them before removing any.
+- Gate-only comparison on 07-16 and now 07c/08b/09b hits the ceiling: baseline Opus passes every trap, so gates cannot separate the arms.
+- Fold learned rules (#4): one learned rule (r-0001, comments.steps) is not enough yet.
+- Pruning `.claude/worktrees/`: all 12 have uncommitted files; check them before removing any.
+- 07c with the donor hidden in the sample id: impossible, the real ids (`B024-AP0C2W3`) carry no donor.
 
 ## Read first
-- `eval/README.md` — score.js, judge.sh, side-by-side.js, report.js usage
-- `eval/rubric.md` — readability items the judges score
-- `ROADMAP.md` — phases; ceiling result argues for harder or less-hinting prompts
+- `eval/TASK-CATALOG.md` — built table rows 13-15 list each variant's soft spots
+- `eval/README.md` — score.js, judge.sh, side-by-side.js (`--seed`, per-task balance), report.js
+- `ROADMAP.md` — phases; phases 1-3 mostly done
+- `eval/tasks/08b_pathway-from-counts/check.R` — the band and the audit of wrong vectors
 
 ## Open items
-- Review page shows "page not found": this session publishes under the `m.d.manurung@lumc.nl` account, and the earlier review pages lived on another account. Fix by switching the browser account, sharing from that account, or opening the HTML file locally (picks go to localStorage). Wait for the user's choice.
-- Unblind after the user's picks: join `picks` to `side-by-side-key.tsv`; report picks per arm with reasons.
-- Commit `results.tsv`? This is the user's call.
-- #7 Python house rules and #8 import time stay open; #2 (tasks 01, 05, 06 and the Python twins) is not run.
-- Gates for 07-16 could test what D did differently (cells as replicates in 15, silent drops) — once the readability verdict is in.
+- #3 second reader: packet at `eval/results/second-reader.zip` (gitignored), compare with `eval/compare-readers.js` — returns when a colleague has answered; lean (not a decision): none.
+- #4 fold learned rules — returns after more `/lucid-coder:learn` rules from real use; lean (not a decision): wait.
+- 08b band lets four wrong vectors through under the paired fit (|stat| 15.07, -log10 p 15.92, signed -log10 p 16.58, signed -log10 padj 16.59); only the NFkB clause rejects them — returns if a wrong answer ever passes both; lean (not a decision): keep the band.
+- 09b passes edgeR with default TMM and its naive crumblr fails on Stem alone (q 0.032 vs 0.05) — returns if a crumblr version flips the verdict; lean (not a decision): keep as is.
+- Next real work: readability review of the newest tasks, or the catalog's next tier (multiple-testing family, group-aware CV) — returns on the user's choice; lean (not a decision): readability page first.
