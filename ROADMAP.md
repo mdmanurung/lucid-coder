@@ -1,6 +1,6 @@
 # Roadmap
 
-Status on 2026-11-08 (v0.5.0): **the plugin is in real use; phases 1 to 3 are mostly done.** Open: #3 (second reader) and #4 (learned rules) wait on people. Tracking lives in GitHub issues under the roadmap issue; this file is the plan they come from.
+Status on 2026-11-10 (v0.5.0): **the plugin is in real use; phases 1 to 3 are mostly done.** Open: #3 (second reader) and #4 (learned rules) wait on people. Tracking lives in GitHub issues under the roadmap issue; this file is the plan they come from.
 
 ## Where things stand (v0.5.0)
 
@@ -34,6 +34,16 @@ Phase 2, harness fixes. Done:
 Phase 3, new eval tasks. Done: all ten catalog tasks are built as 07 to 16, plus 07b and 15b (`eval/TASK-CATALOG.md`). Arms A and D passed the gates of 07 to 16 almost everywhere, so the gates sit at the ceiling. Next: harder variants with fewer hints, then the catalog's next tier.
 
 Phase 4, skill evidence from the kai notebook corpus (#19): mine how 2,845 scverse tutorials call each pipeline skill's method, then propose gotchas and grill-question values for the user to approve (#20).
+
+## Decisions recorded 2026-11-10
+
+From the Fable review of the package and the exactplot comparison:
+- Hardening landed: CI with `claude plugin validate --strict` and a skip-count gate; consistency tests for version and doc drift; time-boxed SessionStart scans; `trust` needs `--sha256`; machine paths replaced by env vars; `meta.json` records the Claude Code version, repo SHA, arm-prompt hash and scored-script hash; MIT `LICENSE`.
+- Figure helpers: font hierarchy 8/6/5/10 pt (in-plot labels drop from about 7 to 6 pt), page widths 89 and 183 mm, `compose_figure()`, `get_legend()`, fixed 10 mm embedding arrows in R. Python keeps arrows scaled to the data range. LaTeX layout is out: it clashes with `cairo_pdf`.
+- The work email stays in old `HANDOFF.md` history; no rewrite.
+- CI skip baseline is 0 until the first CI run sets it.
+- `claude plugin eval` port dropped (2026-11-10). The eval sandbox needs `socat`, and its Bash tool cannot write to the run's working directory (`mkdir: Read-only file system`), so cases that run `Rscript` and write `results/run1/` cannot pass. Five ported cases (05, 06, 07, 11, 14) scored 0.09 to 0.86, all from that limit. The graders matched correct output when the script ran outside the sandbox. Plugin eval could still check behaviour (a skill fired, a tool ran); the repo's own harness keeps the output gates.
+- Not done: BixBench-style harder tasks; `nbstripout` (conflicts with notebooks as the report).
 
 ## Decisions recorded 2026-11-03
 

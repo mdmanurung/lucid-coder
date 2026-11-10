@@ -1,9 +1,9 @@
 # Handoff — lucid-coder eval: variants run scored, readability review next
 
-**Written:** 2026-11-09 13:29 CET · **Branch:** main @ 45f3465 · **Status:** 07c, 08b, 09b built and run (A and D, 3 reps); all 18 gates pass; arms not separated by gates.
+**Updated:** 2026-11-10 · **Branch:** main @ 0f01046 · **Status:** 07c, 08b, 09b built and run (A and D, 3 reps); all 18 gates pass; arms not separated by gates.
 
 ## Check first
-Run `git log --oneline 45f3465..HEAD` and `git status --short`. If either shows work this file does not mention, say so before anything else: State, Next action and Read first may be out of date, so re-check each against the code before acting on it.
+Run `git log --oneline 0f01046..HEAD` and `git status --short`. If either shows work this file does not mention, say so before anything else: State, Next action and Read first may be out of date, so re-check each against the code before acting on it.
 
 ## Goal
 Show whether persona + house (arm D) makes analysis code more readable to a human than baseline Opus (arm A). The user ranks human readability above correctness. Done means the user's blind picks on the newest tasks, unblinded and summarised.
@@ -16,6 +16,8 @@ Build the blind A vs D page for the variants run (the user has not said yet): `n
 - Tests run this session and passing: `eval/tests/side-by-side.test.js`, `compare-readers.test.js`, the gates for 07c, 09b, 12, 13 (`gates.test.js`) and 08b (`python.test.js`). The full suite was not rerun.
 - Results: 07c A 3/3, D 3/3 (median log10 p shift 0.16, max 0.26, tolerance 0.75). 08b A 3/3, D 3/3 (all six used the donor-paired design: JAK-STAT 14.89). 09b A 3/3, D 3/3 (all six used the Goblet reference). `table fallback: gate pass/fail counts are binary per run`; rows in `results.tsv`.
 - Assumed, not run: that the 07c prompt hides the donor from a model beyond what these six runs show; the 08b and 09b gate soft spots below were not stress-tested with other methods.
+
+- 2026-11-10: hardening and figure helpers pushed (CI, hash-pinned `trust`, `FONT_PT`, `compose_figure()`, fixed R arrows). Before running eval scripts, export `R_ROOT` (the R4_51 prefix). Set `tests/skip-baseline.txt` from the first CI run. `claude plugin eval` port dropped: its sandbox cannot write to the workspace (see ROADMAP.md, 2026-11-10). `socat` sits in `~/.pixi/bin`; remove with `pixi global remove socat` if unwanted.
 
 ## Locked decisions
 - Human readability matters more than correctness for this plugin (user, 2026-11-01).
