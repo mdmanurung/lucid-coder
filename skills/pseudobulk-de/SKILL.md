@@ -279,10 +279,10 @@ is the default method. The script enforces this through the design:
 
 dreamlet fits a precision-weighted linear mixed model per gene (voom weights,
 `variancePartition::dream`); see Hoffman et al. (2023) and the vignette
-<https://diseaseneurogenomics.github.io/dreamlet/articles/dreamlet.html>. The
-local `dreamlet` skill (`~/.claude/skills/dreamlet/SKILL.md`,
-`references/api-reference.md`, `references/core-workflow.md`) documents the
-same calls and the `~ condition + (1|donor_id)` form.
+<https://diseaseneurogenomics.github.io/dreamlet/articles/dreamlet.html>. A
+user-level `dreamlet` skill, if installed (`~/.claude/skills/dreamlet/SKILL.md`),
+documents the same calls and the `~ condition + (1|donor_id)` form; this
+plugin does not ship it.
 
 How `scripts/dreamlet.R` runs it:
 

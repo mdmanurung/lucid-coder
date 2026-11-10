@@ -2,15 +2,15 @@
 
 Status on 2026-11-08 (v0.5.0): **the plugin is in real use; phases 1 to 3 are mostly done.** Open: #3 (second reader) and #4 (learned rules) wait on people. Tracking lives in GitHub issues under the roadmap issue; this file is the plan they come from.
 
-## Where things stand (v0.4.0)
+## Where things stand (v0.5.0)
 
-- **Rules.** `rules/core.md` is a persona: a senior computational biologist, five facts about where analysis code fails, eight habits with their why. `rules/house.md` restates the user-decided conventions as flat rules plus a do-not-add list. `rules/r.md` and `rules/python.md` hold language syntax. The session hook injects all of them (about 6 KB of the 9.5 KB cap).
+- **Rules.** `rules/core.md` is a persona: a senior computational biologist, five facts about where analysis code fails, eight habits with their why. `rules/house.md` restates the user-decided conventions as flat rules plus a do-not-add list. `rules/r.md` and `rules/python.md` hold language syntax. The session hook injects all of them (about 7.4 KB of the 9.5 KB cap).
 - **Evidence.** Blind side-by-side reviews by one reader (the user):
   - lucid-coder vs baseline Opus, tasks 02-04: 8-3, 2 ties;
   - rule-list core vs persona core: 5-4, 2 ties;
   - persona + house vs persona alone: 5-1.
   - Persona + house cut script length by a quarter to a third against the persona alone.
-- **Eval harness.** 10 tasks with planted traps and gates (`eval/tasks/`), the R4_51 conda R, notebook rendering via papermill, and blinded review pages built by `eval/side-by-side.js`.
+- **Eval harness.** 25 tasks with planted traps and gates (`eval/tasks/`), the R4_51 conda R, notebook rendering via papermill, and blinded review pages built by `eval/side-by-side.js`.
 
 ## While in real use
 

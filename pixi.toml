@@ -129,10 +129,10 @@ setup-r = """Rscript -e 'if (!requireNamespace("dreamlet", quietly = TRUE)) Bioc
 nodejs = "*"
 pytest = "*"
 
-# `pixi run -e dev test`: the plugin tests, then every skill suite. The eval
-# harness tests (eval/tests) need uv and R4_51 and run on their own.
+# `pixi run -e dev test`: the plugin and eval harness tests (as `npm test`),
+# then every skill suite.
 [feature.dev.tasks]
-test = "node --test tests/ && python -m pytest -q -p no:cacheprovider skills"
+test = "node --test 'tests/*.test.js' 'eval/tests/*.test.js' && python -m pytest -q -p no:cacheprovider skills"
 
 [environments]
 dev = ["velocity", "pertpy", "liana", "mofa", "bioc-de", "dev"]

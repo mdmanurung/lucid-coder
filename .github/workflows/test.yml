@@ -1,0 +1,52 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Node 22+ needs quoted globs; a bare directory argument is read as a module.
+      # spec goes to the log, tap to a file for the skip count.
+      - name: Run node tests
+        run: |
+          node --test \
+            --test-reporter=spec --test-reporter-destination=stdout \
+            --test-reporter=tap --test-reporter-destination=tap.txt \
+            'tests/*.test.js' 'eval/tests/*.test.js'
+
+      # Tests skip when R, uv, ruff or air are missing; more skips than the
+      # baseline means coverage was lost.
+      - name: Check skipped tests against baseline
+        if: always()
+        run: |
+          skipped=$(grep -E '^# skip(ped)? [0-9]+' tap.txt | awk '{print $3}')
+          baseline=$(tr -d '[:space:]' < tests/skip-baseline.txt)
+          if [ -z "$skipped" ]; then echo "no skip count in tap output"; exit 1; fi
+          echo "skipped: $skipped, baseline: $baseline"
+          if [ "$skipped" -gt "$baseline" ]; then
+            echo "::error::$skipped tests skipped, more than the baseline of $baseline in tests/skip-baseline.txt"
+            exit 1
+          fi
+
+      - name: Install Claude Code
+        run: npm i -g @anthropic-ai/claude-code
+
+      - name: Validate plugin
+        continue-on-error: false
+        run: |
+          command -v claude || { echo "::error::claude CLI not found after install"; exit 1; }
+          claude plugin validate --strict .
