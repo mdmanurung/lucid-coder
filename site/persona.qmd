@@ -60,7 +60,10 @@ Manage rules with `/lucid-coder:rules`: list, approve, reject, supersede or
 retire one. The narrowest scope wins within a topic.
 
 A team can share rules through `lucid-coder.rules.json` at a repository root.
-That file loads only after you trust it with `/lucid-coder:rules trust`.
+That file loads only after you trust it. `/lucid-coder:rules trust --show` prints
+the file and its sha256; `trust --sha256 <hash>` trusts exactly that content and
+refuses if the file changed since you read it. Rules that fail the store's checks
+are skipped even when trusted.
 
 ## Biology-core claims
 

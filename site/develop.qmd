@@ -17,11 +17,23 @@ title: "Develop"
 
 ## Tests
 
-Hooks, rules and templates:
+Hooks, rules, templates, the eval harness and consistency checks:
 
 ```bash
-npm test   # node --test tests/*.test.js
+npm test   # node --test 'tests/*.test.js' 'eval/tests/*.test.js'
 ```
+
+`tests/consistency.test.js` fails when the `package.json` and `plugin.json`
+versions differ, a skill's frontmatter name does not match its folder, or a
+`references/` path or `/lucid-coder:` command cited in the docs does not exist.
+The CI workflow (`.github/workflows/test.yml`) runs the suite and
+`claude plugin validate --strict .`, and fails when the count of skipped tests
+rises above `tests/skip-baseline.txt`. Tests skip when R, uv, ruff or air is
+missing.
+
+The eval scripts read the R prefix from `R_ROOT`, then `LUCID_R_ENV`, then the
+`Rscript` on PATH. Set `R_ROOT` before running them; a different R can change
+gate results.
 
 The pixi `dev` environment holds every skill's dependencies plus pytest and
 node, so one command runs the plugin tests and every skill suite:
@@ -49,7 +61,9 @@ A test in each skill fails when a copy drifts. After editing a template, copy
 it into every skill:
 
 ```bash
-for d in skills/*/scripts/plots.py; do cp templates/plots.py "$d"; done
+for f in plots.py theme.py palettes.py skillkit.py; do
+  for d in skills/*/scripts/$f; do cp templates/$f "$d"; done
+done
 ```
 
 ## Adding a pipeline skill

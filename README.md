@@ -45,10 +45,12 @@ Start a new session. The rules load at session start and into every subagent.
 ## Develop
 
 ```bash
-npm test                          # hooks, rules, templates
+npm test                          # hooks, rules, templates, eval harness, consistency checks
 quarto preview site               # docs site
 ```
 
-Each pipeline skill's test command is in its `references/maintainer.md`. See
+GitHub Actions runs `npm test` and `claude plugin validate --strict .` on every push
+(`.github/workflows/test.yml`). Each pipeline skill's test command is in its
+`references/maintainer.md`. See
 [Develop](https://mdmanurung.github.io/lucid-coder/develop.html) for the full
 guide.

@@ -65,6 +65,8 @@ or import them. Every function returns a ggplot object, in either language.
 | `plot_feature` | One value on an embedding |
 | `plot_composition` | Stacked proportions per sample |
 | `plot_scatter_fit` | Scatter with a fitted line |
+| `compose_figure(panels, width_mm, height_mm, ...)` | R only: places panels in exact millimetre cells with bold panel letters; stops when the cells do not fill the page |
+| `get_legend(plot)` | R only: extracts one legend for its own cell |
 | `save_panel(plot, data, run_dir, name, width_mm, height_mm)` | Writes PDF, PNG and CSV |
 
 ```python
@@ -81,3 +83,13 @@ save_panel(p, donors, "results/run_01", "fig2c-isg-score", 89, 60)
 ```
 
 The test and the adjustment have no default: pass both or neither.
+
+### Size and layout constants
+
+`theme.R` and `theme.py` define one font hierarchy, `FONT_PT`: 8 pt for axes
+and legends, 6 pt for in-plot labels, 5 pt for dense secondary text and 10 pt
+for panel letters. `PAGE_MM` sets the page widths: 89 mm for one column and
+183 mm for two. `ARROW_MM` (10 mm) and `ARROW_PAD_MM` (4 mm) fix the R embedding
+arrows, so every UMAP in a figure carries the same arrow. The Python arrows
+scale to 20% of the data range. These values follow
+[exactplot](https://github.com/const-ae/exactplot), without its LaTeX layer.
