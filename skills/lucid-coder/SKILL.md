@@ -210,6 +210,25 @@ things the house rules do not. These rules apply there (user decisions
 - Pipeline skills: the mycelium-extra gate ignores scripts outside the repo
   (mycelium-extra#5), so call a skill script from a repo wrapper such as
   `analysis/<name>/run.sh` and name the wrapper in the plan's Step column.
+- Knobs are plan rows (mycelium-extra 0.32). The parameter block after the
+  header is how mycelium-extra finds the choices a script makes:
+  `verify knobs <script>` lists each `UPPER_SNAKE` value, grill turns each one
+  that could move a headline estimate into a plan row, and `verify report`
+  lists a knob that no plan Choice names. Keep the block, and keep a reason
+  beside each value. Do not change a knob's value to fix a failing run: that is
+  an unplanned impactful choice, so stop and ask the user. A path or a root is
+  not a knob and stays out of the plan.
+- Decision log (mycelium-extra 0.31). A run that takes an impactful choice or
+  a fork appends one row to `<analysis>/logs/decisions.tsv` with the plan row
+  it belongs to, through mycelium-extra's `decision_log.py`. A choice with no
+  plan row is not logged: stop and ask. Write the log with that script, not by
+  hand, so a negative number stays as written.
+- Explain the number (mycelium-extra 0.31). Before a headline estimate is
+  reported, the report names what limits or drives it (one donor, a batch,
+  depth) and cites an inspected figure for each factor. Draw those figures
+  with `figure-style`, each donor a point over any summary (house rule 8), so
+  one donor or one batch driving a number is visible; a factor with no figure
+  stays `unsupported: no inspected figure`.
 
 ## Learning from the user
 
