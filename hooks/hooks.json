@@ -9,6 +9,11 @@
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/activate.js\"",
             "timeout": 5,
             "statusMessage": "Loading lucid-coder..."
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/activate.js\" learned",
+            "timeout": 5
           }
         ]
       }
@@ -21,6 +26,11 @@
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent.js\"",
             "timeout": 5,
             "statusMessage": "Loading lucid-coder..."
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent.js\" learned",
+            "timeout": 5
           }
         ]
       }

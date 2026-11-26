@@ -1,14 +1,22 @@
 // SubagentStart: same text as SessionStart, which does not reach subagents.
+// With `learned`, the learned rules instead of the core (a separate hook, as in activate.js).
 // LUCID_SUBAGENT_MATCHER (a case-insensitive regex on agent_type) limits which
 // subagents get it; anything ambiguous injects, so scoping never drops the persona.
-const { readMode, readCore, readActiveRules, readTiers, languages, readEnv, render, writeOutput, readStdin, FALLBACK_CORE } = require('./lib');
+const { readMode, readCore, readActiveRules, readTiers, languages, readEnv, renderCore, renderLearned, writeOutput, readStdin, FALLBACK_CORE } = require('./lib');
+
+const learnedPart = process.argv[2] === 'learned';
 
 function inject() {
   try {
     const langs = languages(process.cwd());
-    writeOutput('SubagentStart', render(readCore(), readActiveRules(langs), readTiers(langs), readEnv(process.cwd())));
+    if (learnedPart) {
+      const text = renderLearned(readActiveRules(langs));
+      if (text) writeOutput('SubagentStart', text);
+      return;
+    }
+    writeOutput('SubagentStart', renderCore(readCore(), readTiers(langs), readEnv(process.cwd())));
   } catch (e) {
-    writeOutput('SubagentStart', FALLBACK_CORE);
+    if (!learnedPart) writeOutput('SubagentStart', FALLBACK_CORE);
   }
 }
 

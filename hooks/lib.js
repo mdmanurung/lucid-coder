@@ -5,7 +5,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const RULES_BUDGET = 4000; // learned-rules share of the injected text (PLAN.md 5.5)
+const RULES_BUDGET = 4000; // learned-rules share when core and rules share one hook (render)
+// Learned rules have their own hook output, and Claude Code caps each hook's
+// string separately, so they get nearly the whole cap.
+const LEARNED_BUDGET = 9000;
 const OUTPUT_CAP = 9500; // additionalContext is capped at 10,000 chars
 const RULE_MAX = 300;
 const SCOPE_ORDER = ['file-glob', 'repo', 'language', 'global']; // narrowest first
@@ -399,23 +402,39 @@ function scopeLabel(scope) {
   return s.kind;
 }
 
-// The env block sits before the learned rules, so their budget counts it.
-function render(core, rules, tiers = [], env = '') {
+// The core part: persona, house rules, language tiers and the env block.
+function renderCore(core, tiers = [], env = '') {
   let out = 'LUCID-CODER ACTIVE\n\n' + core;
   for (const tier of tiers) out += '\n\n' + tier;
   if (env) out += '\n\n' + env;
+  return out;
+}
+
+// The learned part, emitted by its own hook so core text cannot crowd it out.
+// '' when there is nothing to say.
+function renderLearned(rules) {
+  let out = '';
+  if (rules.length) out += learnedBlock(0, rules, LEARNED_BUDGET).trimStart();
+  if (rules.notice) out += (out ? '\n\n' : '') + rules.notice;
+  return out;
+}
+
+// Core and rules in one string; the env block sits before the learned rules,
+// so their budget counts it.
+function render(core, rules, tiers = [], env = '') {
+  let out = renderCore(core, tiers, env);
   if (rules.length) out += learnedBlock(out.length, rules);
   if (rules.notice) out += '\n\n' + rules.notice;
   return out;
 }
 
-function learnedBlock(used, rules) {
+function learnedBlock(used, rules, cap = RULES_BUDGET) {
   const lines = rules
     .slice()
     .sort((a, b) => scopeRank(a) - scopeRank(b))
     .map(r => `- [${escapeRule(r.topic)}, ${escapeRule(scopeLabel(r.scope))}] ${escapeRule(r.statement)}`);
   // The 200-char margin also covers the header, the hidden-count line and the trust notice.
-  const budget = Math.min(RULES_BUDGET, OUTPUT_CAP - used - 200);
+  const budget = Math.min(cap, OUTPUT_CAP - used - 200);
   let block = '';
   let shown = 0;
   for (const line of lines) {
@@ -464,7 +483,7 @@ function readStdin(cb) {
 module.exports = {
   FALLBACK_CORE, readMode, setMode, readCore, readActiveRules,
   readTiers, detectLanguages, readLang, setLang, languages,
-  escapeRule, render, writeOutput, readStdin, readEnv,
+  escapeRule, render, renderCore, renderLearned, writeOutput, readStdin, readEnv,
   dataDir, rememberDataDir, repoInfo, sha256, RULE_MAX,
-  ruleProblem, writeAtomic, STATUSES, SOURCES,
+  ruleProblem, writeAtomic, STATUSES, SOURCES, LEARNED_BUDGET,
 };

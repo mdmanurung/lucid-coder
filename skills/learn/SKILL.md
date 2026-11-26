@@ -50,6 +50,8 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/rules.js" <command>
    Wrap every value in single quotes. Write a single quote inside a value as `'\''`.
 6. Read the exit code.
    - 0: say the rule is active from the next session. It already applies now.
+     If the output has a line starting `Warning:`, quote it: some active rules
+     will not reach the model. Offer to list them and retire or narrow some.
    - 1: the message says what to fix. Fix the draft, show it again and ask again.
    - 2: another active rule has the same topic and scope. The output names its id.
      Run `list --json`, show both rules side by side and ask whether the new

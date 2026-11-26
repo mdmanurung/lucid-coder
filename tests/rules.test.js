@@ -136,3 +136,19 @@ test('repoInfo gives ssh and https forms of one remote the same id', () => {
   assert.strictEqual(repoInfo(path.join(local.repo, 'sub')).id, local.repo);
   assert.strictEqual(repoInfo(local.home), null);
 });
+
+test('approve warns when active rules exceed the learned-rules budget', () => {
+  const ctx = setup();
+  const long = 'Keep this rule. '.repeat(18).trim();
+  for (let i = 0; i < 40; i++) {
+    assert.strictEqual(propose(ctx, { topic: `user.t${i}`, statement: long }).status, 0);
+  }
+  // About 310 chars a line, so 20 fit in the 9,000-char budget and 40 do not.
+  for (let i = 1; i <= 20; i++) {
+    assert.doesNotMatch(cli(ctx, 'approve', `r-${String(i).padStart(4, '0')}`).stdout, /Warning/);
+  }
+  for (let i = 21; i < 40; i++) cli(ctx, 'approve', `r-${String(i).padStart(4, '0')}`);
+  const last = cli(ctx, 'approve', 'r-0040');
+  assert.strictEqual(last.status, 0);
+  assert.match(last.stdout, /Warning: \d+ active rules exceed the injection budget/);
+});
