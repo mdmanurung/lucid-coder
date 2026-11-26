@@ -9,9 +9,14 @@ skill is a contract, and the agent dispatches it without improvising.
 
 ## What every skill guarantees
 
-- **No analysis defaults.** Thresholds, designs, gene sets and seeds are
-  required arguments. Claude asks you for each one. `--demo` alone pins
-  demo-only values.
+- **No analysis defaults.** Thresholds, designs, gene sets, seeds and every
+  method setting that changes a result are required arguments. Claude asks
+  you for each one. `--demo` alone pins demo-only values.
+- **Fixed settings named.** Package defaults a skill does not expose are
+  listed in its SKILL.md under "Fixed method settings".
+- **Layers stated.** sc-annotate and ccc state the layer they read.
+  sc-markers, signature-scoring, tf-activity and ccc stop when `X` looks like
+  raw counts (max above 20), because they need log-normalised data.
 - **Context travels with the result.** A required `--context` (species,
   tissue or cell type, condition, dataset) opens every report and summary.
 - **Fixed failures.** Bad input prints `ERROR: <message>` and exits 2, with no
@@ -24,6 +29,9 @@ skill is a contract, and the agent dispatches it without improvising.
 - **Nothing silently dropped.** Per-feature tables keep every input feature,
   with a `status` column: `tested`, `not_tested`, `not_detected`,
   `below_detection` or `not_measured`.
+- **The unit named.** Cell-level result tables carry a `unit` column
+  (`cells (not replicates)`), so a cell-level p-value is not read as a
+  donor-level one.
 - **A fixed output tree.**
 
 ```
@@ -69,7 +77,7 @@ Each skill hands off to the next through its output tables or h5ad.
 | Skill | Does | Engine |
 |---|---|---|
 | [enrichment](https://github.com/mdmanurung/lucid-coder/blob/main/skills/enrichment/SKILL.md) | Preranked fgsea or over-representation on DE tables | fgsea, scipy |
-| [signature-scoring](https://github.com/mdmanurung/lucid-coder/blob/main/skills/signature-scoring/SKILL.md) | Gene-set scores per cell, with a size-matched random control | scanpy, decoupler |
+| [signature-scoring](https://github.com/mdmanurung/lucid-coder/blob/main/skills/signature-scoring/SKILL.md) | Gene-set scores per cell, with an expression-binned random control (`--n-bins`) | scanpy, decoupler |
 | [tf-activity](https://github.com/mdmanurung/lucid-coder/blob/main/skills/tf-activity/SKILL.md) | TF or pathway activity from CollecTRI or PROGENy | decoupler |
 | [gene-programs](https://github.com/mdmanurung/lucid-coder/blob/main/skills/gene-programs/SKILL.md) | Consensus NMF gene programs | scikit-learn |
 | [ccc](https://github.com/mdmanurung/lucid-coder/blob/main/skills/ccc/SKILL.md) | Ligand-receptor communication between cell types | LIANA+ |
@@ -78,16 +86,16 @@ Each skill hands off to the next through its output tables or h5ad.
 
 | Skill | Does | Engine |
 |---|---|---|
-| [trajectory](https://github.com/mdmanurung/lucid-coder/blob/main/skills/trajectory/SKILL.md) | PAGA and diffusion pseudotime from a fixed root | scanpy |
+| [trajectory](https://github.com/mdmanurung/lucid-coder/blob/main/skills/trajectory/SKILL.md) | PAGA and diffusion pseudotime from a named root cell or a diffusion-extreme rule | scanpy |
 | [velocity](https://github.com/mdmanurung/lucid-coder/blob/main/skills/velocity/SKILL.md) | RNA velocity and fate probabilities | scVelo, CellRank 2 |
-| [mofa](https://github.com/mdmanurung/lucid-coder/blob/main/skills/mofa/SKILL.md) | Multi-omics factor analysis across views | mofapy2 |
+| [mofa](https://github.com/mdmanurung/lucid-coder/blob/main/skills/mofa/SKILL.md) | Multi-omics factor analysis across views, factors tested against named columns | mofapy2 |
 
 ### Sample-level statistics
 
 | Skill | Does | Engine |
 |---|---|---|
 | [group-tests](https://github.com/mdmanurung/lucid-coder/blob/main/skills/group-tests/SKILL.md) | Wilcoxon, paired, Spearman or Pearson per feature, with effect sizes | scipy |
-| [longitudinal](https://github.com/mdmanurung/lucid-coder/blob/main/skills/longitudinal/SKILL.md) | One mixed model per feature over visits; time as factor, slope or natural spline; missing covariates by complete-case or multiple imputation | lmerTest, mice |
+| [longitudinal](https://github.com/mdmanurung/lucid-coder/blob/main/skills/longitudinal/SKILL.md) | One mixed model per feature over visits; time as factor, slope or natural spline; random intercept or slope per donor; missing covariates by complete-case or multiple imputation | lmerTest, mice |
 
 ## Running a skill yourself
 

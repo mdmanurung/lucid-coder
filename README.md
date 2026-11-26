@@ -23,7 +23,9 @@ Start a new session. The rules load at session start and into every subagent.
 - **Persona and rules** (`rules/`, `skills/lucid-coder/`): headers, knobs at
   the top, checks where data enters, seeded steps, donors as the unit.
 - **Learned rules** (`/lucid-coder:learn`, `/lucid-coder:rules`): a lasting
-  correction becomes a rule after you approve it.
+  correction becomes a rule after you approve it. Learned rules load in their
+  own hook with a 9,000-character budget; approving a rule warns when active
+  rules no longer fit.
 - **Figure style** (`skills/figure-style/`, `templates/`): one look in ggplot2,
   ComplexHeatmap and plotnine with plotnine-extra.
 - **Pipeline skills** (`skills/<name>/`): sc-qc, sc-normalize, sc-embed,
@@ -50,7 +52,8 @@ quarto preview site               # docs site
 ```
 
 GitHub Actions runs `npm test` and `claude plugin validate --strict .` on every push
-(`.github/workflows/test.yml`). Each pipeline skill's test command is in its
+(`.github/workflows/test.yml`). A second job, `skills`, runs every pipeline skill's
+pytest suite in the pixi `dev` env. Each pipeline skill's test command is in its
 `references/maintainer.md`. See
 [Develop](https://mdmanurung.github.io/lucid-coder/develop.html) for the full
 guide.

@@ -17,7 +17,9 @@ Build the blind A vs D page for the variants run (the user has not said yet): `n
 - Results: 07c A 3/3, D 3/3 (median log10 p shift 0.16, max 0.26, tolerance 0.75). 08b A 3/3, D 3/3 (all six used the donor-paired design: JAK-STAT 14.89). 09b A 3/3, D 3/3 (all six used the Goblet reference). `table fallback: gate pass/fail counts are binary per run`; rows in `results.tsv`.
 - Assumed, not run: that the 07c prompt hides the donor from a model beyond what these six runs show; the 08b and 09b gate soft spots below were not stress-tested with other methods.
 
-- 2026-11-10: hardening and figure helpers pushed (CI, hash-pinned `trust`, `FONT_PT`, `compose_figure()`, fixed R arrows). Before running eval scripts, export `R_ROOT` (the R4_51 prefix). Set `tests/skip-baseline.txt` from the first CI run. `claude plugin eval` port dropped: its sandbox cannot write to the workspace (see ROADMAP.md, 2026-11-10). `socat` sits in `~/.pixi/bin`; remove with `pixi global remove socat` if unwanted.
+- 2026-11-10: hardening and figure helpers pushed (CI, hash-pinned `trust`, `FONT_PT`, `compose_figure()`, fixed R arrows). Before running eval scripts, export `R_ROOT` (the R4_51 prefix). `tests/skip-baseline.txt` is 77 (estimated 2026-11-24 from the skip guards); confirm it on the first CI run. `claude plugin eval` port dropped: its sandbox cannot write to the workspace (see ROADMAP.md, 2026-11-10). `socat` sits in `~/.pixi/bin`; remove with `pixi global remove socat` if unwanted.
+
+- 2026-11-24: evaluation fixes landed (see ROADMAP.md, 2026-11-24). Unverified: the CI `skills` job and skip baseline 77 have not run on GitHub; gate 03py still checks existence only; group-tests suite not rerun.
 
 ## Locked decisions
 - Human readability matters more than correctness for this plugin (user, 2026-11-01).
