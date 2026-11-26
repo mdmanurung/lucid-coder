@@ -162,6 +162,7 @@ required for that method and refused for the others.
 | `--clip` | pearson: clip residuals to +-what (scanpy suggests sqrt(n cells))? | `25` |
 | `--empty-droplets` | dsb: which h5ad holds the ADT counts of empty droplets, and how were they chosen? | `examples/demo_empty.h5ad` |
 | `--isotype-controls` | dsb: which features are isotype controls (comma list)? | `IgG1,IgG2a,IgG2b` |
+| `--dsb-pseudocount` | dsb: which pseudocount is added before the log? Recommended `10` (muon 0.2.0 `mu.prot.pp.dsb` default; Mulè et al. 2022). | `10` |
 | `--outdir` | Which new directory gets the outputs? It must not exist. | `sc_normalize_demo` |
 
 The last column is **demo-only, not defaults**. `--demo` alone pins all of them.
@@ -182,7 +183,7 @@ dsb` switches to the ADT demo files.
 4. **Normalise X** by `--method`:
    - `log1p`: `normalize_total(target_sum=--target-sum)`, `log1p`;
    - `pearson`: `normalize_pearson_residuals(theta=--theta, clip=--clip)`;
-   - `dsb`: `mu.prot.pp.dsb(cells, empty, pseudocount=10, denoise_counts=True,
+   - `dsb`: `mu.prot.pp.dsb(cells, empty, pseudocount=--dsb-pseudocount, denoise_counts=True,
      isotype_controls=..., scale_factor="standardize", random_state=--seed)`.
 5. **Copy** the normalised X into `layers[--layer-out]`: sparse for `log1p`
    (from sparse counts), dense for `pearson` and `dsb`.
@@ -192,8 +193,25 @@ dsb` switches to the ADT demo files.
    |Spearman rho| with library size.
 7. **Figures** and report.
 
-BLAS runs on one thread (`threadpoolctl`). Fixed constants: dsb pseudocount 10,
-6 features in the value plot, 20 quantile bins for the trend line.
+BLAS runs on one thread (`threadpoolctl`).
+
+## Layer contract
+
+- Input: raw integer counts in `X`; layers are not read.
+- Output `data/normalized.h5ad`: `X` holds the normalised values (log1p, Pearson
+  residuals or dsb), `layers["counts"]` the raw counts, `layers[--layer-out]` a
+  copy of `X`. Only `log1p` output is log-normalised: sc-markers, ccc,
+  signature-scoring and tf-activity refuse Pearson residuals (negative values)
+  and dsb values.
+
+## Fixed method settings
+
+Not asked, recorded here. `dsb` (muon 0.2.0): `denoise_counts=True`,
+`scale_factor="standardize"`, background from `--empty-droplets` with no
+`empty_counts_range`. `pearson` (scanpy 1.12.4
+`sc.experimental.pp.normalize_pearson_residuals`): all genes, no batch key.
+Diagnostics only, no effect on `X`: PC1 from 2 arpack PCs, 6 features in the
+value plot, 20 quantile bins for the trend line.
 
 ## Output structure
 
@@ -239,8 +257,8 @@ the same theme, saved by `save_panel`; captions sit in `report.md`.
 - `depth_pc1`: PC1 against log10 library size, linear fit and 95% CI.
 - `top_variable_values`: box plots of normalised values for the 6 features with
   the highest normalised variance.
-- `isotype_vs_background` (dsb): per-cell median protein log(count + 10)
-  against mean isotype log(count + 10). The median stands in for dsb's GMM
+- `isotype_vs_background` (dsb): per-cell median protein log(count + `--dsb-pseudocount`)
+  against mean isotype log(count + `--dsb-pseudocount`). The median stands in for dsb's GMM
   background mean, which muon does not return.
 
 `scripts/skillkit.py`, `plots.py`, `theme.py` and `palettes.py` are byte copies

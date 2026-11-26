@@ -40,7 +40,7 @@ REQUIRED = ["adata", "method", "layer_out", "seed", "reference", "context"]
 METHOD_ARGS = {
     "log1p": ["target_sum", "gene_id_col"],
     "pearson": ["theta", "clip", "gene_id_col"],
-    "dsb": ["empty_droplets", "isotype_controls"],
+    "dsb": ["empty_droplets", "isotype_controls", "dsb_pseudocount"],
 }
 OPTIONAL = list(dict.fromkeys(k for keys in METHOD_ARGS.values() for k in keys))
 # --gene-id-col value for a source with no gene ids: gene_id is then written as NA.
@@ -70,6 +70,7 @@ DEMO_BY_METHOD = {
         "adata": str(EXAMPLES / "demo_adt.h5ad"),
         "empty_droplets": str(EXAMPLES / "demo_empty.h5ad"),
         "isotype_controls": "IgG1,IgG2a,IgG2b",
+        "dsb_pseudocount": 10.0,
     },
 }
 
@@ -89,12 +90,11 @@ ERRORS = {
     "flat_empty": "features with zero variance in the empty droplets: {names}",
 }
 
-# Fixed steps, not analysis parameters. dsb: log(x + 10) and standardise by the
-# empty droplets, then regress out the technical component (Mule et al. 2022,
-# muon's defaults). Diagnostics: PC1 from 2 seeded arpack PCs; the 6 most
-# variable features in the value-distribution figure; 20 quantile bins for the
-# mean-variance trend.
-DSB_PSEUDOCOUNT = 10
+# Fixed method settings, listed in SKILL.md: dsb standardises by the empty
+# droplets and regresses out the technical component (denoise_counts=True,
+# scale_factor="standardize"; Mule et al. 2022, muon 0.2.0 defaults).
+# Diagnostics only: PC1 from 2 seeded arpack PCs; the 6 most variable features
+# in the value-distribution figure; 20 quantile bins for the mean-variance trend.
 N_DIAG_PCS = 2
 N_TOP_SHOWN = 6
 TREND_BINS = 20
@@ -126,6 +126,7 @@ def parse_args(argv):
     parser.add_argument("--clip", type=float)
     parser.add_argument("--empty-droplets")
     parser.add_argument("--isotype-controls")
+    parser.add_argument("--dsb-pseudocount", type=float)
     p = parse_required(
         parser, REQUIRED, DEMO, argv, optional=OPTIONAL, demo_extra=("outdir", "method")
     )
@@ -149,6 +150,7 @@ def check_values(p):
         ("--target-sum", p["target_sum"], "> 0"),
         ("--theta", p["theta"], "> 0"),
         ("--clip", p["clip"], "> 0"),
+        ("--dsb-pseudocount", p["dsb_pseudocount"], "> 0"),
     ]
     for arg, value, rule in rules:
         if value is not None and value <= 0:
@@ -243,7 +245,7 @@ def normalise(adata, empty, p):
             mu.prot.pp.dsb(
                 adata,
                 empty,
-                pseudocount=DSB_PSEUDOCOUNT,
+                pseudocount=p["dsb_pseudocount"],
                 denoise_counts=True,
                 isotype_controls=p["isotype_controls"].split(","),
                 scale_factor="standardize",
@@ -287,7 +289,8 @@ def tables(adata, seed):
     return per_cell, per_feature
 
 
-def draw_figures(figures, adata, per_cell, per_feature, method, isotypes):
+def draw_figures(figures, adata, per_cell, per_feature, p, isotypes):
+    method = p["method"]
     stages = {"counts": "var_counts", "normalised": "var_normalised"}
     long = pd.concat(
         [
@@ -356,7 +359,7 @@ def draw_figures(figures, adata, per_cell, per_feature, method, isotypes):
     if method != "dsb":
         return
     counts = dense(adata.layers["counts"]).astype(float)
-    step_one = np.log(counts + DSB_PSEUDOCOUNT)
+    step_one = np.log(counts + p["dsb_pseudocount"])
     is_iso = adata.var_names.isin(isotypes)
     # ponytail: the median non-isotype log count stands in for dsb's per-cell
     # GMM background mean, which muon does not return; fine for panels where
@@ -371,8 +374,8 @@ def draw_figures(figures, adata, per_cell, per_feature, method, isotypes):
         iso,
         "isotype_mean_log",
         "background_median_log",
-        x_label=f"mean isotype log(count + {DSB_PSEUDOCOUNT})",
-        y_label=f"median protein log(count + {DSB_PSEUDOCOUNT})",
+        x_label=f"mean isotype log(count + {p['dsb_pseudocount']})",
+        y_label=f"median protein log(count + {p['dsb_pseudocount']})",
     )
     save_panel(plot, iso, figures, "isotype_vs_background", 89, 70)
 
@@ -408,7 +411,7 @@ def analyse(argv, argv_run):
     rho = abs(stats.spearmanr(per_cell["library_size"], per_cell["pc1"])[0])
     isotypes = (p["isotype_controls"] or "").split(",")
     plt.switch_backend("Agg")
-    draw_figures(outdir / "figures", adata, per_cell, tested, method, isotypes)
+    draw_figures(outdir / "figures", adata, per_cell, tested, p, isotypes)
 
     n_cells, n_features = adata.n_obs, adata.n_vars
     captions = {
@@ -424,7 +427,7 @@ def analyse(argv, argv_run):
     }
     if method == "dsb":
         captions["isotype_vs_background"] = (
-            f"Scatter of each cell's median protein log(count + {DSB_PSEUDOCOUNT}) "
+            f"Scatter of each cell's median protein log(count + {p['dsb_pseudocount']}) "
             f"against its mean isotype log count, {n_cells} cells, with a linear "
             "fit and 95% CI; a positive trend is the technical component dsb "
             "regresses out."

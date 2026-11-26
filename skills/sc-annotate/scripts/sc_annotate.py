@@ -42,12 +42,25 @@ REQUIRED = [
     "reference",
     "context",
 ]
+LAYER_ARGS = ["counts_layer", "reference_counts_layer"]
 ENGINE_ARGS = {
-    "celltypist": ["model", "reference_adata", "reference_label", "majority_voting"],
-    "ingest": ["reference_adata", "reference_label", "n_pcs", "n_neighbors"],
+    "celltypist": [
+        "model",
+        "reference_adata",
+        "reference_label",
+        "majority_voting",
+        *LAYER_ARGS,
+    ],
+    "ingest": [
+        "reference_adata",
+        "reference_label",
+        "n_pcs",
+        "n_neighbors",
+        *LAYER_ARGS,
+    ],
 }
 OPTIONAL = ["model", "reference_adata", "reference_label", "majority_voting"]
-OPTIONAL += ["n_pcs", "n_neighbors"]
+OPTIONAL += ["n_pcs", "n_neighbors", *LAYER_ARGS]
 KEYS = REQUIRED + OPTIONAL
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
@@ -84,7 +97,11 @@ ERRORS = {
     "missing_file": "input file not found: {path}",
     "missing_column": "obs column not found in the {which}: {col}",
     "no_umap": "the query has no obsm['X_umap']; compute the embedding first",
-    "bad_counts": "X of the {which} must hold raw counts (non-negative integers)",
+    "bad_counts": "X of the {which} must hold raw counts (non-negative integers); "
+    "if the raw counts sit in a layer, pass {flag} <layer>",
+    "bad_layer_counts": "layer {layer!r} of the {which} must hold raw counts "
+    "(non-negative integers)",
+    "no_layer": "layer {layer!r} not found in the {which}",
     "few_labels": "the reference has fewer than 2 labels in {col!r}",
     "bad_model": "cannot load the CellTypist model: {path}",
     "no_shared_genes": "the query shares no genes with the {which}",
@@ -122,6 +139,8 @@ def parse_args(argv):
     parser.add_argument("--majority-voting", choices=["yes", "no"])
     parser.add_argument("--n-pcs", type=int)
     parser.add_argument("--n-neighbors", type=int)
+    parser.add_argument("--counts-layer")
+    parser.add_argument("--reference-counts-layer")
     p = kit.parse_required(
         parser, REQUIRED, DEMO, argv, OPTIONAL, demo_extra=("outdir", "engine")
     )
@@ -143,7 +162,7 @@ def check_args(p):
         if p["reference_adata"] is not None:
             needed = ["reference_adata", *needed]
     else:
-        needed = allowed
+        needed = [k for k in allowed if k not in LAYER_ARGS]
     missing = [k for k in needed if p[k] is None]
     if missing:
         kit.fail(ERRORS, "engine_missing", engine=engine, args=flags(missing))
@@ -169,16 +188,29 @@ def is_raw_counts(matrix):
     return bool(np.all(values >= 0) and np.all(values == np.round(values)))
 
 
-def read_counts(path, which, cols):
+def read_counts(path, which, cols, layer=None):
+    """Read an h5ad; return it with raw counts in X, and the X as stored.
+
+    With `layer`, the counts come from that layer and X (e.g. log-normalised by
+    sc-embed) is only restored on output, never used.
+    """
     adata = ad.read_h5ad(path)
     kit.check_unique(adata.var_names, f"gene names in the {which}")
     kit.check_unique(adata.obs_names, f"cell ids in the {which}")
     for col in cols:
         if col not in adata.obs.columns:
             kit.fail(ERRORS, "missing_column", which=which, col=col)
-    if not is_raw_counts(adata.X):
-        kit.fail(ERRORS, "bad_counts", which=which)
-    return adata
+    x_stored = adata.X
+    if layer is not None:
+        if layer not in adata.layers:
+            kit.fail(ERRORS, "no_layer", layer=layer, which=which)
+        if not is_raw_counts(adata.layers[layer]):
+            kit.fail(ERRORS, "bad_layer_counts", layer=layer, which=which)
+        adata.X = adata.layers[layer]
+    elif not is_raw_counts(adata.X):
+        flag = "--counts-layer" if which == "query" else "--reference-counts-layer"
+        kit.fail(ERRORS, "bad_counts", which=which, flag=flag)
+    return adata, x_stored
 
 
 def log_normalise(adata):
@@ -218,7 +250,12 @@ def load_model(p):
             return models.Model.load(str(Path(p["model"]).resolve())), "model"
         except Exception:  # noqa: BLE001 - celltypist raises a bare Exception
             kit.fail(ERRORS, "bad_model", path=p["model"])
-    reference = read_counts(p["reference_adata"], "reference", [p["reference_label"]])
+    reference, _ = read_counts(
+        p["reference_adata"],
+        "reference",
+        [p["reference_label"]],
+        p["reference_counts_layer"],
+    )
     if reference.obs[p["reference_label"]].nunique() < 2:
         kit.fail(ERRORS, "few_labels", col=p["reference_label"])
     # lbfgs, CellTypist's default solver, is deterministic; the seed reaches
@@ -336,7 +373,9 @@ def analyse(argv, argv_full):
     """Steps 1-7 of SKILL.md: validate, transfer, check markers, write outputs."""
     p = parse_args(argv)
     check_args(p)
-    query = read_counts(p["query"], "query", [p["over_clustering"]])
+    query, x_stored = read_counts(
+        p["query"], "query", [p["over_clustering"]], p["counts_layer"]
+    )
     if "X_umap" not in query.obsm:
         kit.fail(ERRORS, "no_umap")
     kit.seed_everything(p["seed"])
@@ -349,7 +388,9 @@ def analyse(argv, argv_full):
             labels, genes = list(model.cell_types), model.features
         else:
             col = p["reference_label"]
-            reference = read_counts(p["reference_adata"], "reference", [col])
+            reference, _ = read_counts(
+                p["reference_adata"], "reference", [col], p["reference_counts_layer"]
+            )
             if reference.obs[col].nunique() < 2:
                 kit.fail(ERRORS, "few_labels", col=col)
             which, labels = "reference", sorted(reference.obs[col].astype(str).unique())
@@ -371,7 +412,10 @@ def analyse(argv, argv_full):
 
     query.obs["transferred_label"] = pd.Categorical(label)
     query.obs["transferred_confidence"] = confidence
-    query.write_h5ad(outdir / "data" / "annotated.h5ad")
+    # Annotation read counts from --counts-layer; X goes out as it came in.
+    out = query.copy()
+    out.X = x_stored
+    out.write_h5ad(outdir / "data" / "annotated.h5ad")
 
     tables, figures = outdir / "tables", outdir / "figures"
     found = sorted(set(label))

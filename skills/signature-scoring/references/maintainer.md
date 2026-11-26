@@ -58,6 +58,12 @@ genes, reports `GMISSING`, and gives `beats_random` sig_up true
 (`p_empirical` 1/51) and sig_null false. Every disease sample's sig_up mean is
 above every healthy one. AUCell with `--n-up 30` gives the same verdicts.
 
+The random-set control is expression-binned, as `sc.tl.score_genes` bins its
+control genes (Tirosh et al. 2016): `--n-bins` (scanpy 1.12.4 default 25) cuts
+genes by mean `X` and each random gene comes from the bin of one signature
+gene. The earlier uniform draw is gone; `p_empirical` and `beats_random` were
+re-checked against the demo goldens in the tests.
+
 From `skills/signature-scoring`:
 
 ```bash

@@ -285,6 +285,89 @@ def test_bad_markers(tmp_path, rows, columns, message):
     assert is_error(run_with(tmp_path, markers=path), message)
 
 
+def test_counts_layer_errors(tmp_path):
+    completed = run_with(tmp_path, counts_layer="counts")
+    assert is_error(completed, "layer 'counts' not found in the query")
+
+    def layer_not_counts(adata):
+        adata.layers["counts"] = adata.X * 0.5
+
+    path = write_h5ad(tmp_path, QUERY, layer_not_counts)
+    completed = run_with(tmp_path, query=path, counts_layer="counts")
+    assert is_error(completed, "layer 'counts' of the query must hold raw counts")
+
+
+def test_log_normalised_x_needs_counts_layer(tmp_path):
+    def embed_like(adata):
+        adata.layers["counts"] = adata.X.copy()
+        adata.X = adata.X.astype("float32") * 0.5
+
+    path = write_h5ad(tmp_path, QUERY, embed_like)
+    completed = run_with(tmp_path, query=path)
+    assert is_error(completed, "X of the query must hold raw counts")
+    assert "pass --counts-layer <layer>" in completed.stderr
+
+
+def test_embed_output_to_annotate_to_ccc(tmp_path):
+    """sc-embed's embedded.h5ad (log X, raw counts layer) goes through annotate
+    with --counts-layer, keeps its X, and is then accepted by ccc."""
+    embed = SKILL_DIR.parent / "sc-embed" / "scripts" / "sc_embed.py"
+    ccc = SKILL_DIR.parent / "ccc" / "scripts" / "ccc.py"
+    if not (embed.is_file() and ccc.is_file()):
+        pytest.skip("sc-embed and ccc are not beside sc-annotate")
+
+    def go(script, *argv):
+        return subprocess.run(
+            [sys.executable, str(script), *argv],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+
+    done = go(embed, "--demo", "--outdir", str(tmp_path / "embed"))
+    assert done.returncode == 0, done.stderr
+    embedded = tmp_path / "embed" / "data" / "embedded.h5ad"
+    before = ad.read_h5ad(embedded)
+    labels = sorted(before.obs["true_group"].astype(str).unique())
+    genes = list(before.var_names[:6])
+    markers = write_tsv(
+        tmp_path, [(labels[0], genes[0]), (labels[1], genes[1])], ("label", "gene")
+    )
+    done = run(
+        "--query", str(embedded), "--counts-layer", "counts",
+        "--markers", markers, "--over-clustering", "leiden",
+        "--engine", "celltypist", "--reference-adata", str(embedded),
+        "--reference-counts-layer", "counts", "--reference-label", "true_group",
+        "--majority-voting", "yes", "--seed", "0",
+        "--reference", "synthetic demo genes, no genome build",
+        "--context", "embed to annotate to ccc",
+        "--outdir", str(tmp_path / "annotate"),
+    )  # fmt: skip
+    assert done.returncode == 0, done.stderr
+    annotated = ad.read_h5ad(tmp_path / "annotate" / "data" / "annotated.h5ad")
+    # X is exactly what sc-embed wrote: log-normalised, not counts; layer kept.
+    assert (annotated.X != before.X).nnz == 0
+    assert (annotated.layers["counts"] != before.layers["counts"]).nnz == 0
+    assert "transferred_label" in annotated.obs
+
+    resource = tmp_path / "resource.tsv"
+    resource.write_text(f"ligand\treceptor\n{genes[2]}\t{genes[3]}\n")
+    done = go(
+        ccc,
+        "--adata", str(tmp_path / "annotate" / "data" / "annotated.h5ad"),
+        "--context", "embed to annotate to ccc", "--gene-id-col", "none",
+        "--resource", str(resource), "--groupby", "transferred_label",
+        "--methods", "rank_aggregate", "--expr-prop", "0.1", "--min-cells", "5",
+        "--n-perms", "10", "--magnitude-max", "1", "--specificity-max", "1",
+        "--sources", "all", "--targets", "all", "--n-top", "3",
+        "--reference", "synthetic demo genes, no genome build", "--seed", "0",
+        "--outdir", str(tmp_path / "ccc"),
+    )  # fmt: skip
+    assert "does not look log-normalised" not in done.stderr
+    assert done.returncode == 0, done.stderr
+
+
 def test_every_error_has_a_test():
     sys.path.insert(0, str(SCRIPT.parent))
     from sc_annotate import ERRORS
@@ -293,7 +376,7 @@ def test_every_error_has_a_test():
         "engine_missing", "engine_extra", "model_xor_reference", "bad_value",
         "missing_file", "missing_column", "no_umap", "bad_counts", "few_labels",
         "bad_model", "no_shared_genes", "too_few_genes", "bad_markers",
-        "marker_label_absent", "marker_gene_absent",
+        "marker_label_absent", "marker_gene_absent", "bad_layer_counts", "no_layer",
     }  # fmt: skip
     assert set(ERRORS) == tested
 

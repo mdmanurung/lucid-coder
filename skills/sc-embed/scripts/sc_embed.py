@@ -44,6 +44,10 @@ ANALYSIS_ARGS = [
     "n_pcs",
     "min_dist",
     "resolution",
+    "leiden_n_iterations",
+    "harmony_max_iter",
+    "scale_max_value",
+    "svd_solver",
     "seed",
     "reference",
     "context",
@@ -61,6 +65,10 @@ DEMO = {
     "n_pcs": 10,
     "min_dist": 0.3,
     "resolution": 0.3,
+    "leiden_n_iterations": 2,
+    "harmony_max_iter": 20,
+    "scale_max_value": "none",
+    "svd_solver": "arpack",
     "seed": 0,
     "reference": "synthetic demo genes, no genome build",
     "context": "synthetic demo: 2 batches x 3 groups, 300 genes, no real tissue",
@@ -77,11 +85,9 @@ ERRORS = {
     "bad_counts": "counts in X must be non-negative integers (raw counts)",
 }
 
-# Fixed steps, not analysis parameters: igraph Leiden with 2 iterations
-# (C-an-05, C-an-10); Harmony stops at 20 rounds (B-an-06); `none` stands for a
-# batch column when --batch-key none.
-LEIDEN_ITERATIONS = 2
-HARMONY_MAX_ITER = 20
+# `none` stands for a batch column when --batch-key none. Fixed method settings
+# (harmonypy 2.1.0 theta, lambda, sigma defaults; Leiden directed=False) are
+# listed in SKILL.md.
 NO_BATCH = "none"
 PACKAGES = [
     "scanpy",
@@ -126,6 +132,13 @@ def parse_args(argv):
     parser.add_argument("--n-pcs", type=int)
     parser.add_argument("--min-dist", type=float)
     parser.add_argument("--resolution", type=float)
+    parser.add_argument("--leiden-n-iterations", type=int)
+    parser.add_argument("--harmony-max-iter", type=int)
+    parser.add_argument("--scale-max-value")
+    parser.add_argument(
+        "--svd-solver",
+        choices=["arpack", "randomized", "auto", "full", "covariance_eigh"],
+    )
     parser.add_argument("--seed", type=int)
     parser.add_argument("--reference")
     parser.add_argument("--context")
@@ -135,7 +148,35 @@ def parse_args(argv):
 
 
 def check_values(p):
+    # `none` means no clipping in sc.pp.scale; anything else is a number > 0.
+    given = p["scale_max_value"]
+    if str(p["scale_max_value"]).lower() == "none":
+        p["scale_max_value"] = "none"
+    else:
+        try:
+            p["scale_max_value"] = float(p["scale_max_value"])
+        except ValueError:
+            p["scale_max_value"] = -1.0
+    clip = p["scale_max_value"]
     rules = [
+        (
+            "--scale-max-value",
+            given,
+            clip == "none" or clip > 0,
+            "a number > 0 or none",
+        ),
+        (
+            "--leiden-n-iterations",
+            p["leiden_n_iterations"],
+            p["leiden_n_iterations"] != 0,
+            "an integer other than 0 (-1 runs to convergence)",
+        ),
+        (
+            "--harmony-max-iter",
+            p["harmony_max_iter"],
+            p["harmony_max_iter"] >= 1,
+            "an integer >= 1",
+        ),
         ("--target-sum", p["target_sum"], p["target_sum"] > 0, "> 0"),
         ("--n-top-genes", p["n_top_genes"], p["n_top_genes"] >= 2, "an integer >= 2"),
         ("--n-comps", p["n_comps"], p["n_comps"] >= 2, "an integer >= 2"),
@@ -215,8 +256,9 @@ def embed(adata, p):
         )
 
     hvg = adata[:, adata.var["highly_variable"]].copy()
-    sc.pp.scale(hvg)
-    sc.tl.pca(hvg, n_comps=p["n_comps"], svd_solver="arpack", random_state=seed)
+    clip = None if p["scale_max_value"] == "none" else p["scale_max_value"]
+    sc.pp.scale(hvg, max_value=clip)
+    sc.tl.pca(hvg, n_comps=p["n_comps"], svd_solver=p["svd_solver"], random_state=seed)
     adata.obsm["X_pca"] = hvg.obsm["X_pca"]
     adata.uns["pca"] = hvg.uns["pca"]
 
@@ -228,7 +270,7 @@ def embed(adata, p):
             adata.obsm["X_pca"],
             adata.obs,
             batch,
-            max_iter_harmony=HARMONY_MAX_ITER,
+            max_iter_harmony=p["harmony_max_iter"],
             random_state=seed,
             ncores=1,
             verbose=False,
@@ -248,7 +290,7 @@ def embed(adata, p):
         adata,
         resolution=p["resolution"],
         flavor="igraph",
-        n_iterations=LEIDEN_ITERATIONS,
+        n_iterations=p["leiden_n_iterations"],
         directed=False,
         random_state=seed,
         key_added="leiden",
@@ -348,13 +390,15 @@ def analyse(argv, argv_run):
     )
     captions = {
         "pca_variance": f"Line plot of variance explained by each of {p['n_comps']} "
-        f"principal components of {p['n_top_genes']} scaled HVGs; the dashed line "
+        f"principal components of {p['n_top_genes']} scaled HVGs (scale max_value "
+        f"{p['scale_max_value']}, {p['svd_solver']}); the dashed line "
         f"marks the {p['n_pcs']} PCs used for the neighbour graph.",
         "umap_batch": f"UMAP of {adata.n_obs} cells coloured by {batch} "
         f"({n_batches} levels; {how}); well-mixed colours mean the embedding does "
         "not separate batches.",
         "umap_cluster": f"UMAP of {adata.n_obs} cells coloured by {len(clusters)} "
-        f"Leiden clusters (resolution {p['resolution']}; {how}).",
+        f"Leiden clusters (resolution {p['resolution']}, "
+        f"{p['leiden_n_iterations']} iterations; {how}).",
         "batch_composition": f"Stacked bars of the percentage of each cluster's cells "
         f"from each {batch} level; the denominator is the cluster's cell count.",
     }

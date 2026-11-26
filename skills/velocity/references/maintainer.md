@@ -38,7 +38,7 @@ IDs from `docs/clawbio-determinism/parts/F_clawbio_patterns.md`.
 | F-10, F-13, F-14 | Fixed plot spec, style, Agg | vendored `plots.py`, `theme.py` |
 | F-16, F-17 | Seed as a flag, echoed into provenance | `--seed` in `commands.sh`, `result.json` |
 | F-18, F-19, F-20 | `commands.sh`, environment, checksums | `reproducibility/` via `skillkit.py` |
-| F-23 | Thresholds documented, no defaults | parameter table; step 7 names the fixed 0.96 rule |
+| F-23 | Thresholds documented, no defaults | parameter table; `--stability-threshold` (CellRank default 0.96) |
 | F-25, F-30 | "The model will want to ... Do not", "Do NOT fire when" | "Gotchas", "Agent boundary" |
 | F-27 | One task | velocity + fates only; DPT/PAGA in trajectory |
 | F-28 | Golden-value demo test | `tests/test_velocity.py` |
@@ -76,15 +76,17 @@ smoke run on a 150-cell subset.
 
 `examples/make_demo.py` (seed 0) runs `scvelo.datasets.simulation` offline:
 500 cells on one time axis `obs["true_t"]`, 50 genes, cut into 4 stages
-(`s1`..`s4`) at quartiles of `true_t`. X and the layers hold the simulated
-abundances; `X_umap` comes from a log-normalised copy. The file is 318 kB.
+(`s1`..`s4`) at quartiles of `true_t`. The simulated abundances are multiplied
+by 10 and rounded to integer counts (velocity.py refuses non-integer layers);
+X is the spliced counts; `X_umap` comes from a log-normalised copy. The file is about 173 kB.
 
 `--demo` keeps 30 genes, names `s4` as the terminal state, and gives every
 stage a mean fate probability of 1.00 towards it (one lineage). The Spearman
-correlation of velocity pseudotime with `true_t` is 0.996 (3 decimals); the test
+correlation of velocity pseudotime with `true_t` is 0.969 (3 decimals; 0.996
+before the demo became integer counts); the test
 computes it from `tables/velocity_pseudotime.tsv`, because real data have no
-true time. Top velocity genes: G08, G20, G28, G44. With `--terminal-states auto
---n-states 3` the demo returns `s1_2` and `s4`: GPCCA also marks a stable
+true time. Top velocity genes: G22, G30, G10, G34. With `--terminal-states auto
+--n-states 3` the demo returns `s2` and `s3` (the earlier float demo returned `s1_2` and `s4`): GPCCA also marks a stable
 early macrostate, which is why `auto` results need checking against the
 pseudotime.
 

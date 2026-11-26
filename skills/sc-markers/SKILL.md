@@ -94,8 +94,9 @@ argument it names. Do not work around it.
 | `--groupby` | obs column | at least 2 groups, each with at least 2 cells | `leiden`, `cell_type`; demo `cluster` |
 | `--gene-id-col` | var column | Ensembl gene ids (versioned as the source gives them); `var_names` are the symbols | `gene_ids`; `none` when the source has no ids |
 
-The script refuses a matrix with negative values (scaled) or only integers (raw
-counts). A categorical `--groupby` keeps its category order; any other column
+The script refuses a matrix with negative values (scaled), only integers (raw
+counts), or a maximum above 20 (`log1p` of counts scaled to a fixed total cannot
+reach it; CPM or linear data do). A categorical `--groupby` keeps its category order; any other column
 is cast to strings and sorted. An h5ad `.raw` is ignored (`use_raw=False`).
 Cell ids and gene ids must be unique, and each symbol must map to one gene id
 (`skillkit.check_gene_ids`, house-style `data.ids`); a duplicate or an ambiguous
@@ -140,6 +141,18 @@ python scripts/sc_markers.py \
 python scripts/sc_markers.py --demo --outdir demo_out
 ```
 
+## Layer contract
+
+- Input: log-normalised values in `X`, or in `--layer`. Raw counts in
+  `layers["counts"]` (sc-embed's output) are not read.
+- Output: no h5ad is written; `X` and layers are untouched on disk.
+
+## Fixed method settings
+
+`sc.tl.rank_genes_groups` (scanpy 1.12.4): `reference="rest"`,
+`corr_method="benjamini-hochberg"`, `pts=True`, `use_raw=False`; wilcoxon runs
+with `tie_correct=False` (scanpy default); `sc.settings.n_jobs = 1`.
+
 ## Workflow (fixed order)
 
 1. **Validate** arguments and input; bad input gives `ERROR: <message>`, exit 2.
@@ -149,7 +162,8 @@ python scripts/sc_markers.py --demo --outdir demo_out
 3. **Test** each group against the rest with `sc.tl.rank_genes_groups`
    (`--method`, `reference="rest"`, `corr_method="benjamini-hochberg"`,
    `pts=True`, `use_raw=False`), every gene. The BH family is one group's genes.
-4. **Call markers**: `passes` when `padj < --padj-max`, `logfc > --lfc-min` and
+4. **Call markers**: `padj` and `passes` are descriptive cell-level values;
+   every row of both tables carries `unit = "cells (not replicates)"`. `passes` when `padj < --padj-max`, `logfc > --lfc-min` and
    `pct_in >= --min-pct`. One-sided: a marker is up in its group. `logfc` is
    scanpy's log2 ratio of `expm1` group means, so it assumes natural `log1p` data.
 5. **Pick top markers**: the first `--n-top` passing genes per group by score.
@@ -173,8 +187,8 @@ outdir/
 ├── report.md                  # params, summary, figures with captions
 ├── result.json                # n_cells, n_groups, n_genes_tested, status_counts, gene_id_col, n_pass, top_markers, method, seed, params, context, reference, chat_summary_lines, preferred_artifacts
 ├── tables/
-│   ├── markers.tsv            # group, gene_symbol, gene_id, score, logfc, pval, padj, pct_in, pct_out, passes, status
-│   └── top_markers.tsv        # group, rank, gene_symbol, gene_id, score, logfc, pval, padj, pct_in, pct_out
+│   ├── markers.tsv            # group, gene_symbol, gene_id, score, logfc, pval, padj, pct_in, pct_out, passes, status, unit
+│   └── top_markers.tsv        # group, rank, gene_symbol, gene_id, score, logfc, pval, padj, pct_in, pct_out, unit
 ├── figures/
 │   ├── marker_dotplot.pdf
 │   ├── marker_dotplot.png

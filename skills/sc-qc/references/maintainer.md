@@ -104,7 +104,11 @@ and 4000 UMIs) of 345 cells and 533 genes (13 `MT-`, 20 `RPS`/`RPL`). Each sampl
 has 300 good cells from 5 populations, 20 low-quality cells (12% of the library,
 40% mito) and 25 heterotypic doublets. `obs["planted"]` holds the truth.
 
-With `--demo` (mad 5/5/3, rate 0.08, auto threshold) 877 of 1035 cells are kept
+`n_failed_qc` and `n_doublets` overlap (`n_failed_and_doublet`); the summary
+reports the overlap and the total removed. A zero MAD for a sample and metric is
+listed in `result.json` `zero_mad` and the report.
+
+With `--demo` (mad 5/5/3, rate 0.08, auto threshold, Scrublet 30 PCs) 877 of 1035 cells are kept
 (S1 289, S2 293, S3 295). 86 cells fail QC and Scrublet calls 83 doublets. Every
 planted low-quality cell and doublet is removed. 23 good cells also go: the
 synthetic mito fraction is so tight that 3 MADs sits near 3.7%. With

@@ -37,6 +37,7 @@ ARGS = {
     "--mads-mito": "3",
     "--expected-doublet-rate": "0.08",
     "--doublet-threshold": "auto",
+    "--scrublet-n-prin-comps": "30",
     "--seed": "0",
     "--reference": "synthetic demo genes, no genome build",
     "--context": "synthetic demo, no real tissue",
@@ -129,6 +130,57 @@ def test_demo_golden_values(demo_out):
     assert set(kept) == {"good"}
     filtered = ad.read_h5ad(demo_out / "data" / "qc_filtered.h5ad")
     assert filtered.n_obs == N_AFTER and filtered.n_vars == 533
+
+
+def test_overlap_is_reported_not_summed(demo_out):
+    result = json.loads((demo_out / "result.json").read_text())
+    both = result["n_failed_and_doublet"]
+    removed = result["n_cells_before"] - result["n_cells_after"]
+    assert removed == result["n_failed_qc"] + result["n_doublets"] - both
+    per_sample = pd.read_csv(demo_out / "tables" / "cells_per_sample.tsv", sep="\t")
+    assert per_sample["n_failed_and_doublet"].sum() == both
+    assert f"{both} are both, so {removed} cells were removed in total" in " ".join(
+        result["chat_summary_lines"]
+    )
+    report = (demo_out / "report.md").read_text()
+    assert "unscaled MAD, scale = 1" in report
+    assert result["zero_mad"] == []
+
+
+def test_zero_mad_is_reported(monkeypatch):
+    monkeypatch.syspath_prepend(str(SKILL_DIR / "scripts"))
+    import sc_qc
+
+    obs = pd.DataFrame(
+        {
+            "sample": ["A"] * 4 + ["B"] * 4,
+            "log1p_total_counts": [6.0, 7.0, 8.0, 9.0] * 2,
+            "log1p_n_genes_by_counts": [5.0, 6.0, 7.0, 8.0] * 2,
+            # sample A has a constant % mito: MAD 0, limit = the median.
+            "pct_counts_mito": [2.0] * 4 + [1.0, 2.0, 3.0, 4.0],
+        }
+    )
+    p = {"mode": "mad", "mads_counts": 5.0, "mads_genes": 5.0, "mads_mito": 3.0}
+    limits = sc_qc.limits_per_sample(obs, p)
+    assert sc_qc.zero_mad_rows(obs, limits, p) == [
+        {
+            "sample": "A",
+            "metric": "pct_counts_mito",
+            "limit_min": None,
+            "limit_max": 2.0,
+        }
+    ]
+    assert sc_qc.zero_mad_rows(obs, limits, {**p, "mode": "fixed"}) == []
+
+
+def test_scrublet_pcs_guard(tmp_path):
+    completed = run_with(tmp_path, scrublet_n_prin_comps="400")
+    # All three samples tie at 345 cells; which one is named does not matter.
+    assert completed.returncode == 2
+    assert "has 345 cells; Scrublet needs more than --scrublet-n-prin-comps 400" in (
+        completed.stderr
+    )
+    assert "Traceback" not in completed.stderr
 
 
 def test_fixed_mode(tmp_path):
@@ -228,7 +280,9 @@ def test_too_few_cells(tmp_path):
     s1 = np.flatnonzero(adata.obs["sample"] == "S1")
     small = adata[~np.isin(np.arange(adata.n_obs), s1[20:])].copy()
     completed = run_with(tmp_path, adata=write_h5ad(tmp_path, small))
-    message = "sample 'S1' has 20 cells; Scrublet needs more than 30"
+    message = (
+        "sample 'S1' has 20 cells; Scrublet needs more than --scrublet-n-prin-comps 30"
+    )
     assert is_error(completed, message)
 
 
@@ -260,7 +314,12 @@ def test_no_threshold(monkeypatch):
         X=np.ones((40, 2), dtype=np.float32),
         obs=pd.DataFrame({"sample": "A"}, index=[f"c{i}" for i in range(40)]),
     )
-    p = {"doublet_threshold": "auto", "expected_doublet_rate": 0.1, "seed": 0}
+    p = {
+        "doublet_threshold": "auto",
+        "expected_doublet_rate": 0.1,
+        "seed": 0,
+        "scrublet_n_prin_comps": 30,
+    }
     with pytest.raises(skillkit.SkillError, match="found no doublet-score threshold"):
         sc_qc.scrublet(cells, p)
 

@@ -109,13 +109,16 @@ Environment: pixi feature `velocity` (`pixi install -e velocity`, from `template
 | Input | Format | Required content | Example |
 |---|---|---|---|
 | `--adata` | `.h5ad` | one object, cells x genes | `data/velocity_input.h5ad`, `examples/demo.h5ad` |
-| `layers["spliced"]`, `layers["unspliced"]` | counts | from velocyto, STARsolo or alevin-fry, same genes as `X` | merged with `scv.utils.merge` |
+| `layers["spliced"]`, `layers["unspliced"]` | non-negative integer counts; `unspliced` not all zero | from velocyto, STARsolo or alevin-fry, same genes as `X` | merged with `scv.utils.merge` |
 | `obsm["X_umap"]` | 2-D UMAP | plotting only | sc-embed |
 | `--groupby` | obs column | cluster or annotation labels, at least 2 | `leiden`, `stage` |
 | `--gene-id-col` | var column | Ensembl gene ids, one per symbol; `var_names` are symbols | `gene_ids` |
 
-`X` may hold raw or log-normalised values: scVelo normalises the layers itself
-and skips `log1p` when `uns["log1p"]` is present.
+`X` may hold raw counts or log-normalised values. When `uns["log1p"]` is
+present (sc-embed output), `X` is left as it is: no `normalize_per_cell` on `X`,
+no second `log1p`; scVelo still scales the spliced and unspliced layers inside
+`scv.pp.moments`. Otherwise `X` is normalised and logged here. A layer with
+negative or non-integer values, or an all-zero `unspliced`, stops the run.
 
 ## Parameters (all required, no defaults)
 
@@ -130,11 +133,15 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--mode` | Stochastic (steady-state, fast) or dynamical (full kinetics, slow) velocity? | `stochastic` |
 | `--min-shared-counts` | How many counts must a gene have in spliced and unspliced together to stay? | `10` |
 | `--n-top-genes` | How many highly variable genes go into velocity? | `30` |
-| `--n-pcs` | How many PCs for the neighbour graph? | `10` |
+| `--hvg-flavor` | Which HVG flavor: `seurat` or `cell_ranger`? Recommended `seurat` (scanpy 1.12.4 `highly_variable_genes` default). | `seurat` |
+| `--use-rep` | Which `obsm` representation builds the neighbour graph and moments? Recommended `X_pca` (scVelo 0.3.4 default); sc-embed's `X_pca_harmony` is allowed. An existing rep is used as it is, PCA is not recomputed; only a missing `X_pca` is computed. | `X_pca` |
+| `--n-pcs` | How many columns of that representation (PCs) for the neighbour graph? | `10` |
 | `--n-neighbors` | How many neighbours for the graph and the moments? | `30` |
+| `--kernel-model` | Which CellRank `VelocityKernel` model: `deterministic`, `stochastic` or `monte_carlo`? Recommended `deterministic` (CellRank 2.3.3 default). | `deterministic` |
 | `--groupby` | Which obs column holds the groups? | `stage` |
 | `--terminal-states` | Which groups are end points (comma list), or `auto` to let GPCCA infer them? | `s4` |
 | `--n-states` | Only with `auto`: how many GPCCA macrostates? | not used |
+| `--stability-threshold` | Only with `auto`: which coarse-grained self-transition marks a macrostate terminal? Recommended `0.96` (CellRank 2.3.3 `predict_terminal_states` default). Refused with named groups. | not used |
 | `--context` | Species, tissue or cell type, condition and dataset? | `synthetic demo: scVelo simulation, 500 cells, 4 stages, no real tissue` |
 | `--reference` | Which genome build and annotation release named the genes (for example `GRCh38, GENCODE 44`)? | `synthetic demo, no genome build` |
 | `--seed` | Which seed (PCA, neighbours)? | `0` |
@@ -156,15 +163,17 @@ an error.
 2. **Groups** become categorical; an existing category order is kept, else
    labels sort alphabetically. Unused levels are dropped; at least 2 groups.
 3. **Genes**: `scv.pp.filter_genes(min_shared_counts=)`, then
-   `scv.pp.normalize_per_cell`, `sc.pp.log1p` (skipped when `uns["log1p"]`
-   exists, so sc-embed output is not logged twice), and
-   `sc.pp.highly_variable_genes(n_top_genes=, subset=True)`. This is the
+   `scv.pp.normalize_per_cell` and `sc.pp.log1p` (both skipped when
+   `uns["log1p"]` exists, so sc-embed output is not scaled or logged twice), and
+   `sc.pp.highly_variable_genes(n_top_genes=, flavor=--hvg-flavor, subset=True)`. This is the
    CellRank tutorial order; scvelo 0.3.4's `filter_and_normalize` no longer
    takes `n_top_genes`. `--n-top-genes` above the genes left, or `--n-pcs` at or
-   above min(cells, `--n-top-genes`), stops the run.
-4. **Graph**: `sc.pp.pca(n_comps=--n-pcs, random_state=--seed)`,
-   `sc.pp.neighbors(n_pcs=, n_neighbors=, random_state=--seed)` on the HVG
-   subset, then `scv.pp.moments(n_pcs=None, n_neighbors=None)` on that graph.
+   above min(cells, `--n-top-genes`) when `X_pca` is computed, or above the
+   width of an existing `--use-rep`, stops the run.
+4. **Graph**: when `--use-rep` is not in `obsm` and is `X_pca`,
+   `sc.pp.pca(n_comps=--n-pcs, random_state=--seed)` on the HVG subset; any
+   other missing rep stops the run. Then
+   `sc.pp.neighbors(use_rep=--use-rep, n_pcs=, n_neighbors=, random_state=--seed)`, then `scv.pp.moments(n_pcs=None, n_neighbors=None)` on that graph.
    Any neighbour graph in the input is replaced; the input `X_umap` is used only
    for plotting.
 5. **Velocity**: `--mode dynamical` first runs
@@ -174,18 +183,36 @@ an error.
    `scv.tl.velocity_pseudotime()` (scVelo picks root and end cells from the
    velocity graph), `scv.tl.velocity_embedding(basis="umap")`.
 7. **Kernel and terminal states**: `cr.kernels.VelocityKernel` with
-   `compute_transition_matrix(model="deterministic")`, then `GPCCA`.
+   `compute_transition_matrix(model=--kernel-model)`, then `GPCCA`.
    - A comma list: `set_terminal_states(states={group: all its cells})`, so
      every cell of each named group is absorbing.
    - `auto`: `compute_macrostates(n_states=--n-states, cluster_key=--groupby)`,
-     then `predict_terminal_states(method="stability", stability_threshold=0.96)`,
-     CellRank's documented rule. Macrostates are named after their majority
+     then `predict_terminal_states(method="stability", stability_threshold=--stability-threshold)`. Macrostates are named after their majority
      group (`s1_2` when one group holds several).
 8. **Fate probabilities**: `compute_fate_probabilities(solver="gmres",
    use_petsc=False)`, one thread, tolerance 1e-6. The mean per group gives
    `fate_by_group.tsv`.
 9. **Top genes** for the phase portraits: the 4 highest `velocity_r2`
    (stochastic) or `fit_likelihood` (dynamical), ties by gene name.
+
+## Layer contract
+
+- Input: `layers["spliced"]` and `layers["unspliced"]` hold raw integer counts.
+  `X` holds raw counts, or log-normalised values flagged `uns["log1p"]`
+  (sc-embed). `obsm[--use-rep]` is read when present.
+- Output `data/velocity.h5ad`: the HVG subset; `X` is log-normalised, `Ms`, `Mu`
+  and `velocity` are added as layers, `spliced` and `unspliced` are scaled per
+  cell by scVelo. Not a counts matrix: do not hand it to a skill that needs raw
+  counts.
+
+## Fixed method settings
+
+Not asked, recorded here, all at package defaults unless a value is given.
+scVelo 0.3.4: `scv.tl.velocity` (`min_r2=0.01`), `velocity_graph`,
+`velocity_embedding(basis="umap")`, `recover_dynamics` (dynamical only),
+`moments(mode="connectivities")`; `scv.pp.filter_genes`. CellRank 2.3.3:
+`GPCCA`, `compute_fate_probabilities(solver="gmres", use_petsc=False)`. Phase
+portraits show the 4 genes with the best fit score (plot only).
 
 Required checks that do not apply: no design is fitted (no rank check), no
 resource is joined (no `n_matched`), and no cell is dropped. Step 3 filters genes
@@ -276,14 +303,15 @@ spliced and unspliced counts, and `not_tested` for genes removed by
 ```bash
 python scripts/velocity.py \
   --adata data/velocity_input.h5ad --mode stochastic \
-  --min-shared-counts 20 --n-top-genes 2000 --n-pcs 30 --n-neighbors 30 \
+  --min-shared-counts 20 --n-top-genes 2000 --hvg-flavor seurat \
+  --use-rep X_pca_harmony --n-pcs 30 --n-neighbors 30 --kernel-model deterministic \
   --groupby leiden --terminal-states Alpha,Beta --gene-id-col gene_ids \
   --context "mouse pancreas, E15.5 endocrinogenesis, Bastidas-Ponce 2019" \
   --reference "GRCm39, GENCODE M33" \
   --seed 0 --outdir results/2026-10-27_velocity
 
 # Inferred terminal states
-python scripts/velocity.py ... --terminal-states auto --n-states 6 ...
+python scripts/velocity.py ... --terminal-states auto --n-states 6 --stability-threshold 0.96 ...
 
 # Demo (only when the user asks for one)
 python scripts/velocity.py --demo --outdir demo_out

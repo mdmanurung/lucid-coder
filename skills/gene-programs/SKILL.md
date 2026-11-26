@@ -115,7 +115,12 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--reference` | genome build and annotation | Which genome build and annotation release name the genes (for example `GRCh38, GENCODE 44`)? | `synthetic demo, no genome build` |
 | `--k` | number of programs | How many programs (k)? Choose it before the run; this skill does not sweep k. | `3` |
 | `--n-hvg` | genes factorised | How many highly variable genes go into NMF? | `200` |
+| `--hvg-flavor` | HVG ranking | Which HVG flavor: `seurat` or `cell_ranger` (both rank genes on the log-normalised copy)? Recommended `seurat` (scanpy 1.12.4 default). | `seurat` |
+| `--target-sum` | scaling before the HVG `log1p` | To what total count is each cell scaled for HVG selection? Recommended `10000` (scanpy 1.12.4 `normalize_total` corpus value; its own default is the median depth). | `10000` |
 | `--n-replicates` | NMF runs | How many NMF replicates (at least 4)? cNMF uses 100-200 for real data. | `20` |
+| `--neighbour-fraction` | local-density neighbours | Which fraction of `--n-replicates` sets the neighbour count `int(fraction x n-replicates)` for the density filter? Recommended `0.3` (cNMF `local_neighborhood_size` default). | `0.3` |
+| `--nmf-max-iter` | NMF iterations | How many NMF iterations at most, for replicates and the usage fit? Recommended `1000` (cNMF, scikit-learn 1.x `NMF`; its own default is 200). | `1000` |
+| `--kmeans-n-init` | k-means starts | How many k-means starts for the consensus? Recommended `10` (scikit-learn `KMeans(n_init=10)`, as in cNMF). | `10` |
 | `--density-threshold` | outlier filter | Above which mean distance to its nearest replicate components is a component dropped? `2` keeps all. | `0.5` |
 | `--active-threshold` | active-cell rule | Above which fraction of the program's maximum usage does a cell count as active? | `0.1` |
 | `--n-top-genes` | top genes per program | How many top genes per program go in the table and heatmap? | `10` |
@@ -129,7 +134,8 @@ With `--demo`, only `--outdir` may also be given; any other argument is an error
 python scripts/gene_programs.py \
   --adata results/2026-10-27_qc/data/filtered.h5ad --layer counts --groupby leiden \
   --reference "GRCh38, GENCODE 44" \
-  --k 12 --n-hvg 2000 --n-replicates 100 --density-threshold 0.1 \
+  --k 12 --n-hvg 2000 --hvg-flavor seurat --target-sum 10000 --n-replicates 100 \
+  --neighbour-fraction 0.3 --nmf-max-iter 1000 --kmeans-n-init 10 --density-threshold 0.1 \
   --active-threshold 0.1 --n-top-genes 20 --seed 0 \
   --outdir results/2026-10-27_programs
 
@@ -137,20 +143,35 @@ python scripts/gene_programs.py \
 python scripts/gene_programs.py --demo --outdir demo_out
 ```
 
+## Layer contract
+
+- Input: raw integer counts in `X`, or in `--layer`. After sc-embed, `X` is
+  log-normalised and the counts sit in `layers["counts"]`: pass `--layer counts`.
+- Output `data/programs.h5ad`: `X` and layers as in the input, plus `obsm["usage"]`,
+  `varm["gene_scores"]` and `var["highly_variable"]`.
+
+## Fixed method settings
+
+Not asked, recorded here. scikit-learn `NMF`: Frobenius loss, `solver="cd"`,
+`init="random"`; `non_negative_factorization(update_H=False)` for usage;
+TPM scale 1e6 (it cancels in the z-scored gene scores); cNMF input scaled to unit
+variance per gene, not centred; per-cell usage scaled to sum 1; replicate seeds
+from `numpy.random.default_rng(--seed)`.
+
 ## Workflow (fixed order)
 
 1. **Validate** arguments and input; bad input gives `ERROR: <message>`, exit 2.
    Gene names and cell ids must be unique (`skillkit.check_unique`). The matrix
    must be non-negative integers and `--groupby` must have 2+ groups.
-2. **Select HVGs**: the top `--n-hvg` expressed genes by Seurat dispersion on a
-   `normalize_total` + `log1p` copy. The NMF input is the HVG counts scaled to
+2. **Select HVGs**: the top `--n-hvg` expressed genes by `--hvg-flavor` on a
+   `normalize_total(target_sum=--target-sum)` + `log1p` copy. The NMF input is the HVG counts scaled to
    unit variance per gene, not centred (cNMF `prepare`).
 3. **Factorise** `--n-replicates` times with sklearn `NMF` (Frobenius, `cd`
-   solver, random init, 1000 iterations); replicate seeds are drawn from
+   solver, random init, `--nmf-max-iter` iterations); replicate seeds are drawn from
    `numpy.random.default_rng(--seed)`.
 4. **Consensus**: L2-normalise the `k × n-replicates` components; drop each
-   whose mean Euclidean distance to its `int(0.3 × n-replicates)` nearest
-   components is not below `--density-threshold`; k-means (`k`, 10 starts,
+   whose mean Euclidean distance to its `int(--neighbour-fraction × n-replicates)` nearest
+   components is not below `--density-threshold`; k-means (`k`, `--kmeans-n-init` starts,
    `random_state=--seed`); the median of each cluster, scaled to sum 1, is a
    consensus spectrum. Fewer than `k` kept components stops the run.
 5. **Fit usage** with the consensus spectra fixed (`non_negative_factorization`,

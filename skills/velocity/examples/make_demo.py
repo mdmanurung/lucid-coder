@@ -4,8 +4,9 @@ Outputs: examples/demo.h5ad
 Run:     python examples/make_demo.py
 Notes:   scv.datasets.simulation: 500 cells on one linear time axis
          (obs["true_t"]), 50 genes with splicing kinetics. 4 stages cut at
-         quartiles of true_t (s1..s4). X and the spliced/unspliced layers hold
-         the simulated abundances; X_umap comes from a log-normalised copy.
+         quartiles of true_t (s1..s4). The simulated abundances are multiplied by
+         10 and rounded to integer counts (velocity.py refuses non-integers); X is the
+         spliced counts and X_umap comes from a log-normalised copy.
 """
 
 from pathlib import Path
@@ -19,6 +20,7 @@ SEED = 0
 N_CELLS = 500
 N_GENES = 50
 STAGES = ["s1", "s2", "s3", "s4"]
+COUNT_SCALE = 10
 
 adata = scv.datasets.simulation(
     n_obs=N_CELLS,
@@ -35,6 +37,10 @@ adata.var_names = [f"G{i:02d}" for i in range(N_GENES)]
 adata.obs["stage"] = pd.Categorical(
     pd.qcut(adata.obs["true_t"], 4, labels=STAGES), categories=STAGES
 )
+# velocity.py needs integer counts and the simulation returns floats in arbitrary
+# units (0-22): scale by COUNT_SCALE, then round, so rounding keeps the kinetics.
+for key in ("spliced", "unspliced"):
+    adata.layers[key] = np.round(COUNT_SCALE * adata.layers[key])
 adata.var = adata.var[[]]
 # Ensembl-like ids so the demo exercises --gene-id-col.
 adata.var["gene_ids"] = [f"ENSG9{i:010d}.1" for i in range(N_GENES)]

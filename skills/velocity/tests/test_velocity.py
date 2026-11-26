@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 import anndata as ad
+import numpy as np
 import pandas as pd
 import pytest
 from scipy import stats
@@ -24,10 +25,10 @@ DEMO = SKILL_DIR / "examples" / "demo.h5ad"
 TEMPLATES = SKILL_DIR.parents[1] / "templates"
 
 # Golden demo values, computed once with scvelo 0.3.4 and cellrank 2.3.3. The
-# Spearman rho of velocity pseudotime with the simulated time is 0.9963.
-RHO_TRUE_TIME = 0.996
+# Spearman rho of velocity pseudotime with the simulated time is 0.9692.
+RHO_TRUE_TIME = 0.969
 TERMINAL = ["s4"]
-TOP_GENES = ["G08", "G20", "G28", "G44"]
+TOP_GENES = ["G22", "G30", "G10", "G34"]
 
 ARGS = {
     "--adata": str(DEMO),
@@ -35,8 +36,11 @@ ARGS = {
     "--mode": "stochastic",
     "--min-shared-counts": "10",
     "--n-top-genes": "30",
+    "--hvg-flavor": "seurat",
+    "--use-rep": "X_pca",
     "--n-pcs": "10",
     "--n-neighbors": "30",
+    "--kernel-model": "deterministic",
     "--groupby": "stage",
     "--terminal-states": "s4",
     "--context": (
@@ -172,10 +176,13 @@ def test_commands_sh_reproduces_run(demo_out, tmp_path):
 
 
 def test_auto_terminal_states(tmp_path):
-    completed = run_with(tmp_path, terminal_states="auto", n_states="3")
+    completed = run_with(
+        tmp_path, terminal_states="auto", n_states="3", stability_threshold="0.96"
+    )
     assert completed.returncode == 0, completed.stderr
     result = json.loads((tmp_path / "out" / "result.json").read_text())
-    assert "s4" in result["terminal_states"]
+    # Golden for the integer-count demo (the float demo gave s1_2 and s4).
+    assert sorted(result["terminal_states"]) == ["s2", "s3"]
 
 
 def test_no_terminal_state(demo_out, monkeypatch):
@@ -190,8 +197,35 @@ def test_no_terminal_state(demo_out, monkeypatch):
 
     monkeypatch.setattr(cr.estimators.GPCCA, "predict_terminal_states", no_stable)
     adata = ad.read_h5ad(demo_out / "data" / "velocity.h5ad")
-    p = {"n_states": 2, "groupby": "stage"}
+    p = {
+        "n_states": 2,
+        "groupby": "stage",
+        "stability_threshold": 0.96,
+        "kernel_model": "deterministic",
+    }
     with pytest.raises(SkillError, match="no macrostate of 2 has stability >= 0.96"):
+        velocity.fates(adata, None, p)
+
+
+def test_macrostates_failed(demo_out, monkeypatch):
+    """compute_macrostates raising gives the fixed error, whatever the data."""
+    sys.path.insert(0, str(SCRIPT.parent))
+    import cellrank as cr
+    import velocity
+    from skillkit import SkillError
+
+    def cannot_form(self, **kwargs):
+        raise ValueError("Cannot form 12 macrostates")
+
+    monkeypatch.setattr(cr.estimators.GPCCA, "compute_macrostates", cannot_form)
+    adata = ad.read_h5ad(demo_out / "data" / "velocity.h5ad")
+    p = {
+        "n_states": 12,
+        "groupby": "stage",
+        "stability_threshold": 0.96,
+        "kernel_model": "deterministic",
+    }
+    with pytest.raises(SkillError, match="GPCCA could not form 12 macrostates"):
         velocity.fates(adata, None, p)
 
 
@@ -204,7 +238,18 @@ def test_dynamical_smoke(tmp_path):
     assert "fit_likelihood" in genes.columns
 
 
-@pytest.mark.parametrize("arg", ["--seed", "--reference", "--context", "--gene-id-col"])
+@pytest.mark.parametrize(
+    "arg",
+    [
+        "--seed",
+        "--reference",
+        "--context",
+        "--gene-id-col",
+        "--use-rep",
+        "--hvg-flavor",
+        "--kernel-model",
+    ],
+)
 def test_missing_argument_fails_without_demo(tmp_path, arg):
     assert is_error(
         run_with(tmp_path, drop=[arg]), f"missing required arguments: {arg}"
@@ -230,9 +275,22 @@ def test_demo_conflict(tmp_path):
             "--terminal-states must be a comma list of groups or auto, got ' , '",
         ),
         (
-            {"terminal_states": "auto", "n_states": "1"},
+            {"terminal_states": "auto", "n_states": "1", "stability_threshold": "0.9"},
             "--n-states must be an integer >= 2, got 1",
         ),
+        (
+            {"terminal_states": "auto", "n_states": "3"},
+            "--terminal-states auto needs --stability-threshold",
+        ),
+        (
+            {"stability_threshold": "0.96"},
+            "--stability-threshold is used only with --terminal-states auto",
+        ),
+        (
+            {"terminal_states": "auto", "n_states": "3", "stability_threshold": "1.5"},
+            "--stability-threshold must be in (0, 1], got 1.5",
+        ),
+        ({"use_rep": "X_nope"}, "obsm['X_nope'] not found"),
         ({"terminal_states": "auto"}, "--terminal-states auto needs --n-states"),
         ({"n_states": "3"}, "--n-states is used only with --terminal-states auto"),
         ({"adata": "/no/such.h5ad"}, "input file not found: /no/such.h5ad"),
@@ -247,10 +305,6 @@ def test_demo_conflict(tmp_path):
             "--n-top-genes 60 exceeds the 50 genes left after --min-shared-counts 10",
         ),
         ({"n_pcs": "30"}, "--n-pcs 30 must be below min(cells, genes) = 30"),
-        (
-            {"terminal_states": "auto", "n_states": "12"},
-            "GPCCA could not form 12 macrostates",
-        ),
     ],
 )
 def test_input_errors(tmp_path, changes, message):
@@ -266,6 +320,76 @@ def test_outdir_exists(tmp_path):
 def test_missing_layer(tmp_path, layer):
     path = broken_demo(tmp_path, lambda a: a.layers.pop(layer))
     assert is_error(run_with(tmp_path, adata=path), f"layer not found: {layer}")
+
+
+def test_non_integer_counts(tmp_path):
+    def halve(a):
+        a.layers["spliced"] = a.layers["spliced"] + 0.5
+
+    path = broken_demo(tmp_path, halve)
+    completed = run_with(tmp_path, adata=path)
+    assert is_error(completed, "layer 'spliced' must hold non-negative integer counts")
+
+
+def test_negative_counts(tmp_path):
+    def negate(a):
+        a.layers["unspliced"] = -a.layers["unspliced"]
+
+    path = broken_demo(tmp_path, negate)
+    completed = run_with(tmp_path, adata=path)
+    assert is_error(
+        completed, "layer 'unspliced' must hold non-negative integer counts"
+    )
+
+
+def test_all_zero_unspliced(tmp_path):
+    def zero(a):
+        a.layers["unspliced"] = a.layers["unspliced"] * 0
+
+    path = broken_demo(tmp_path, zero)
+    assert is_error(run_with(tmp_path, adata=path), "layer 'unspliced' is all zero")
+
+
+def test_given_rep_is_used_and_pca_not_recomputed(tmp_path):
+    def add_rep(a):
+        rng = np.random.default_rng(0)
+        a.obsm["X_pca_harmony"] = rng.normal(size=(a.n_obs, 12)).astype("float32")
+
+    path = broken_demo(tmp_path, add_rep)
+    completed = run_with(tmp_path, adata=path, use_rep="X_pca_harmony", n_pcs="8")
+    assert completed.returncode == 0, completed.stderr
+    reread = ad.read_h5ad(tmp_path / "out" / "data" / "velocity.h5ad")
+    assert reread.uns["neighbors"]["params"]["use_rep"] == "X_pca_harmony"
+    assert reread.uns["neighbors"]["params"]["n_pcs"] == 8
+    assert "X_pca" not in reread.obsm
+
+
+def test_given_rep_too_narrow(tmp_path):
+    def add_rep(a):
+        a.obsm["X_small"] = np.zeros((a.n_obs, 5), dtype="float32") + np.arange(5)
+
+    path = broken_demo(tmp_path, add_rep)
+    completed = run_with(tmp_path, adata=path, use_rep="X_small")
+    assert is_error(completed, "--n-pcs 10 exceeds the 5 columns of obsm['X_small']")
+
+
+def test_normalised_input_is_not_normalised_again(tmp_path):
+    """X flagged log1p (sc-embed output) is left alone: no rescale, no second log."""
+
+    def lognorm(a):
+        counts = a.X.toarray() if hasattr(a.X, "toarray") else np.asarray(a.X)
+        scaled = counts / counts.sum(axis=1, keepdims=True) * 1e4
+        a.X = np.log1p(scaled).astype("float32")
+        a.uns["log1p"] = {"base": None}
+
+    path = broken_demo(tmp_path, lognorm)
+    completed = run_with(tmp_path, adata=path)
+    assert completed.returncode == 0, completed.stderr
+    before = ad.read_h5ad(path)
+    after = ad.read_h5ad(tmp_path / "out" / "data" / "velocity.h5ad")
+    expected = before[:, after.var_names].X
+    expected = expected.toarray() if hasattr(expected, "toarray") else expected
+    assert np.allclose(after.X, expected, atol=1e-5)
 
 
 def test_no_umap(tmp_path):

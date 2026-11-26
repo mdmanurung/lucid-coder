@@ -52,6 +52,7 @@ DSB_ARGS = {
     "--context": "synthetic demo, no real tissue",
     "--empty-droplets": str(EXAMPLES / "demo_empty.h5ad"),
     "--isotype-controls": "IgG1,IgG2a,IgG2b",
+    "--dsb-pseudocount": "10",
 }
 
 
@@ -250,6 +251,20 @@ def test_outdir_exists(tmp_path):
 )
 def test_argument_errors(tmp_path, drop, changes, message):
     assert is_error(run_with(tmp_path, drop=drop, **changes), message)
+
+
+def test_dsb_pseudocount_is_required(tmp_path):
+    completed = run_with(tmp_path, base=DSB_ARGS, drop=("--dsb-pseudocount",))
+    assert is_error(completed, "--method dsb needs: --dsb-pseudocount")
+    completed = run_with(tmp_path, dsb_pseudocount="10")
+    assert is_error(completed, "--method pearson does not use: --dsb-pseudocount")
+
+
+def test_dsb_pseudocount_is_required(tmp_path):
+    completed = run_with(tmp_path, base=DSB_ARGS, drop=("--dsb-pseudocount",))
+    assert is_error(completed, "--method dsb needs: --dsb-pseudocount")
+    completed = run_with(tmp_path, dsb_pseudocount="10")
+    assert is_error(completed, "--method pearson does not use: --dsb-pseudocount")
 
 
 def edited(tmp_path, source, edit, name="bad.h5ad"):

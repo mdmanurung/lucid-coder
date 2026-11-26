@@ -105,6 +105,10 @@ ERRORS = {
 }
 # decoupler's ulm and mlm scores are t-values of the regression slope.
 UNIT = "t-value"
+# Largest value a log1p-normalised X can hold; above it X is not log1p data.
+LOGNORM_MAX = 20
+# Cells cannot be replicates: in cells mode padj ranks sources, it does not test donors.
+CELL_UNIT = "cells (not replicates)"
 
 
 def parse_args(argv):
@@ -197,6 +201,10 @@ def load_cells(p):
         fail(ERRORS, "not_lognorm", why="negative values (scaled?)")
     if np.array_equal(values, np.round(values)):
         fail(ERRORS, "not_lognorm", why="all integers (raw counts?)")
+    # log1p of counts scaled to 1e4 peaks near 9-10; CPM or linear data run higher.
+    if values.size and values.max() > LOGNORM_MAX:
+        why = f"max(X) = {values.max():.1f} > {LOGNORM_MAX} (CPM or linear data?)"
+        fail(ERRORS, "not_lognorm", why=why)
     groups = adata.obs[col]
     if not isinstance(groups.dtype, pd.CategoricalDtype):
         groups = pd.Categorical(groups.astype(str), categories=sorted(set(groups)))
@@ -401,7 +409,9 @@ def analyse(argv, full_argv):
     # Sources under tmin stay in the table as not_tested, with NA statistics.
     reasons = dict.fromkeys(dropped["source"], "not_tested")
     table = with_status(table, n_targets["source"], "source", reasons)
-    table = table.merge(n_targets, on="source", how="left")
+    table = table.merge(n_targets, on="source", how="left", validate="m:1")
+    if cells:
+        table["unit"] = CELL_UNIT
     status_counts = (
         table.drop_duplicates("source")["status"].value_counts().sort_index().to_dict()
     )
@@ -425,7 +435,8 @@ def analyse(argv, full_argv):
             "activity_violin": f"Violin plot of per-cell {p['method'].upper()} "
             f"activity of the same {len(shown)} sources by {col}, one panel "
             "per source; y axes differ between panels and the middle bar marks "
-            "each median.",
+            "each median. pvalue and padj in activity.tsv are descriptive "
+            f"cell-level values (unit: {CELL_UNIT}).",
         }
         summary = [
             f"{acts.n_obs} cells in {len(top)} groups of {col} scored with "
@@ -433,7 +444,8 @@ def analyse(argv, full_argv):
             f"{len(dropped)} sources dropped under tmin.",
             "Top source per group by inferred activity: "
             + "; ".join(f"{g}: {s[0]}" for g, s in top.items())
-            + f" ({p['rank_method']}, group vs rest, BH within group).",
+            + f" ({p['rank_method']}, group vs rest, BH within group; descriptive, "
+            f"unit: {CELL_UNIT}).",
         ]
         n_units, artifacts = acts.n_obs, "figures/activity_heatmap.png"
     else:

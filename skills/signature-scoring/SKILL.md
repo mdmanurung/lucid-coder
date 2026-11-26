@@ -104,8 +104,9 @@ between groups, hand `tables/sample_scores.tsv` to the group-tests skill.
 | `obsm["X_umap"]` | optional | 2-D embedding; without it the UMAP figures are skipped | demo has one |
 
 Gene symbols must match `var_names` exactly. Duplicate rows are dropped. The
-script refuses a matrix with negative values (scaled) or only integers (raw
-counts). A categorical `--group-col` keeps its category order; any other column
+script refuses a matrix with negative values (scaled), only integers (raw
+counts), or a maximum above 20 (`log1p` of counts scaled to a fixed total cannot
+reach it; CPM or linear data do). A categorical `--group-col` keeps its category order; any other column
 is cast to strings and sorted. An h5ad `.raw` is ignored (`use_raw=False`).
 Gene names and cell ids must be unique (`skillkit.check_unique`).
 
@@ -123,18 +124,19 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--group-col` | obs column of groups | Which obs column holds the groups to compare? | `group` |
 | `--method` | `score_genes` or `aucell` | Mean-minus-control score (scanpy `score_genes`) or rank-based AUCell (decoupler)? | `score_genes` |
 | `--ctrl-size` | score_genes only: control genes drawn per bin | How many control genes per expression bin? (corpus: 1000) | `50` |
-| `--n-bins` | score_genes only: expression bins | How many expression bins for control genes? (corpus: 25) | `25` |
+| `--n-bins` | expression bins for score_genes controls and for the random-set control | How many expression bins? Recommended `25` (scanpy 1.12.4 `score_genes` default, after Tirosh et al. 2016). | `25` |
 | `--n-up` | aucell only: top-ranked genes per cell in the AUC | How many top-ranked genes per cell count for the AUC? (decoupler's hidden default is 5% of genes) | not used |
 | `--min-genes` | genes a set must have in the data | How many of a set's genes must be in the data to score it? | `5` |
-| `--n-random` | random sets per signature | How many size-matched random gene sets per signature? | `50` |
+| `--n-random` | random sets per signature | How many size- and expression-matched random gene sets per signature? | `50` |
 | `--reference` | genome build and annotation release of the gene names | Which genome build and annotation were the genes counted against (e.g. `GRCh38, GENCODE 44`)? | `synthetic demo genes, no genome build` |
 | `--seed` | seed | Which seed? Fixes score_genes control genes, random sets and jitter. | `0` |
 | `--context` | what the data are; opens the report and `chat_summary_lines` | Species, tissue or cell type, condition and dataset? | `synthetic demo: 8 samples, healthy vs disease, no real tissue` |
 | `--outdir` | new output directory | Which new directory gets the outputs? It must not exist. | given by the user |
 
 The last column is **demo-only, not defaults**. `--demo` alone pins all of them;
-beside `--demo` only `--outdir` may be given. `--ctrl-size` and `--n-bins` are
-required with `score_genes` and refused with `aucell`; `--n-up` the reverse.
+beside `--demo` only `--outdir` may be given. `--n-bins` is always required.
+`--ctrl-size` is required with `score_genes` and refused with `aucell`; `--n-up`
+the reverse.
 
 ```bash
 python scripts/signature_scoring.py \
@@ -147,12 +149,26 @@ python scripts/signature_scoring.py \
 
 python scripts/signature_scoring.py --adata embedded.h5ad --gene-sets sets.tsv \
   --sample-col donor --group-col condition --method aucell --n-up 500 \
-  --min-genes 5 --n-random 100 --reference "GRCh38, GENCODE 44" --seed 0 \
+  --n-bins 25 --min-genes 5 --n-random 100 --reference "GRCh38, GENCODE 44" --seed 0 \
   --context "human PBMC, IFN-beta vs control, Kang 2018" --outdir results/ifn-aucell
 
 # Demo (only when the user asks for one)
 python scripts/signature_scoring.py --demo --outdir demo_out
 ```
+
+## Layer contract
+
+- Input: log-normalised values in `X` (sc-embed's `embedded.h5ad` qualifies).
+  Layers, including `counts`, are not read.
+- Output `data/scored.h5ad`: `X` and layers as in the input, plus obs columns
+  `<method>_<set>` with the per-cell scores. `tables/cell_scores.tsv` carries
+  `unit = "cells (not replicates)"`: per-cell scores are descriptive.
+
+## Fixed method settings
+
+`sc.tl.score_genes` (scanpy 1.12.4): `use_raw=False`, `gene_pool` all genes,
+`random_state=--seed`. `dc.mt.aucell` (decoupler): `empty=False`,
+`tmin=--min-genes`. Random sets: `numpy.random.default_rng(--seed)`.
 
 ## Workflow (fixed order)
 
@@ -170,8 +186,14 @@ python scripts/signature_scoring.py --demo --outdir demo_out
    tmin=--min-genes, n_up=, empty=False)` call for all sets.
 4. **Summarise** per sample: the mean score over the sample's cells, with its
    group and cell count.
-5. **Control**: for each set draw `--n-random` random gene sets of the same
-   size from the genes not in the set (`numpy.random.default_rng(seed)`), score
+5. **Control**: bin all genes by mean `X` as `score_genes` does (rank, then
+   integer-divide by `round(n_genes / (--n-bins - 1))`; Tirosh et al. 2016).
+   For each set draw `--n-random` random gene sets of the same size, taking one
+   gene from the bin of each signature gene, never a set gene or a repeat
+   (`numpy.random.default_rng(seed)`). When a signature gene's bin has too few
+   candidates left (the top bin often holds one gene), the missing genes come
+   from the nearest bin; `n_borrowed` in `random_control.tsv` counts them per set.
+   `--n-bins` must leave 2 or more genes per bin. Score
    them with the same engine and arguments, and summarise them the same way.
    The statistic is the spread of group means of sample means (max minus min
    group mean). A set **beats random** when its spread exceeds every random
@@ -200,7 +222,7 @@ outdir/
 │   ├── cell_scores.tsv        # cell, sample col, group col, one column per set
 │   ├── sample_scores.tsv      # feature, subject, group col, value, n_cells
 │   ├── genes_found.tsv        # set, n_listed, n_found, missing
-│   └── random_control.tsv     # set, n_genes, n_random, observed_spread, random_mean, random_max, p_empirical, beats_random, status
+│   └── random_control.tsv     # set, n_genes, n_random, n_borrowed, observed_spread, random_mean, random_max, p_empirical, beats_random, status
 ├── figures/
 │   ├── score_by_group_sig_null.pdf
 │   ├── score_by_group_sig_null.png

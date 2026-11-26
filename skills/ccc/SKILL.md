@@ -102,13 +102,14 @@ Environment: pixi feature `liana` (`pixi install -e liana`, from `templates/pixi
 
 | Input | Format | Required content | Example |
 |---|---|---|---|
-| `--adata` | `.h5ad` | log-normalised values (`normalize_total` + `log1p`) in `X`; not raw counts, not scaled; `var_names` are gene symbols, `--gene-id-col` names the Ensembl id column | sc-annotate's output h5ad; `examples/demo.h5ad` |
+| `--adata` | `.h5ad` | log-normalised values (`normalize_total` + `log1p`) in `X`; not raw counts, not scaled; `var_names` are gene symbols, `--gene-id-col` names the Ensembl id column | sc-annotate's `data/annotated.h5ad` run on sc-embed's output (X stays log-normalised); `examples/demo.h5ad` |
 | `--groupby` | obs column | at least 2 cell-type labels | `cell_type`; demo `cell_type` |
 | `--sample` (optional) | obs column | sample or donor ID; one LIANA run per sample | demo `sample` (not used by `--demo`) |
 | `--resource` | TSV | columns `ligand`, `receptor`; complex subunits joined by `_`; same identifiers as `var_names` | `consensus_resource.tsv`; `examples/demo_resource.tsv` |
 
-The script refuses a matrix with negative values (scaled) or only integers (raw
-counts), and a resource with no pair fully present in `var_names` (wrong species
+The script refuses a matrix with negative values (scaled), only integers (raw
+counts), or a maximum above 20 (`log1p` of counts scaled to a fixed total cannot
+reach it; CPM or linear data do), and a resource with no pair fully present in `var_names` (wrong species
 or identifiers). `.raw` is never read (`use_raw=False`). A categorical
 `--groupby` keeps its category order; any other column is cast to strings and
 sorted. Gene names and cell ids must be unique (`skillkit.check_unique`).
@@ -167,6 +168,20 @@ python scripts/ccc.py \
 # Demo (only when the user asks for one)
 python scripts/ccc.py --demo --outdir demo_out
 ```
+
+## Layer contract
+
+- Input: log-normalised values in `X`. sc-annotate writes `X` unchanged from its
+  input, so sc-embed -> sc-annotate (`--counts-layer counts`) -> ccc works.
+  Layers, including `counts`, are not read; `.raw` is ignored.
+- Output: no h5ad is written; `X` and layers are untouched on disk.
+
+## Fixed method settings
+
+Not asked, recorded here. liana 1.x: `AggregateClass(aggregate_meta)` over the
+chosen methods (the five of `rank_aggregate` by default), `use_raw=False`,
+`n_jobs=1`, `inplace=False`, `groupby_pairs` only when `--sources` or
+`--targets` restrict the pairs. Each method keeps its liana defaults.
 
 ## Workflow (fixed order)
 

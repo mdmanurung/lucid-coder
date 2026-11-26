@@ -48,7 +48,12 @@ REQUIRED = [
     "reference",
     "k",
     "n_hvg",
+    "hvg_flavor",
+    "target_sum",
     "n_replicates",
+    "neighbour_fraction",
+    "nmf_max_iter",
+    "kmeans_n_init",
     "density_threshold",
     "active_threshold",
     "n_top_genes",
@@ -66,7 +71,12 @@ DEMO = {
     "layer": None,
     "k": 3,
     "n_hvg": 200,
+    "hvg_flavor": "seurat",
+    "target_sum": 1e4,
     "n_replicates": 20,
+    "neighbour_fraction": 0.3,
+    "nmf_max_iter": 1000,
+    "kmeans_n_init": 10,
     "density_threshold": 0.5,
     "active_threshold": 0.1,
     "n_top_genes": 10,
@@ -87,10 +97,9 @@ ERRORS = {
     "--density-threshold {threshold}; need at least --k {k}",
 }
 
-# Fixed method constants (cNMF), not analysis parameters.
-NEIGHBOUR_FRACTION = 0.3  # cNMF --local-neighborhood-size
-NMF_MAX_ITER = 1000
-KMEANS_N_INIT = 10
+# Fixed method constants, listed in SKILL.md "Fixed method settings": the TPM
+# scale cancels in the z-scored gene scores; NMF solver, init and k-means
+# settings are scikit-learn's.
 TPM_SCALE = 1e6
 # Fixed plot spec: heatmap saturation (z units), box jitter (box widths).
 HEATMAP_LIMIT = 2.0
@@ -122,7 +131,12 @@ def parse_args(argv):
     parser.add_argument("--layer")
     parser.add_argument("--k", type=int)
     parser.add_argument("--n-hvg", type=int)
+    parser.add_argument("--hvg-flavor", choices=["seurat", "cell_ranger"])
+    parser.add_argument("--target-sum", type=float)
     parser.add_argument("--n-replicates", type=int)
+    parser.add_argument("--neighbour-fraction", type=float)
+    parser.add_argument("--nmf-max-iter", type=int)
+    parser.add_argument("--kmeans-n-init", type=int)
     parser.add_argument("--density-threshold", type=float)
     parser.add_argument("--active-threshold", type=float)
     parser.add_argument("--n-top-genes", type=int)
@@ -131,8 +145,27 @@ def parse_args(argv):
     rules = [
         ("--k", p["k"], p["k"] >= 2, "an integer >= 2"),
         ("--n-hvg", p["n_hvg"], p["n_hvg"] > p["k"], "an integer > --k"),
-        # int(0.3 * n) neighbours must be at least 1.
+        ("--target-sum", p["target_sum"], p["target_sum"] > 0, "> 0"),
         ("--n-replicates", p["n_replicates"], p["n_replicates"] >= 4, ">= 4"),
+        (
+            "--neighbour-fraction",
+            p["neighbour_fraction"],
+            0 < p["neighbour_fraction"] <= 1
+            and int(p["neighbour_fraction"] * p["n_replicates"]) >= 1,
+            "in (0, 1] and at least 1 neighbour of --n-replicates",
+        ),
+        (
+            "--nmf-max-iter",
+            p["nmf_max_iter"],
+            p["nmf_max_iter"] >= 1,
+            "an integer >= 1",
+        ),
+        (
+            "--kmeans-n-init",
+            p["kmeans_n_init"],
+            p["kmeans_n_init"] >= 1,
+            "an integer >= 1",
+        ),
         (
             "--density-threshold",
             p["density_threshold"],
@@ -202,9 +235,9 @@ def select_hvg(adata, counts, p):
     if p["n_hvg"] > expressed.sum():
         fail(ERRORS, "too_many_hvg", n_hvg=p["n_hvg"], n_expressed=int(expressed.sum()))
     lognorm = ad.AnnData(counts[:, expressed].copy())
-    sc.pp.normalize_total(lognorm, target_sum=1e4)
+    sc.pp.normalize_total(lognorm, target_sum=p["target_sum"])
     sc.pp.log1p(lognorm)
-    sc.pp.highly_variable_genes(lognorm, flavor="seurat", n_top_genes=p["n_hvg"])
+    sc.pp.highly_variable_genes(lognorm, flavor=p["hvg_flavor"], n_top_genes=p["n_hvg"])
     hvg = np.flatnonzero(expressed)[lognorm.var["highly_variable"].to_numpy()]
     hvg_counts = counts[:, hvg]
     zero = np.asarray(hvg_counts.sum(axis=1)).ravel() == 0
@@ -224,7 +257,7 @@ def replicate_spectra(x, p):
             n_components=p["k"],
             init="random",
             solver="cd",
-            max_iter=NMF_MAX_ITER,
+            max_iter=p["nmf_max_iter"],
             random_state=int(s),
         )
         .fit(x)
@@ -237,7 +270,7 @@ def replicate_spectra(x, p):
 def consensus(spectra, replicate, p):
     """Step 4: local-density filter, k-means of components, median per cluster."""
     unit = spectra / np.linalg.norm(spectra, axis=1, keepdims=True)
-    n_neighbours = int(NEIGHBOUR_FRACTION * p["n_replicates"])
+    n_neighbours = int(p["neighbour_fraction"] * p["n_replicates"])
     dist = np.sort(pairwise_distances(unit), axis=1)
     # Column 0 is the distance to itself.
     density = dist[:, 1 : n_neighbours + 1].mean(axis=1)
@@ -252,7 +285,7 @@ def consensus(spectra, replicate, p):
             k=p["k"],
         )
     labels = KMeans(
-        n_clusters=p["k"], n_init=KMEANS_N_INIT, random_state=p["seed"]
+        n_clusters=p["k"], n_init=p["kmeans_n_init"], random_state=p["seed"]
     ).fit_predict(unit[kept])
     centres = np.vstack(
         [np.median(unit[kept][labels == c], axis=0) for c in range(p["k"])]
@@ -277,7 +310,7 @@ def fit_usage(x, centres, p):
         n_components=p["k"],
         update_H=False,
         solver="cd",
-        max_iter=NMF_MAX_ITER,
+        max_iter=p["nmf_max_iter"],
     )
     return usage / usage.sum(axis=1, keepdims=True)
 
