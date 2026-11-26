@@ -42,6 +42,10 @@ p <- ggplot() + ggtitle("x")
 stop("boom")
 `;
 
+// score.js reruns scripts and runs check.R through Rscript; without it those tests skip.
+const hasRscript = spawnSync('Rscript', ['-e', 'invisible(1)']).status === 0;
+const NO_R = 'Rscript not on PATH';
+
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'lucid-eval-'));
 
 function mockTask(root) {
@@ -84,7 +88,8 @@ function scoredGrid() {
   return scored;
 }
 
-test('score.js: a good script scores well on every column', () => {
+test('score.js: a good script scores well on every column', (t) => {
+  if (!hasRscript) return t.skip(NO_R);
   const g = scoredGrid().rows.C;
   assert.deepStrictEqual(
     [g.run_id, g.cost_usd, g.duration_s, g.turns, g.script_found, g.rerun_ok, g.gate, g.gate_detail],
@@ -99,7 +104,8 @@ test('score.js: a good script scores well on every column', () => {
   assert.deepStrictEqual([g.native_pipe, g.rule_out_dir, g.rule_warn1], ['false', 'true', 'false']);
 });
 
-test('score.js: a bad script fails style, rerun and uptake', () => {
+test('score.js: a bad script fails style, rerun and uptake', (t) => {
+  if (!hasRscript) return t.skip(NO_R);
   const b = scoredGrid().rows.A;
   assert.deepStrictEqual([b.cost_usd, b.duration_s, b.turns], ['NA', 'NA', 'NA'], 'missing fields are NA');
   assert.deepStrictEqual([b.rerun_ok, b.air_ok, b.header_complete], ['false', 'false', 'false']);
@@ -131,7 +137,8 @@ test('score.js: header once, fixed columns, rescoring adds no rows', () => {
   assert.ok(lines.every(l => l.split('\t').length === COLUMNS.length));
 });
 
-test('score.js: a check.R that crashes gives gate NA with the error', () => {
+test('score.js: a check.R that crashes gives gate NA with the error', (t) => {
+  if (!hasRscript) return t.skip(NO_R);
   const root = tmp();
   const taskDir = mockTask(root);
   fs.writeFileSync(path.join(taskDir, 'check.R'), 'stop("harness broke")\n');
@@ -294,6 +301,58 @@ test('make-packet.js: blinded copies, empty sheet, key outside, refuses a reshuf
   assert.throws(() => makePacket(tsDir, 'packet'), /exists/);
 });
 
+test('make-packet.js: the same seed rebuilds the same ids, another seed does not, and the seed is recorded', () => {
+  const ts = path.join(tmp(), 'results', TS);
+  for (let i = 1; i <= 8; i++) {
+    const run = path.join(ts, `t_A_r${i}`);
+    fs.mkdirSync(path.join(run, 'repo', 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(run, 'meta.json'), '{}');
+    fs.writeFileSync(path.join(run, 'repo', 'scripts', '01_x.R'), `x <- ${i}\n`);
+  }
+  const order = name => readTsv(path.join(ts, `${name}-key.tsv`)).map(k => k.run_id).join(',');
+  makePacket(ts, 'packet', { seed: 5 });
+  makePacket(ts, 'pcopy', { seed: 5 });
+  makePacket(ts, 'pother', { seed: 6 });
+  assert.strictEqual(order('packet'), order('pcopy'));
+  assert.notStrictEqual(order('packet'), order('pother'));
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(ts, 'packet-meta.json'), 'utf8')).seed, 5);
+  const drawn = spawnSync(process.execPath, [path.join(evalDir, 'make-packet.js'), ts, 'judge'], { encoding: 'utf8' });
+  assert.strictEqual(drawn.status, 0, drawn.stderr);
+  const seed = JSON.parse(fs.readFileSync(path.join(ts, 'judge-meta.json'), 'utf8')).seed;
+  assert.ok(Number.isInteger(seed), 'an unseeded run records the seed it drew');
+  assert.match(drawn.stdout, new RegExp(`seed ${seed} `));
+});
+
+test('run.sh interleaves arms per rep and task in a seeded order, recorded in meta.json', () => {
+  const home = tmp();
+  const env = { HOME: home, EVAL_RESULTS_DIR: path.join(home, 'results') };
+  const plan = seed => runSh(['--tasks', '01,02', '--arms', 'A,B,C,D', '--reps', '2', '--seed', seed, '--dry-run'], env)
+    .stdout.trim().split('\n').map(l => l.match(/\/([\w-]+)_([ABCD])_r(\d)\/repo /).slice(1, 4).join(' '));
+  const first = plan('7');
+  assert.strictEqual(first.length, 16);
+  assert.deepStrictEqual(plan('7'), first, 'the same seed gives the same order');
+  assert.notDeepStrictEqual(plan('8'), first);
+  // Reps are outermost, then tasks; each block of four holds every arm once.
+  first.forEach((line, i) => assert.strictEqual(line.split(' ')[2], i < 8 ? '1' : '2'));
+  for (let i = 0; i < 16; i += 4) {
+    assert.deepStrictEqual(first.slice(i, i + 4).map(l => l.split(' ')[1]).sort(), ['A', 'B', 'C', 'D']);
+    assert.strictEqual(new Set(first.slice(i, i + 4).map(l => l.split(' ')[0])).size, 1);
+  }
+  assert.ok(first.slice(0, 4).map(l => l.split(' ')[1]).join('') !== 'ABCD' || plan('9').slice(0, 4).join() !== first.slice(0, 4).join());
+  // Real mode with a stub claude writes the seed and the block's order into meta.json.
+  const root = tmp();
+  mockTask(root);
+  const bin = path.join(root, 'bin');
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'claude'), '#!/usr/bin/env bash\necho "{}"\n', { mode: 0o755 });
+  const real = runSh(['--tasks', '99', '--arms', 'A,C,D', '--reps', '1', '--seed', '7', '--out', 'g'],
+    { HOME: home, PATH: `${bin}:${process.env.PATH}`, EVAL_TASKS_DIR: path.join(root, 'tasks'), EVAL_RESULTS_DIR: path.join(root, 'results') });
+  assert.strictEqual(real.status, 0, real.stderr);
+  const metas = ['A', 'C', 'D'].map(a => JSON.parse(fs.readFileSync(path.join(root, 'results', 'g', `99_mock_${a}_r1`, 'meta.json'), 'utf8')));
+  assert.ok(metas.every(m => m.order_seed === 7 && m.arm_order.join() === metas[0].arm_order.join()));
+  assert.deepStrictEqual(metas.map(m => m.arm_order[m.order_position - 1]), ['A', 'C', 'D']);
+});
+
 test('judge.sh with a stub claude writes judges.tsv from fenced JSON replies', () => {
   const root = tmp();
   const taskDir = mockTask(root);
@@ -348,7 +407,9 @@ test('kappa: textbook and hand-derived values', () => {
   assert.strictEqual(kappa([2, 2], [2, 2], [1, 2, 3]), null, 'one category used: undefined');
 });
 
-test('report.js renders without and with human sheets, never a combined score', () => {
+test('report.js renders without and with human sheets, never a combined score', (t) => {
+  // The gate-pass rows come from check.R, which needs Rscript.
+  if (!hasRscript) return t.skip(NO_R);
   const { root, tsDir } = scoredGrid();
   if (!fs.existsSync(path.join(tsDir, 'packet'))) makePacket(tsDir, 'packet');
   const report = args => {

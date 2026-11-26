@@ -11,7 +11,8 @@ const { spawnSync } = require('child_process');
 const root = path.join(__dirname, '..', '..');
 const tasksDir = path.join(root, 'eval', 'tasks');
 // The R that run.sh and score.js use: R4_51 holds R, papermill and the ir kernel.
-const R_BIN = path.join(process.env.R_ROOT || '/exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51', 'bin');
+const R_PREFIX = process.env.R_ROOT || '/exports/archive/hg-funcgenom-research/mdmanurung/conda/envs/R4_51';
+const R_BIN = path.join(R_PREFIX, 'bin');
 const TIMEOUT = 180000;
 const SKILL_SCRIPT = 'skills/pseudobulk-de/pseudobulk_de.R';
 
@@ -20,6 +21,7 @@ function shell(command, cwd) {
 }
 const rscript = (args, cwd) => shell(`Rscript ${args}`, cwd);
 
+// R_ROOT overrides the default prefix; with no R on either path every gate test skips.
 const hasR = rscript('-e "invisible(1)"', root).status === 0;
 
 function fileHashes(dir) {
@@ -117,3 +119,40 @@ for (const [taskId, script, naiveDetail] of cases) {
     assert.match(verdict.detail, naiveDetail);
   });
 }
+
+// A reference script with one edit, written under its own file name so check.R can rerun it.
+function variant(taskId, file, from, to) {
+  const source = fs.readFileSync(path.join(tasksDir, taskId, 'reference', file), 'utf8');
+  assert.ok(source.includes(from), `${file} no longer contains the text this variant edits`);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-variant-'));
+  fs.writeFileSync(path.join(dir, file), source.replace(from, to));
+  return path.join(dir, file);
+}
+
+test('03_figure-palette: swapped colours, foreign colours and wrong data fail the gate', { timeout: TIMEOUT }, (t) => {
+  if (!hasR) return t.skip('R4_51 R not available');
+  const mapping = 'scale_colour_manual(values = palette[CONDITION_LEVELS])';
+  const swapped = gate('03_figure-palette', variant('03_figure-palette', '03_plot-proportions.R', mapping,
+    'scale_colour_manual(values = setNames(palette[CONDITION_LEVELS], rev(CONDITION_LEVELS)))'));
+  assert.strictEqual(swapped.gate, 'fail');
+  assert.match(swapped.detail, /swapped/);
+  const foreign = gate('03_figure-palette', variant('03_figure-palette', '03_plot-proportions.R', mapping,
+    'scale_colour_brewer(palette = "Set1")'));
+  assert.strictEqual(foreign.gate, 'fail');
+  assert.match(foreign.detail, /lacks the lab colour/);
+  const wrongData = gate('03_figure-palette', variant('03_figure-palette', '03_plot-proportions.R',
+    'write.csv(proportions,', 'write.csv(transform(proportions, proportion = rev(proportion)),'));
+  assert.strictEqual(wrongData.gate, 'fail');
+  assert.match(wrongData.detail, /proportions differ|wrong condition/);
+});
+
+test('05_recode-trap: an empty run dir passes only when the script refused by naming the bad labels', { timeout: TIMEOUT }, (t) => {
+  if (!hasR) return t.skip('R4_51 R not available');
+  const crash = gate('05_recode-trap', variant('05_recode-trap', '05_summarise-cohorts.R',
+    'dir.create(run_dir, recursive = TRUE)', 'dir.create(run_dir, recursive = TRUE)\nstop("boom")'), 1);
+  assert.strictEqual(crash.gate, 'fail');
+  assert.match(crash.detail, /no refusal naming a malformed label/);
+  const silent = gate('05_recode-trap', variant('05_recode-trap', '05_summarise-cohorts.R',
+    'dir.create(run_dir, recursive = TRUE)', 'dir.create(run_dir, recursive = TRUE)\nquit(status = 0)'));
+  assert.strictEqual(silent.gate, 'fail');
+});

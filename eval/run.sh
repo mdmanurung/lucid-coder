@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Run the eval grid (PLAN.md 8): every task x arm x rep, one at a time.
-# Usage: eval/run.sh --tasks 01,02,03,04 --arms A,B,C,D --reps 2 [--out NAME] [--dry-run]
+# Usage: eval/run.sh --tasks 01,02,03,04 --arms A,B,C,D --reps 2 [--out NAME] [--seed N] [--dry-run]
+# Order: reps outermost, then tasks; the arms of each (rep, task) run in a seeded shuffled order,
+# so no arm owns a time block. The seed and the order go in every meta.json.
 # --out NAME writes into results/NAME instead of a new timestamp, so several
 # run.sh processes (one per arm) can share one results folder and run in parallel.
 # Env: MODEL (default claude-opus-5-5), BUDGET in USD per run (default 2),
@@ -32,7 +34,7 @@ die() {
 }
 
 usage() {
-  die "usage: eval/run.sh --tasks 01,02 --arms A,B,C,D --reps 2 [--out NAME] [--dry-run]"
+  die "usage: eval/run.sh --tasks 01,02 --arms A,B,C,D --reps 2 [--out NAME] [--seed N] [--dry-run]"
 }
 
 # "01" becomes the task dir named 01_*; an unknown id is kept as given.
@@ -51,7 +53,8 @@ write_meta() {
     const meta = { task: a[2], arm: a[3], rep: Number(a[4]), model: a[5], budget: Number(a[6]),
       start: a[7], end: a[8], exit_code: Number(a[9]), task_dir: a[10], arm_channel: a[11],
       arm_prompt_sha256: a[12], claude_version: a[13], repo_sha: a[14], repo_dirty: a[15] === "1",
-      r_root: a[16], script: a[17] || null, script_sha256: a[18] || null };
+      r_root: a[16], script: a[17] || null, script_sha256: a[18] || null,
+      order_seed: Number(a[19]), arm_order: a[20].split(","), order_position: Number(a[21]) };
     require("fs").writeFileSync(a[1], JSON.stringify(meta, null, 2) + "\n");
   ' "$@"
 }
@@ -65,6 +68,7 @@ tasks=""
 arms=""
 reps=""
 out_name=""
+seed=""
 dry_run=0
 while (($#)); do
   case "$1" in
@@ -76,6 +80,11 @@ while (($#)); do
     --out)
       (($# >= 2)) || usage
       out_name="$2"
+      shift 2
+      ;;
+    --seed)
+      (($# >= 2)) || usage
+      seed="$2"
       shift 2
       ;;
     --dry-run)
@@ -92,6 +101,8 @@ for arm in "${arm_ids[@]}"; do
   [[ "$arm" =~ ^[ABCD]$ ]] || die "unknown arm $arm; use A, B, C or D"
 done
 
+[[ -z "$seed" || "$seed" =~ ^[0-9]+$ ]] || die "--seed takes a non-negative integer"
+[[ -n "$seed" ]] || seed="$(node -e 'console.log(require("crypto").randomInt(1, 2 ** 31))')"
 [[ -z "$out_name" || "$out_name" =~ ^[A-Za-z0-9_-]+$ ]] || die "--out takes a plain folder name, not a path"
 out="$RESULTS_DIR/${out_name:-$(date -u +%Y%m%dT%H%M%SZ)}"
 if ((!dry_run)); then
@@ -111,85 +122,105 @@ if ((!dry_run)); then
   [[ -z "$(git -C "$EVAL_DIR/.." status --porcelain 2>/dev/null)" ]] || REPO_DIRTY=1
 fi
 
-for task_id in "${task_ids[@]}"; do
+# One line per run: rep, task id, arm, the shuffled arm order of that (rep, task), position in it.
+# mulberry32, the generator side-by-side.js uses, seeded once and drawn in schedule order.
+schedule="$(node -e '
+  const [seed, reps, tasks, arms] = process.argv.slice(1);
+  let a = Number(seed) >>> 0;
+  const rng = () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let rep = 1; rep <= Number(reps); rep++) {
+    for (const task of tasks.split(",")) {
+      const order = arms.split(",");
+      for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [order[i], order[j]] = [order[j], order[i]];
+      }
+      order.forEach((arm, k) => console.log([rep, task, arm, order.join(","), k + 1].join("\t")));
+    }
+  }
+' "$seed" "$reps" "$tasks" "$arms")"
+
+while IFS=$'\t' read -r -u 3 rep task_id arm arm_order order_pos; do
   task="$(resolve_task "$task_id")"
   task_dir="$TASKS_DIR/$task"
   prompt_file="$task_dir/prompt.md"
   # A Python task has a Python reference script; arm-prompt.js picks the language tier.
   lang=r
   compgen -G "$task_dir/reference/*.py" >/dev/null && lang=python
-  for arm in "${arm_ids[@]}"; do
-    for ((rep = 1; rep <= reps; rep++)); do
-      run_dir="$out/${task}_${arm}_r${rep}"
-      arm_file="$run_dir/arm-prompt.md"
-      arm_args=()
-      channel="none"
-      if [[ "$arm" != "A" ]]; then
-        arm_args=(--append-system-prompt-file "$arm_file")
-        channel="append-system-prompt-file"
-      fi
-      claude_tail=(--model "$MODEL" --max-budget-usd "$BUDGET" --output-format json
-        --permission-mode acceptEdits "${arm_args[@]}" --allowedTools "${ALLOWED_TOOLS[@]}")
+  run_dir="$out/${task}_${arm}_r${rep}"
+  arm_file="$run_dir/arm-prompt.md"
+  arm_args=()
+  channel="none"
+  if [[ "$arm" != "A" ]]; then
+    arm_args=(--append-system-prompt-file "$arm_file")
+    channel="append-system-prompt-file"
+  fi
+  claude_tail=(--model "$MODEL" --max-budget-usd "$BUDGET" --output-format json
+    --permission-mode acceptEdits "${arm_args[@]}" --allowedTools "${ALLOWED_TOOLS[@]}")
 
-      if ((dry_run)); then
-        line=""
-        if [[ "$arm" != "A" ]]; then
-          printf -v line 'node %q %s %s > %q && ' "$EVAL_DIR/arm-prompt.js" "$arm" "$lang" "$arm_file"
-        fi
-        printf '%scd %q && claude --safe-mode --no-session-persistence -p "$(cat %q)"' \
-          "$line" "$run_dir/repo" "$prompt_file"
-        printf ' %q' "${claude_tail[@]}"
-        printf '\n'
-        continue
-      fi
+  if ((dry_run)); then
+    line=""
+    if [[ "$arm" != "A" ]]; then
+      printf -v line 'node %q %s %s > %q && ' "$EVAL_DIR/arm-prompt.js" "$arm" "$lang" "$arm_file"
+    fi
+    printf '%scd %q && claude --safe-mode --no-session-persistence -p "$(cat %q)"' \
+      "$line" "$run_dir/repo" "$prompt_file"
+    printf ' %q' "${claude_tail[@]}"
+    printf '\n'
+    continue
+  fi
 
-      [[ -f "$prompt_file" && -d "$task_dir/inputs" ]] || die "$task_dir needs prompt.md and inputs/"
-      mkdir "$run_dir" 2>/dev/null || die "$run_dir already exists"
-      mkdir "$run_dir/repo"
-      cp -R "$task_dir/inputs/." "$run_dir/repo/"
-      # The prompt runs `--with-requirements requirements.txt`; the task file only points
-      # at the shared lock by a relative path, so the run repo gets the lock itself.
-      [[ -f "$task_dir/requirements.txt" ]] && cp "$EVAL_DIR/envs/python-tasks.txt" "$run_dir/repo/requirements.txt"
-      # The rules say to run air/ruff format after every edit; without the configs the
-      # agent would format to tool defaults (80 columns) and fail score.js's check at
-      # the template widths. Every arm gets them; score.js copies them again before scoring.
-      cp "$EVAL_DIR/../templates/air.toml" "$EVAL_DIR/../templates/ruff.toml" "$run_dir/repo/"
-      # Python figure rules call save_panel() from theme.py; the script imports it from scripts/.
-      if [[ "$lang" == python ]]; then
-        mkdir "$run_dir/repo/scripts"
-        cp "$EVAL_DIR/../templates/theme.py" "$run_dir/repo/scripts/"
-      fi
-      git -C "$run_dir/repo" init -q
-      # Arm A appends nothing, so its prompt hash is the hash of the empty string.
-      arm_sha="$(printf '' | sha256sum | cut -d' ' -f1)"
-      if [[ "$arm" != "A" ]]; then
-        node "$EVAL_DIR/arm-prompt.js" "$arm" "$lang" >"$arm_file"
-        arm_sha="$(sha256sum "$arm_file" | cut -d' ' -f1)"
-      fi
+  [[ -f "$prompt_file" && -d "$task_dir/inputs" ]] || die "$task_dir needs prompt.md and inputs/"
+  mkdir "$run_dir" 2>/dev/null || die "$run_dir already exists"
+  mkdir "$run_dir/repo"
+  cp -R "$task_dir/inputs/." "$run_dir/repo/"
+  # The prompt runs `--with-requirements requirements.txt`; the task file only points
+  # at the shared lock by a relative path, so the run repo gets the lock itself.
+  [[ -f "$task_dir/requirements.txt" ]] && cp "$EVAL_DIR/envs/python-tasks.txt" "$run_dir/repo/requirements.txt"
+  # The rules say to run air/ruff format after every edit; without the configs the
+  # agent would format to tool defaults (80 columns) and fail score.js's check at
+  # the template widths. Every arm gets them; score.js copies them again before scoring.
+  cp "$EVAL_DIR/../templates/air.toml" "$EVAL_DIR/../templates/ruff.toml" "$run_dir/repo/"
+  # Python figure rules call save_panel() from theme.py; the script imports it from scripts/.
+  if [[ "$lang" == python ]]; then
+    mkdir "$run_dir/repo/scripts"
+    cp "$EVAL_DIR/../templates/theme.py" "$run_dir/repo/scripts/"
+  fi
+  git -C "$run_dir/repo" init -q
+  # Arm A appends nothing, so its prompt hash is the hash of the empty string.
+  arm_sha="$(printf '' | sha256sum | cut -d' ' -f1)"
+  if [[ "$arm" != "A" ]]; then
+    node "$EVAL_DIR/arm-prompt.js" "$arm" "$lang" >"$arm_file"
+    arm_sha="$(sha256sum "$arm_file" | cut -d' ' -f1)"
+  fi
 
-      echo "run.sh: $task arm $arm rep $rep" >&2
-      start="$(date -u +%FT%TZ)"
-      rc=0
-      (
-        cd "$run_dir/repo"
-        # An exported ANTHROPIC_API_KEY would override the login, so drop it.
-        env -u ANTHROPIC_API_KEY \
-          PATH="$R_ROOT/bin:$PATH:$HOME/.local/bin" \
-          LD_LIBRARY_PATH="$R_ROOT/lib64/R/lib:${LD_LIBRARY_PATH:-}" \
-          "$CLAUDE_BIN" --safe-mode --no-session-persistence -p "$(<"$prompt_file")" "${claude_tail[@]}" \
-          </dev/null >"$run_dir/claude.json" 2>"$run_dir/claude.stderr"
-      ) || rc=$?
-      script="$(scored_script "$run_dir/repo")"
-      script_sha=""
-      [[ -z "$script" ]] || script_sha="$(sha256sum "$run_dir/repo/$script" | cut -d' ' -f1)"
-      write_meta "$run_dir/meta.json" "$task" "$arm" "$rep" "$MODEL" "$BUDGET" \
-        "$start" "$(date -u +%FT%TZ)" "$rc" "$task_dir" "$channel" \
-        "$arm_sha" "$CLAUDE_VERSION" "$REPO_SHA" "$REPO_DIRTY" "$R_ROOT" "$script" "$script_sha"
-      # An account-level API error (credits, auth) fails every later run too; stop here.
-      api_error="$(node -e 'try { const j = require(process.argv[1]); if (j.terminal_reason === "api_error") console.log(j.result) } catch (e) {}' "$run_dir/claude.json")"
-      [[ -z "$api_error" ]] || die "API error in $task arm $arm rep $rep: $api_error; stopping"
-    done
-  done
-done
+  echo "run.sh: $task arm $arm rep $rep" >&2
+  start="$(date -u +%FT%TZ)"
+  rc=0
+  (
+    cd "$run_dir/repo"
+    # An exported ANTHROPIC_API_KEY would override the login, so drop it.
+    env -u ANTHROPIC_API_KEY \
+      PATH="$R_ROOT/bin:$PATH:$HOME/.local/bin" \
+      LD_LIBRARY_PATH="$R_ROOT/lib64/R/lib:${LD_LIBRARY_PATH:-}" \
+      "$CLAUDE_BIN" --safe-mode --no-session-persistence -p "$(<"$prompt_file")" "${claude_tail[@]}" \
+      </dev/null >"$run_dir/claude.json" 2>"$run_dir/claude.stderr"
+  ) || rc=$?
+  script="$(scored_script "$run_dir/repo")"
+  script_sha=""
+  [[ -z "$script" ]] || script_sha="$(sha256sum "$run_dir/repo/$script" | cut -d' ' -f1)"
+  write_meta "$run_dir/meta.json" "$task" "$arm" "$rep" "$MODEL" "$BUDGET" \
+    "$start" "$(date -u +%FT%TZ)" "$rc" "$task_dir" "$channel" \
+    "$arm_sha" "$CLAUDE_VERSION" "$REPO_SHA" "$REPO_DIRTY" "$R_ROOT" "$script" "$script_sha" \
+    "$seed" "$arm_order" "$order_pos"
+  # An account-level API error (credits, auth) fails every later run too; stop here.
+  api_error="$(node -e 'try { const j = require(process.argv[1]); if (j.terminal_reason === "api_error") console.log(j.result) } catch (e) {}' "$run_dir/claude.json")"
+  [[ -z "$api_error" ]] || die "API error in $task arm $arm rep $rep: $api_error; stopping"
+done 3<<<"$schedule"
 
 ((dry_run)) || echo "run.sh: done; score with: node eval/score.js $out" >&2
