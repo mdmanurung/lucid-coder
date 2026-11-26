@@ -38,3 +38,6 @@ site/.quarto/
 # Claude Code worktrees and local settings
 .claude/
 Rplots.pdf
+
+# root-level run output
+/results/
