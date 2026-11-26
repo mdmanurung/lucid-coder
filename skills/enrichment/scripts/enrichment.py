@@ -196,15 +196,18 @@ def read_de(path, cols):
     """Step 2: one DE table and its count of rows dropped for an NA in `cols`."""
     if not path.is_file():
         fail("missing_file", path=path)
-    de = pd.read_csv(path, sep="\t", dtype={"gene_symbol": str})
+    # Read as text: pandas would turn a gene named "NA" into a missing value. Only the
+    # numeric columns map "", NA and NaN to missing, below.
+    de = pd.read_csv(path, sep="\t", dtype=str, keep_default_na=False)
     for col in ["gene_symbol", *cols]:
         if col not in de.columns:
             fail("missing_column", col=col, path=path)
     # Gene sets name genes by symbol, so the symbol is the join key.
     de = de.rename(columns={"gene_symbol": "gene"})
     for col in cols:
-        values = pd.to_numeric(de[col], errors="coerce")
-        if (values.isna() & de[col].notna()).any() or np.isinf(values).any():
+        missing = de[col].isin(["", "NA", "NaN", "nan"])
+        values = pd.to_numeric(de[col].mask(missing), errors="coerce")
+        if (values.isna() & ~missing).any() or np.isinf(values).any():
             fail("not_numeric", col=col, path=path)
         de[col] = values
     skillkit.check_unique(de["gene"], f"gene names in {path}")
@@ -225,7 +228,7 @@ def read_gene_sets(path):
             columns=["set", "gene"],
         )
     elif path.suffix == ".tsv":
-        sets = pd.read_csv(path, sep="\t", dtype=str)
+        sets = pd.read_csv(path, sep="\t", dtype=str, keep_default_na=False)
         if not {"set", "gene"} <= set(sets.columns):
             fail("bad_gene_sets", path=path)
     else:

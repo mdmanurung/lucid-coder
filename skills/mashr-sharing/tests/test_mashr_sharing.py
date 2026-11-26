@@ -38,6 +38,7 @@ ARGS = {
     "--align": "intersect",
     "--covariances": "canonical",
     "--null-corr": "identity",
+    "--fit-subset": "all",
     "--strong-lfsr": "0.05",
     "--lfsr-max": "0.05",
     "--sharing-factor": "0.5",
@@ -123,6 +124,8 @@ def test_demo_golden_values(demo_out):
     assert result["scatter_pair"] == ["B", "Mono"]
     assert result["genes_dropped_by_align"] == dict.fromkeys(CELL_TYPES, 0)
     assert result["reference"] == "synthetic demo genes, no genome build"
+    assert result["fit_subset"] == "all" and result["fit_n"] is None
+    assert "mixture fitted on all genes" in result["chat_summary_lines"][1]
     assert result["seed"] == 0 and 3 <= len(result["chat_summary_lines"]) <= 4
     assert result["chat_summary_lines"][0].startswith("Context: synthetic demo")
     assert result["n_shared_ids"] == 800 and result["joined_on"] == "gene_id"
@@ -258,6 +261,54 @@ def test_missing_argument_fails_without_demo(tmp_path):
     assert is_error(
         run_with(tmp_path, drop=["--seed"]), "missing required arguments: --seed"
     )
+
+
+def test_missing_fit_subset_fails(tmp_path):
+    assert is_error(
+        run_with(tmp_path, drop=["--fit-subset"]),
+        "missing required arguments: --fit-subset",
+    )
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"fit_subset": "random"}, "--fit-subset random needs --fit-n"),
+        ({"fit_n": "100"}, "--fit-n is used only with --fit-subset random"),
+        (
+            {"fit_subset": "random", "fit_n": "1"},
+            "--fit-n must be an integer >= 2, got 1",
+        ),
+        (
+            {"fit_subset": "random", "fit_n": "801"},
+            "--fit-n 801 is more than the 800 aligned genes",
+        ),
+    ],
+)
+def test_fit_subset_errors(tmp_path, changes, message):
+    assert is_error(run_with(tmp_path, **changes), message)
+
+
+@needs_r
+@pytest.mark.parametrize(
+    ("changes", "named"),
+    [
+        ({"fit_subset": "random", "fit_n": "300"}, "300 random genes (seed 0)"),
+        ({"fit_subset": "strong"}, "strong genes"),
+    ],
+)
+def test_fit_subset_runs_and_is_recorded(tmp_path, changes, named):
+    completed = run_with(tmp_path, **changes)
+    assert completed.returncode == 0, completed.stderr
+    out = tmp_path / "out"
+    result = json.loads((out / "result.json").read_text())
+    assert result["fit_subset"] == changes["fit_subset"]
+    assert named in result["chat_summary_lines"][1]
+    # The fixed mixture still calls the planted shared genes in all four types.
+    assert result["n_shared_all"] > 0 and result["status_counts"] == {"tested": 3200}
+    commands = (out / "reproducibility" / "commands.sh").read_text()
+    for key, value in changes.items():
+        assert f"--{key.replace('_', '-')} {value}" in commands
 
 
 def test_missing_context_fails(tmp_path):

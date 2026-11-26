@@ -175,6 +175,9 @@ python scripts/enrichment.py --demo --outdir demo_out
 2. **Read** each DE table: `gene` plus the used columns, numeric and finite;
    refuse a repeated gene (`skillkit.check_unique`); drop rows with an NA in a
    used column and count the drops per contrast.
+   Gene symbols are read as text, so a gene named `NA` stays a gene (pandas and
+   R's `read.delim` would otherwise make it a missing value); only the numeric
+   columns treat an empty cell, `NA` or `NaN` as missing.
 3. **Read** the gene sets (GMT or long TSV); refuse a repeated GMT set name
    (`skillkit.check_unique`). Count the distinct set genes found in each DE
    table (`n_matched` of `n_in_resource`).
@@ -284,6 +287,17 @@ many genes matched. Figures draw tested rows only. Figures come from the vendore
   Ask for the genome build and annotation release.
 - **The model will want to run zenith here.** zenith needs the dreamlet fit,
   not a DE table; it is a later engine.
+
+## Fixed method settings
+
+Not arguments: the script sets these, and `reproducibility/environment.txt`
+records the package versions. A change is a maintainer edit, not a user choice.
+
+- fgsea 1.36.2: `fgsea::fgsea` with package defaults except `minSize`, `maxSize`
+  and `nPermSimple`, which are arguments; stats are the ranks as given,
+  `BPPARAM = SerialParam()`, reseeded per contrast.
+- ORA: one-sided Fisher exact test (`scipy.stats.fisher_exact`, `greater`, scipy
+  1.18.1); BH across the sets of one contrast.
 
 ## Maintainer notes
 

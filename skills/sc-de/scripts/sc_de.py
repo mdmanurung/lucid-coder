@@ -322,7 +322,7 @@ def read_long(p, columns, term):
 
 
 def run_r(script, files, args, tmp):
-    """Run an R engine; return its table and the version lines it prints."""
+    """Run an R engine; return its table, version lines and reference levels."""
     rscript = os.environ.get("RSCRIPT") or shutil.which("Rscript")
     if not rscript or not Path(rscript).is_file():
         fail("no_rscript")
@@ -333,7 +333,10 @@ def run_r(script, files, args, tmp):
         tail = " | ".join(proc.stderr.strip().splitlines()[-5:])
         fail("r_failed", script=script, code=proc.returncode, tail=tail)
     res = pd.read_csv(out, sep="\t", keep_default_na=False, na_values=["NA", "NaN"])
-    return res, [f"Rscript {rscript}", *proc.stdout.strip().splitlines()]
+    # The engine writes the reference level R used for each factor term.
+    ref = pd.read_csv(Path(f"{out}.levels"), sep="\t", dtype=str, keep_default_na=False)
+    levels = dict(zip(ref["term"], ref["reference"], strict=True))
+    return res, [f"Rscript {rscript}", *proc.stdout.strip().splitlines()], levels
 
 
 def term_args(term):
@@ -414,7 +417,7 @@ def analyse(argv, argv_as_run):
             obs.to_csv(Path(tmp) / "meta.tsv", sep="\t")
             files = [Path(tmp) / "expr.tsv", Path(tmp) / "meta.tsv"]
             args = [formula, *term_args(term), str(p["seed"])]
-            res, r_env = run_r("mast.R", files, args, tmp)
+            res, r_env, ref_levels = run_r("mast.R", files, args, tmp)
             n_units = {"n_cells": len(obs), "n_donors": obs[p["donor_col"]].nunique()}
             dropped = {}
         else:
@@ -423,7 +426,7 @@ def analyse(argv, argv_as_run):
             check_rank(data, fixed)
             data.to_csv(Path(tmp) / "long.tsv", sep="\t", index=False)
             args = [formula, *term_args(term)]
-            res, r_env = run_r("lm.R", [Path(tmp) / "long.tsv"], args, tmp)
+            res, r_env, ref_levels = run_r("lm.R", [Path(tmp) / "long.tsv"], args, tmp)
             n_units = {"n_samples": data["sample"].nunique()}
 
     # Steps 7-8: BH across tested features, call significance, sort.
@@ -483,7 +486,9 @@ def analyse(argv, argv_as_run):
     )
     summary = [
         f"{mode}: {n_tested} of {len(table)} features tested for {term[0]} "
-        f"({contrast}) with {formula}; {unit}.",
+        f"({contrast}) with {formula}; {unit}. Reference level per factor "
+        "(alphabetical, except the --contrast-term/--term reference): "
+        f"{'; '.join(f'{k} = {v}' for k, v in ref_levels.items()) or 'none'}.",
         f"{n_sig} features with padj < {p['padj_max']} (BH) and "
         f"|{effect}| > {p['lfc_min']}.",
         f"Significant: {', '.join(sig[:10]) or 'none'}"
@@ -502,6 +507,7 @@ def analyse(argv, argv_as_run):
         "status_counts": {k: int(v) for k, v in table["status"].value_counts().items()},
         "n_significant": n_sig,
         "significant_features": sig,
+        "reference_levels": ref_levels,
         "params": p,
         "seed": p["seed"],
     }

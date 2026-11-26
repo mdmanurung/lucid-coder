@@ -72,6 +72,40 @@ def run_with(tmp_path, base=ORA, drop=(), env=None, **changes):
     return run(*argv, "--outdir", str(tmp_path / "out"), env=env)
 
 
+def na_named_inputs(tmp_path, gene):
+    """Demo inputs with `gene` renamed to the symbol NA (a real HGNC-style trap)."""
+    de = []
+    for name in ("T", "Mono"):
+        table = pd.read_csv(EXAMPLES / f"demo_{name}.tsv", sep="\t", dtype=str)
+        table["gene_symbol"] = table["gene_symbol"].replace(gene, "NA")
+        table.to_csv(tmp_path / f"{name}.tsv", sep="\t", index=False)
+        de.append(f"{name}={tmp_path / f'{name}.tsv'}")
+    rows = [
+        "\t".join("NA" if token == gene else token for token in line.split("\t"))
+        for line in (EXAMPLES / "demo.gmt").read_text().splitlines()
+    ]
+    (tmp_path / "sets.gmt").write_text("\n".join(rows) + "\n")
+    return {"de": de, "gene_sets": str(tmp_path / "sets.gmt")}
+
+
+@pytest.mark.parametrize("base", [ORA, FGSEA], ids=["ora", "fgsea"])
+def test_gene_named_na_is_not_missing(tmp_path, base):
+    if base is FGSEA and not RSCRIPT:
+        pytest.skip("Rscript not found")
+    plain = run_with(tmp_path / "plain", base)
+    assert plain.returncode == 0, plain.stderr
+    a = enrichment(tmp_path / "plain" / "out")
+    # Rename a gene that sits in the first leading edge, so "NA" must show up there.
+    gene = a["leading_edge"].dropna().iloc[0].split(",")[0]
+    named = run_with(tmp_path / "named", base, **na_named_inputs(tmp_path, gene))
+    assert named.returncode == 0, named.stderr
+    b = enrichment(tmp_path / "named" / "out")
+    # The renamed gene stays in the universe and in its sets: same sizes, same rows.
+    key = ["contrast", "set"]
+    assert a[key + ["size"]].equals(b[key + ["size"]])
+    assert "NA" in ",".join(b["leading_edge"].dropna()).split(",")
+
+
 def enrichment(outdir):
     return pd.read_csv(outdir / "tables" / "enrichment.tsv", sep="\t")
 

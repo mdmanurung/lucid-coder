@@ -271,9 +271,26 @@ of `templates/`; a test fails when they drift.
 - **The model will want to pass percentages or normalised frequencies as
   `--counts`.** Do not. crumblr's precision weights need raw cell counts; the
   script refuses non-integers.
+- **The model will want to drop or fill a missing sample or label id.** Do not.
+  A missing value in `--sample-col` or `--label-col` (or the first `--meta`
+  column) stops the run with `missing_ids`, naming the column and the count;
+  casting it would make a fake sample or label called "nan". Ask the user to fix
+  the rows.
 - **The model will want to fill in a missing argument** with a "standard" value
   (tau 1, 0.05, 10 cells). Do not. Ask, or run `--demo` only when the user asked
   for a demo.
+
+## Fixed method settings
+
+Not arguments: the script sets these, and `reproducibility/environment.txt`
+records the package versions. A change is a maintainer edit, not a user choice.
+
+- crumblr 1.2.0: `crumblr(counts, tau = --tau)` with every other argument at its
+  package default, then variancePartition `dream` (REML, Satterthwaite df) and
+  limma `eBayes`; `topTable(confint = TRUE)` gives the CI and BH padj.
+- Reference levels of factors in `--formula` are R's alphabetical levels
+  (`stringsAsFactors`); the script does not set them, so `--coef` names the
+  coefficient against the alphabetically first level.
 
 ## Maintainer notes
 

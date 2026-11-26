@@ -45,12 +45,17 @@ ANALYSIS_ARGS = [
     "align",
     "covariances",
     "null_corr",
+    "fit_subset",
     "strong_lfsr",
     "lfsr_max",
     "sharing_factor",
     "reference",
     "seed",
 ]
+# --fit-n is asked only with --fit-subset random.
+OPTIONAL = ["fit_n"]
+KEYS = [*ANALYSIS_ARGS, *OPTIONAL]
+FIT_SUBSETS = ["all", "random", "strong"]
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
     "context": "synthetic demo: 4 cell types x 800 genes, no real tissue",
@@ -63,6 +68,8 @@ DEMO = {
     "align": "intersect",
     "covariances": "canonical+ed",
     "null_corr": "identity",
+    "fit_subset": "all",
+    "fit_n": None,
     "strong_lfsr": 0.05,
     "lfsr_max": 0.05,
     "sharing_factor": 0.5,
@@ -89,8 +96,11 @@ ERRORS = {
     "no_rscript": "Rscript not found; set RSCRIPT or put Rscript on PATH",
     "missing_r_package": "{tail}; ask for it to be installed, do not install it here",
     "too_few_strong": "{n} genes pass --strong-lfsr {strong_lfsr} in any cell type, "
-    "fewer than the {k} cell types that canonical+ed needs; ask the user about "
-    "--strong-lfsr or --covariances canonical",
+    "fewer than the {k} cell types that canonical+ed or --fit-subset strong needs; "
+    "ask the user about --strong-lfsr, --covariances canonical or --fit-subset",
+    "fit_n_needed": "--fit-subset random needs --fit-n",
+    "fit_n_unused": "--fit-n is used only with --fit-subset random",
+    "fit_n_too_big": "--fit-n {fit_n} is more than the {n} aligned genes",
     "r_failed": "mash.R failed with exit {code}: {tail}",
 }
 
@@ -109,12 +119,14 @@ def parse_args(argv):
     parser.add_argument("--align", choices=["intersect", "union"])
     parser.add_argument("--covariances", choices=["canonical", "canonical+ed"])
     parser.add_argument("--null-corr", choices=["identity", "em"])
+    parser.add_argument("--fit-subset", choices=FIT_SUBSETS)
+    parser.add_argument("--fit-n", type=int)
     parser.add_argument("--strong-lfsr", type=float)
     parser.add_argument("--lfsr-max", type=float)
     parser.add_argument("--sharing-factor", type=float)
     parser.add_argument("--reference")
     parser.add_argument("--seed", type=int)
-    return parse_required(parser, ANALYSIS_ARGS, DEMO, argv)
+    return parse_required(parser, ANALYSIS_ARGS, DEMO, argv, optional=OPTIONAL)
 
 
 def check_values(p):
@@ -128,10 +140,20 @@ def check_values(p):
             "in (0, 1)",
         ),
         ("--seed", p["seed"], p["seed"] >= 0, "an integer >= 0"),
+        (
+            "--fit-n",
+            p["fit_n"],
+            p["fit_n"] is None or p["fit_n"] >= 2,
+            "an integer >= 2",
+        ),
     ]
     for arg, value, ok, rule in rules:
         if not ok:
             fail(ERRORS, "bad_value", arg=arg, rule=rule, value=value)
+    if p["fit_subset"] == "random" and p["fit_n"] is None:
+        fail(ERRORS, "fit_n_needed")
+    if p["fit_subset"] != "random" and p["fit_n"] is not None:
+        fail(ERRORS, "fit_n_unused")
     tables = {}
     for spec in p["de"]:
         name, sep, path = spec.partition("=")
@@ -221,6 +243,8 @@ def run_mash(bhat, shat, p):
             str(tmp / "shat.tsv"),
             p["covariances"],
             p["null_corr"],
+            p["fit_subset"],
+            str(p["fit_n"] or 0),
             str(p["strong_lfsr"]),
             str(p["lfsr_max"]),
             str(p["sharing_factor"]),
@@ -342,6 +366,8 @@ def analyse(argv, full_argv):
     tables = check_values(p)
     seed_everything(p["seed"])
     bhat, shat, dropped, frames, genes, n_shared_ids = align(tables, p)
+    if p["fit_n"] is not None and p["fit_n"] > len(bhat):
+        fail(ERRORS, "fit_n_too_big", fit_n=p["fit_n"], n=len(bhat))
     if Path(p["outdir"]).exists():
         make_outdir(p["outdir"])  # fails fast, before the R run
     # Every refusal comes before make_outdir, so a refused run leaves no outdir.
@@ -373,7 +399,7 @@ def analyse(argv, full_argv):
         ).assign(cell_type=ct)
         for ct, frame in frames.items()
     )
-    posterior = genes.join(posterior.set_index("key"), how="inner")
+    posterior = genes.join(posterior.set_index("key"), how="inner", validate="1:m")
     posterior = posterior.sort_values(["gene_symbol", "cell_type"])
     posterior = posterior.reset_index(drop=True)
     posterior.to_csv(tables_dir / "posterior.tsv", sep="\t", index=False)
@@ -420,9 +446,15 @@ def analyse(argv, full_argv):
         "the highest sharing: raw effects (left) and mashr posterior means (right); "
         f"red genes pass {rule} in either type, the dashed line is y = x.",
     }
+    fit_text = {
+        "all": "all genes",
+        "random": f"{p['fit_n']} random genes (seed {p['seed']})",
+        "strong": f"the {mash['n_strong']} strong genes",
+    }[p["fit_subset"]]
     summary = [
         f"{len(bhat)} genes x {k} cell types ({', '.join(names)}), "
-        f"--align {p['align']}, covariances {p['covariances']}; genes dropped by "
+        f"--align {p['align']}, covariances {p['covariances']}, mixture fitted on "
+        f"{fit_text}; genes dropped by "
         "--align per cell type: "
         + ", ".join(f"{n} {v}" for n, v in dropped.items())
         + ".",
@@ -434,7 +466,7 @@ def analyse(argv, full_argv):
     ]
     shown = {**p, "de": " ".join(p["de"])}
     write_report(
-        outdir, "mashr cross-cell-type sharing", shown, ANALYSIS_ARGS, summary, captions
+        outdir, "mashr cross-cell-type sharing", shown, KEYS, summary, captions
     )
     result = {
         "n_genes": len(bhat),
@@ -445,6 +477,8 @@ def analyse(argv, full_argv):
         "status_counts": status_counts,
         "n_strong": mash["n_strong"],
         "null_corr": p["null_corr"],
+        "fit_subset": p["fit_subset"],
+        "fit_n": p["fit_n"],
         "n_significant_any": n_any,
         "n_shared_all": n_shared,
         "n_specific": n_specific,
@@ -469,7 +503,7 @@ def analyse(argv, full_argv):
         outdir,
         __file__,
         p,
-        ANALYSIS_ARGS,
+        KEYS,
         full_argv,
         ["numpy", "pandas", "scipy", "matplotlib"],
         extra=r_versions,

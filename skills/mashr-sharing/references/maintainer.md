@@ -81,6 +81,10 @@ are specific, 20 per cell type in table order (±1.5); the rest are null. With
 the demo values, 154 strong genes train ED. 153 genes pass lfsr < 0.05
 somewhere: all 80 shared genes in all 4 types, and 73 specific genes in exactly
 their own type. No null gene passes. Pairwise sharing is 0.67-0.70.
+The demo pins `--fit-subset all`, so these goldens did not change. The `random` and
+`strong` runs fit the mixture on a subset, then fix it for every gene (mashr
+vignette workflow); their tests check the run, the record and the planted
+shared genes, not exact counts.
 
 The script finds Rscript from `RSCRIPT`, else `Rscript` on `PATH`. On this HPC:
 

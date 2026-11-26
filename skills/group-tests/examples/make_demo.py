@@ -25,9 +25,13 @@ donors = pd.DataFrame(
         "age": rng.integers(30, 81, N_DONORS),
     }
 )
-rows = donors.merge(pd.DataFrame({"visit": ["pre", "post"]}), how="cross").merge(
+# Cross joins: every donor x visit x feature, so the cardinality is many-to-many.
+rows = donors.merge(
+    pd.DataFrame({"visit": ["pre", "post"]}), how="cross", validate="m:m"
+).merge(
     pd.DataFrame({"feature": [f"F{i:02d}" for i in range(1, N_FEATURES + 1)]}),
     how="cross",
+    validate="m:m",
 )
 number = rows["feature"].str[1:].astype(int)
 baseline = rng.normal(0, 1, (N_FEATURES, N_DONORS))

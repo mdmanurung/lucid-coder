@@ -21,11 +21,14 @@ names(args) <- c(
   "out"
 )
 
+# na.strings = "": read.delim would turn a gene named "NA" into a missing value.
+# The caller writes no NA ranks (those rows leave the universe first).
 ranks <- read.delim(
   args[["ranks"]],
-  colClasses = c("character", "character", "numeric")
+  colClasses = c("character", "character", "numeric"),
+  na.strings = ""
 )
-sets <- read.delim(args[["sets"]], colClasses = "character")
+sets <- read.delim(args[["sets"]], colClasses = "character", na.strings = "")
 pathways <- split(sets$gene, sets$set)
 
 fits <- lapply(split(ranks, ranks$contrast), \(r) {

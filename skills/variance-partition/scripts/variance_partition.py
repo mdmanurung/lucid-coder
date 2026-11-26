@@ -45,13 +45,17 @@ MODEL_ARGS = [
     "min_frac",
     "n_top",
     "max_cancor",
+    "norm_method",
+    "voom",
     "reference",
     "context",
     "seed",
 ]
-COUNTS_ARGS = ["counts", "meta"]
+COUNTS_ARGS = ["counts", "meta", "donor_col"]
 ADATA_ARGS = ["adata", "gene_id_col", "sample_col", "donor_col", "min_cells"]
-KEYS = [*COUNTS_ARGS, *ADATA_ARGS, "layer", *MODEL_ARGS]
+KEYS = list(dict.fromkeys([*COUNTS_ARGS, *ADATA_ARGS, "layer", *MODEL_ARGS]))
+# edgeR::calcNormFactors methods; "none" sets every factor to 1.
+NORM_METHODS = ["TMM", "TMMwsp", "RLE", "upperquartile", "none"]
 NAME = r"[A-Za-z_][\w.]*"
 RANDOM_TERM = re.compile(rf"\(\s*1\s*\|\s*({NAME})\s*\)")
 TERM = rf"(?:{NAME}|{RANDOM_TERM.pattern})"
@@ -62,13 +66,15 @@ DEMO = {
     "adata": None,
     "gene_id_col": None,
     "sample_col": None,
-    "donor_col": None,
+    "donor_col": "donor",
     "min_cells": None,
     "layer": None,
     "formula": "~ (1|donor) + (1|condition) + rin",
     "min_frac": 0.1,
     "n_top": 5,
     "max_cancor": 0.9,
+    "norm_method": "TMM",
+    "voom": "yes",
     "reference": "synthetic demo genes, no genome build",
     "context": "synthetic demo: 12 donors, ctrl vs stim pseudobulk, no real tissue",
     "seed": 0,
@@ -136,6 +142,8 @@ def parse_args(argv):
     parser.add_argument("--min-frac", type=float)
     parser.add_argument("--n-top", type=int)
     parser.add_argument("--max-cancor", type=float)
+    parser.add_argument("--norm-method", choices=NORM_METHODS)
+    parser.add_argument("--voom", choices=["yes", "no"])
     parser.add_argument("--reference")
     parser.add_argument("--context")
     parser.add_argument("--seed", type=int)
@@ -195,14 +203,17 @@ def read_tsv_input(p, terms):
         fail(ERRORS, "samples_mismatch", only=", ".join(only))
     if counts.shape[1] < 3:
         fail(ERRORS, "too_few_count_samples", n=counts.shape[1])
-    for col in terms:
+    for col in [p["donor_col"], *terms]:
         if col not in meta.columns:
             fail(ERRORS, "missing_column", col=col)
     meta.index = meta.index.astype(str)
-    meta = meta.loc[sorted(counts.columns), terms].rename_axis("sample")
+    meta = meta.loc[sorted(counts.columns)].rename_axis("sample")
+    # Donor versus sample: several samples per donor need a donor term.
+    n_donors, _ = check_replication(meta.reset_index(), "sample", p["donor_col"], terms)
+    meta = meta[terms]
     counts = counts[meta.index].astype(np.int64)
     detected = (counts > 0).mean(axis=1)
-    return counts, meta, [], detected, None, gene_ids
+    return counts, meta, [], detected, n_donors, gene_ids
 
 
 def read_adata_input(p, terms):
@@ -282,6 +293,8 @@ def run_r(counts, meta, p):
             p["formula"],
             str(p["max_cancor"]),
             str(p["seed"]),
+            p["norm_method"],
+            p["voom"],
             str(tmp),
         ]
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
@@ -458,7 +471,8 @@ def analyse(argv, full_argv):
     }
     summary = [
         f"{len(meta)} samples ({', '.join(dropped) or 'none'} dropped by --min-cells); "
-        f"{len(fractions)} of {n_genes_in} genes pass --min-frac {p['min_frac']}.",
+        f"{len(fractions)} of {n_genes_in} genes pass --min-frac {p['min_frac']}; "
+        f"normalisation {p['norm_method']}, voom {p['voom']}.",
         f"Largest median fraction: {top_covariate} ({medians[top_covariate]:.3f}); "
         f"Residuals {medians['Residuals']:.3f}.",
         f"Largest canonical correlation {pairs.max():.3f} "
@@ -479,6 +493,8 @@ def analyse(argv, full_argv):
         "median_fractions": medians.round(6).to_dict(),
         "max_cancor": round(float(pairs.max()), 6) if len(pairs) else None,
         "top_genes": top_by_term,
+        "norm_method": p["norm_method"],
+        "voom": p["voom"],
         "params": p,
         "seed": p["seed"],
     }

@@ -37,6 +37,7 @@ ARGS = {
     "--context": "synthetic demo, healthy vs disease",
     "--metadata": str(EXAMPLES / "demo_meta.tsv"),
     "--group-col": "group",
+    "--assoc-cols": "group,age",
     "--likelihoods": "rna=gaussian,adt=gaussian,tf=gaussian",
     "--factors": "6",
     "--scale-views": "yes",
@@ -147,6 +148,93 @@ def test_demo_group_association(demo_out):
     assert group["padj"].idxmin() == "Factor1" and group.loc["Factor1", "padj"] < 0.01
     assert (assoc.loc[assoc["covariate"] == "age", "padj"] > 0.05).all()
     assert (assoc.loc[assoc["covariate"] == "age", "test"] == "spearman").all()
+
+
+def test_demo_report_names_test_and_family(demo_out):
+    result = json.loads((demo_out / "result.json").read_text())
+    line = result["chat_summary_lines"][3]
+    assert line.startswith("Closest factor to group: Factor1, Kruskal-Wallis padj")
+    assert "the --assoc-cols family (group,age)" in line
+    assert result["assoc_unit"] == "sample" and result["assoc_n_tests"] == 12
+    report = (demo_out / "report.md").read_text()
+    assert "the --assoc-cols family" in report
+    assert "| `--assoc-cols` | `group,age` |" in report
+
+
+def test_assoc_cols_only_tested(tmp_path):
+    # group is not in --assoc-cols: no row for it, and the summary says so.
+    completed = run_with(tmp_path, assoc_cols="age")
+    assert completed.returncode == 0, completed.stderr
+    assoc = pd.read_csv(
+        tmp_path / "out" / "tables" / "factor_vs_metadata.tsv", sep="\t"
+    )
+    assert set(assoc["covariate"]) == {"age"} and len(assoc) == 6
+    result = json.loads((tmp_path / "out" / "result.json").read_text())
+    assert result["chat_summary_lines"][3] == (
+        "No factor was tested against group: it is not in --assoc-cols."
+    )
+
+
+def paired_meta(tmp_path, **extra):
+    """Demo metadata with a donor column: samples 2k+1 and 2k+2 share a donor."""
+
+    def edit(meta):
+        meta["donor"] = [f"D{i // 2:02d}" for i in range(len(meta))]
+        return meta.assign(**extra)
+
+    return write_meta(tmp_path, edit)
+
+
+def test_donor_col_averages_per_donor(tmp_path):
+    completed = run_with(
+        tmp_path,
+        metadata=paired_meta(tmp_path),
+        assoc_cols="group",
+        donor_col="donor",
+    )
+    assert completed.returncode == 0, completed.stderr
+    out = tmp_path / "out"
+    result = json.loads((out / "result.json").read_text())
+    assert result["assoc_unit"] == "donor" and result["assoc_n_tests"] == 6
+    assoc = pd.read_csv(out / "tables" / "factor_vs_metadata.tsv", sep="\t")
+    assert (assoc["n"] == 30).all()
+    assert "one donor per row" in result["chat_summary_lines"][3]
+    # The scores themselves stay per sample.
+    factors = pd.read_csv(out / "tables" / "factors.tsv", sep="\t")
+    assert len(factors) == 60
+    assert "--donor-col donor" in (out / "reproducibility" / "commands.sh").read_text()
+
+
+def test_donor_col_needs_donor_level_columns(tmp_path):
+    # age differs between the two samples of a donor.
+    completed = run_with(
+        tmp_path,
+        metadata=paired_meta(tmp_path),
+        assoc_cols="group,age",
+        donor_col="donor",
+    )
+    assert is_error(
+        completed,
+        "column 'age' varies within a donor of 'donor'; --assoc-cols must be "
+        "donor-level when donors have several samples",
+    )
+
+
+def test_assoc_cols_errors(tmp_path):
+    assert is_error(
+        run_with(tmp_path, drop=["--assoc-cols"]),
+        "missing required arguments: --assoc-cols",
+    )
+    assert is_error(
+        run_with(tmp_path, assoc_cols="group,batch"), "column 'batch' not found in"
+    )
+    assert is_error(
+        run_with(tmp_path, assoc_cols="group,sample"),
+        "--assoc-cols must name metadata columns other than 'sample'",
+    )
+    assert is_error(
+        run_with(tmp_path, donor_col="donor"), "column 'donor' not found in"
+    )
 
 
 def test_output_tables(demo_out):

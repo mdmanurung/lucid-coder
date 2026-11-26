@@ -85,7 +85,12 @@ The `--demo` run trains 6 factors; 3 are active at 5%:
 
 Factor4-6 stay below 2% in every view and are flagged, not dropped. Factor1 is
 the only factor tied to group (Kruskal-Wallis padj 0.0002); no factor is tied
-to age.
+to age. These are the demo's `--assoc-cols group,age`; the summary line names
+the test used (Kruskal-Wallis for group) and the `--assoc-cols` BH family.
+
+`--donor-col` is not part of the demo (60 samples, one per donor). The tests
+`test_donor_col_*` pair adjacent samples into donors (`group` is constant within
+a pair, `age` is not) to cover the averaging and the `varies_within_donor` error.
 
 ## Why this exists
 
@@ -116,8 +121,9 @@ and no significance stars.
   `plot_weights(scale = TRUE)`.
 - `box_<factor>`: `plots.plot_box`, one jittered point (±0.2, `--seed`) per
   sample, y titled "<factor> score (a.u.)"; under 10 samples in a group it
-  draws points and a median, no box. The caption carries the Kruskal-Wallis
-  padj.
+  draws points and a median, no box. The caption carries the test used for
+  the group (Kruskal-Wallis or Spearman) and its padj, or says the group is not
+  tested.
 
 Group and view colours come from one fixed Tol list keyed by the sorted labels;
 more than 7 groups or views is an error. `scripts/plots.py`, `theme.py`,

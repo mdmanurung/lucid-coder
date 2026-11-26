@@ -105,7 +105,12 @@ Environment: pixi feature `bioc-de` for the dreamlet and deseq2 engines (`pixi i
 | contrast factor | obs column | a `--design` term holding both contrast levels | `condition` with `stim`, `ctrl` |
 
 Code a categorical factor as strings in `obs`. A numeric column enters the
-design as a continuous covariate in every engine. Only additive designs
+design as a continuous covariate in every engine: the python engine keeps its
+numeric dtype (one design column), and the R engines read it as numeric. Only
+the sample, donor and contrast columns and `(1|x)` terms are always strings.
+Every other factor uses alphabetical reference levels (treatment coding); the
+script does not choose them. The reference level per factor goes into the
+report summary and `result.json` (`reference_levels`). Only additive designs
 (`~ a + b`) are accepted, plus random intercepts `(1|x)` for dreamlet
 (`~ condition + (1|patient)`). The contrast factor must be a fixed term.
 
@@ -176,7 +181,7 @@ genes only. Tables and results are sorted by `padj`, then gene, NA last.
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_samples, n_donors, dropped_samples, dropped_by_level, context, reference, n_genes_tested, status_counts, gene_id_col, n_significant, top_genes, params, engine, seed, chat_summary_lines, preferred_artifacts
+├── result.json                # n_samples, n_donors, dropped_samples, dropped_by_level, context, reference, n_genes_tested, status_counts, gene_id_col, n_significant, top_genes, params, reference_levels, numeric_covariates, design_columns (python engine), engine, seed, chat_summary_lines, preferred_artifacts
 ├── tables/
 │   ├── pseudobulk_counts.tsv  # gene_id, gene_symbol, then kept samples: summed raw counts of tested genes
 │   ├── sample_meta.tsv        # one row per kept sample, design terms
@@ -321,6 +326,22 @@ python scripts/pseudobulk_de.py ... --design "~ condition + (1|patient)" ...
 # Demo (only when the user asks for one)
 python scripts/pseudobulk_de.py --demo --outdir demo_out
 ```
+
+## Fixed method settings
+
+Not arguments: the script sets these, and `reproducibility/environment.txt`
+records the package versions. A change is a maintainer edit, not a user choice.
+
+- PyDESeq2 0.5.4 (`--engine python`) and DESeq2 1.50.2 (`--engine r`) run with
+  package defaults: Wald test, median-of-ratios size factors, fitted dispersion
+  trend, Cook's-distance outlier handling, independent filtering with
+  `alpha = --padj-max`, no LFC shrinkage. PyDESeq2 runs with `n_cpus=1`.
+- dreamlet 1.8.0: every `processAssays` filter is switched off (`min.cells = 0`,
+  `min.count = 0`, `min.prop = 0`, `min.total.count = 0`, `min.samples = 2`)
+  because `--min-cells` and `--min-frac` already filtered; then `dreamlet` and
+  `topTable(number = Inf)` (BH).
+- Plot specs, not tests: the PCA uses the 500 most variable genes of log2 CPM; the
+  heatmap shows the 20 lowest padj with colours saturating at +-2.
 
 ## Maintainer notes
 

@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 import anndata as ad
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -247,6 +248,25 @@ def test_duplicate_cell_ids(tmp_path):
     adata.write_h5ad(tmp_path / "dup.h5ad")
     completed = run_with(tmp_path, adata=str(tmp_path / "dup.h5ad"))
     assert is_error(completed, "duplicate cell ids in --adata: cell0")
+
+
+@pytest.mark.parametrize("col", ["sample", "cell_type"])
+def test_missing_ids_in_adata(tmp_path, col):
+    adata = ad.read_h5ad(DEMO)
+    adata.obs[col] = adata.obs[col].astype(object)
+    adata.obs.iloc[:3, adata.obs.columns.get_loc(col)] = np.nan
+    adata.write_h5ad(tmp_path / "nan.h5ad")
+    completed = run_with(tmp_path, adata=str(tmp_path / "nan.h5ad"))
+    assert is_error(completed, f"column '{col}' has 3 missing value(s)")
+
+
+def test_missing_sample_id_in_meta(tmp_path, tsv_inputs):
+    meta = pd.read_csv(tsv_inputs / "meta.tsv", sep="\t")
+    meta.loc[0, "sample"] = np.nan
+    meta.to_csv(tmp_path / "meta.tsv", sep="\t", index=False)
+    args = tsv_args(tsv_inputs) | {"meta": str(tmp_path / "meta.tsv")}
+    completed = run_with(tmp_path, drop=H5AD_FLAGS, **args)
+    assert is_error(completed, "column 'sample' has 1 missing value(s)")
 
 
 def test_duplicate_sample_ids(tmp_path, tsv_inputs):

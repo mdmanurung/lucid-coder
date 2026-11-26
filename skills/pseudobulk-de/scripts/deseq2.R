@@ -58,5 +58,21 @@ out <- data.frame(
   padj = res$padj
 )
 write.table(out, args[["out"]], sep = "\t", quote = FALSE, row.names = FALSE)
+# Reference level R chose for each factor term (alphabetical; DESeq2 does not relevel).
+factor_terms <- intersect(
+  all.vars(as.formula(args[["design"]])),
+  colnames(meta)
+)
+factor_terms <- factor_terms[sapply(meta[factor_terms], is.factor)]
+write.table(
+  data.frame(
+    term = factor_terms,
+    reference = sapply(meta[factor_terms], \(x) levels(x)[1])
+  ),
+  paste0(args[["out"]], ".levels"),
+  sep = "\t",
+  quote = FALSE,
+  row.names = FALSE
+)
 cat(R.version.string, "\n", sep = "")
 cat("DESeq2 ", as.character(packageVersion("DESeq2")), "\n", sep = "")

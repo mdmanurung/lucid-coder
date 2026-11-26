@@ -67,7 +67,9 @@ samples = pd.DataFrame(
     }
 )
 rows = samples.merge(
-    pd.DataFrame({"feature": [f"P{i:02d}" for i in range(1, 51)]}), how="cross"
+    pd.DataFrame({"feature": [f"P{i:02d}" for i in range(1, 51)]}),
+    how="cross",
+    validate="m:m",  # every sample x every feature
 )
 number = rows["feature"].str[1:].astype(int)
 rows["value"] = (
