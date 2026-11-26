@@ -28,7 +28,9 @@ import pygpcca._gpcca  # noqa: E402
 import pygpcca._sorted_schur  # noqa: E402
 import scanpy as sc  # noqa: E402
 import scvelo as scv  # noqa: E402
+from matplotlib.collections import LineCollection  # noqa: E402
 from plotnine import element_text, theme  # noqa: E402
+from scipy import sparse  # noqa: E402
 from scipy.sparse import linalg  # noqa: E402
 
 from palettes import categorical_palette  # noqa: E402
@@ -60,15 +62,18 @@ REQUIRED = [
     "mode",
     "min_shared_counts",
     "n_top_genes",
+    "hvg_flavor",
+    "use_rep",
     "n_pcs",
     "n_neighbors",
+    "kernel_model",
     "groupby",
     "terminal_states",
     "context",
     "reference",
     "seed",
 ]
-OPTIONAL = ["n_states"]
+OPTIONAL = ["n_states", "stability_threshold"]
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
     "adata": str(SKILL_DIR / "examples" / "demo.h5ad"),
@@ -76,11 +81,15 @@ DEMO = {
     "mode": "stochastic",
     "min_shared_counts": 10,
     "n_top_genes": 30,
+    "hvg_flavor": "seurat",
+    "use_rep": "X_pca",
     "n_pcs": 10,
     "n_neighbors": 30,
+    "kernel_model": "deterministic",
     "groupby": "stage",
     "terminal_states": "s4",
     "n_states": None,
+    "stability_threshold": None,
     "context": "synthetic demo: scVelo simulation, 500 cells, 4 stages, no real tissue",
     "reference": "synthetic demo, no genome build",
     "seed": 0,
@@ -90,6 +99,14 @@ ERRORS = {
     "bad_value": "{arg} must be {rule}, got {value}",
     "auto_needs_n_states": "--terminal-states auto needs --n-states",
     "n_states_unused": "--n-states is used only with --terminal-states auto",
+    "threshold_needed": "--terminal-states auto needs --stability-threshold",
+    "threshold_unused": "--stability-threshold is used only with --terminal-states "
+    "auto",
+    "bad_counts": "layer {layer!r} must hold non-negative integer counts",
+    "no_unspliced": "layer 'unspliced' is all zero; velocity needs unspliced counts",
+    "no_rep": "obsm[{rep!r}] not found; name an existing representation, or "
+    "X_pca to compute one",
+    "rep_too_narrow": "--n-pcs {n_pcs} exceeds the {width} columns of obsm[{rep!r}]",
     "missing_file": "input file not found: {path}",
     "missing_layer": "layer not found: {layer}; velocity needs spliced and "
     "unspliced counts (velocyto, STARsolo or alevin-fry)",
@@ -118,10 +135,8 @@ PACKAGES = [
     "matplotlib",
     "plotnine",
 ]
-# Fixed method choices, not user thresholds; SKILL.md "Steps" names each one.
-# Auto terminal states: CellRank's tutorial rule, macrostates with
-# coarse-grained self-transition >= 0.96 (predict_terminal_states default).
-STABILITY_THRESHOLD = 0.96
+# Fixed method settings (package defaults, listed in SKILL.md): scVelo and
+# CellRank options not named below stay at their 0.3.4 and 2.3.3 defaults.
 # Gene rank for the phase portraits: scVelo's own fit score per mode.
 SCORE = {"stochastic": "velocity_r2", "dynamical": "fit_likelihood"}
 N_PHASE_GENES = 4
@@ -135,6 +150,12 @@ def parse_args(argv):
     parser.add_argument("--mode")
     parser.add_argument("--min-shared-counts", type=int)
     parser.add_argument("--n-top-genes", type=int)
+    parser.add_argument("--hvg-flavor", choices=["seurat", "cell_ranger"])
+    parser.add_argument("--use-rep")
+    parser.add_argument(
+        "--kernel-model", choices=["deterministic", "stochastic", "monte_carlo"]
+    )
+    parser.add_argument("--stability-threshold", type=float)
     parser.add_argument("--n-pcs", type=int)
     parser.add_argument("--n-neighbors", type=int)
     parser.add_argument("--groupby")
@@ -169,7 +190,20 @@ def check_values(p):
         fail(ERRORS, "auto_needs_n_states")
     if not auto and p["n_states"] is not None:
         fail(ERRORS, "n_states_unused")
+    if auto and p["stability_threshold"] is None:
+        fail(ERRORS, "threshold_needed")
+    if not auto and p["stability_threshold"] is not None:
+        fail(ERRORS, "threshold_unused")
     if auto:
+        threshold = p["stability_threshold"]
+        if not 0 < threshold <= 1:
+            fail(
+                ERRORS,
+                "bad_value",
+                arg="--stability-threshold",
+                rule="in (0, 1]",
+                value=threshold,
+            )
         if p["n_states"] < 2:
             fail(
                 ERRORS,
@@ -207,6 +241,12 @@ def load(p, terminal):
     for layer in ("spliced", "unspliced"):
         if layer not in adata.layers:
             fail(ERRORS, "missing_layer", layer=layer)
+        counts = adata.layers[layer]
+        values = counts.data if sparse.issparse(counts) else np.asarray(counts)
+        if not (np.all(values >= 0) and np.all(values == np.round(values))):
+            fail(ERRORS, "bad_counts", layer=layer)
+        if layer == "unspliced" and not np.any(values):
+            fail(ERRORS, "no_unspliced")
     if "X_umap" not in adata.obsm:
         fail(ERRORS, "no_umap")
     col = p["groupby"]
@@ -242,17 +282,34 @@ def preprocess(adata, p):
             n_kept=adata.n_vars,
             min_shared=p["min_shared_counts"],
         )
-    limit = min(adata.n_obs, p["n_top_genes"])
-    if p["n_pcs"] >= limit:
-        fail(ERRORS, "too_many_pcs", n_pcs=p["n_pcs"], limit=limit)
-    scv.pp.normalize_per_cell(adata)
-    # sc-embed output is already log1p; logging twice would flatten X.
+    rep = p["use_rep"]
+    if rep in adata.obsm:
+        width = adata.obsm[rep].shape[1]
+        if p["n_pcs"] > width:
+            fail(ERRORS, "rep_too_narrow", n_pcs=p["n_pcs"], width=width, rep=rep)
+    elif rep != "X_pca":
+        fail(ERRORS, "no_rep", rep=rep)
+    else:
+        limit = min(adata.n_obs, p["n_top_genes"])
+        if p["n_pcs"] >= limit:
+            fail(ERRORS, "too_many_pcs", n_pcs=p["n_pcs"], limit=limit)
+    # X is already normalised and logged when uns["log1p"] is set (sc-embed output):
+    # scVelo then scales only the layers that still hold counts, inside moments().
     if "log1p" not in adata.uns:
+        scv.pp.normalize_per_cell(adata)
         sc.pp.log1p(adata)
-    sc.pp.highly_variable_genes(adata, n_top_genes=p["n_top_genes"], subset=True)
-    sc.pp.pca(adata, n_comps=p["n_pcs"], random_state=p["seed"])
+    sc.pp.highly_variable_genes(
+        adata, n_top_genes=p["n_top_genes"], flavor=p["hvg_flavor"], subset=True
+    )
+    # An existing representation is used as it is; only X_pca is ever computed.
+    if rep not in adata.obsm:
+        sc.pp.pca(adata, n_comps=p["n_pcs"], random_state=p["seed"])
     sc.pp.neighbors(
-        adata, n_pcs=p["n_pcs"], n_neighbors=p["n_neighbors"], random_state=p["seed"]
+        adata,
+        n_pcs=p["n_pcs"],
+        n_neighbors=p["n_neighbors"],
+        use_rep=rep,
+        random_state=p["seed"],
     )
     scv.pp.moments(adata, n_pcs=None, n_neighbors=None)
     return genes_input, zero
@@ -261,7 +318,7 @@ def preprocess(adata, p):
 def fates(adata, terminal, p):
     """Steps 7-8: VelocityKernel, GPCCA terminal states, fate probabilities."""
     vk = cr.kernels.VelocityKernel(adata).compute_transition_matrix(
-        model="deterministic", n_jobs=1, show_progress_bar=False
+        model=p["kernel_model"], n_jobs=1, show_progress_bar=False
     )
     g = cr.estimators.GPCCA(vk)
     if terminal is None:
@@ -271,10 +328,10 @@ def fates(adata, terminal, p):
             fail(ERRORS, "macrostates_failed", n=p["n_states"], reason=exc)
         try:
             g.predict_terminal_states(
-                method="stability", stability_threshold=STABILITY_THRESHOLD
+                method="stability", stability_threshold=p["stability_threshold"]
             )
         except ValueError:
-            fail(ERRORS, "no_terminal", n=p["n_states"], t=STABILITY_THRESHOLD)
+            fail(ERRORS, "no_terminal", n=p["n_states"], t=p["stability_threshold"])
     else:
         # Every cell of a named group is absorbing (the dict form of the API).
         col = adata.obs[p["groupby"]]
@@ -336,6 +393,12 @@ def draw_figures(figures, adata, p, levels, pal, cells, by_group, top):
         frameon=True,
     )
     frame_umap(ax)
+    # scVelo leaves NaN line widths on stream segments where the grid holds too
+    # little mass; Agg draws them as nothing, the PDF backend refuses them.
+    for stream in ax.collections:
+        if isinstance(stream, LineCollection):
+            widths = np.asarray(stream.get_linewidths(), dtype=float)
+            stream.set_linewidths(np.nan_to_num(widths, nan=0.0))
     save_panel(fig, umap, figures, "velocity_stream", 120, 89)
     plt.close(fig)
 
@@ -404,9 +467,6 @@ def analyse(argv, full_argv):
     sc.settings.n_jobs = 1
     scv.settings.verbosity = 0
     cr.settings.logging_level = "ERROR"
-    warnings.filterwarnings("ignore", category=FutureWarning)
-    warnings.filterwarnings("ignore", category=UserWarning)
-    warnings.filterwarnings("ignore", category=DeprecationWarning)
     # Preprocess before make_outdir: its gene and PC checks leave no outdir.
     genes_input, zero = preprocess(adata, p)
     n_genes_input = len(genes_input)
@@ -498,14 +558,15 @@ def analyse(argv, full_argv):
     medians = cells.groupby(col)[PSEUDOTIME].median().loc[levels]
     mode_note = "steady-state model" if p["mode"] == "stochastic" else "dynamical model"
     graph = (
-        f"velocity graph on {p['n_pcs']} PCs of {adata.n_vars} highly variable genes, "
+        f"velocity graph on {p['n_pcs']} PCs of {p['use_rep']} "
+        f"({adata.n_vars} highly variable genes, {p['hvg_flavor']}), "
         f"{p['n_neighbors']} neighbours, seed {p['seed']}; UMAP from the input "
         "X_umap, not recomputed"
     )
     how = (
         f"every cell of {', '.join(terminal)} absorbing"
         if terminal
-        else f"GPCCA on {p['n_states']} macrostates, stability >= {STABILITY_THRESHOLD}"
+        else f"GPCCA on {p['n_states']} macrostates, stability >= {p['stability_threshold']}"
     )
     captions = {
         "velocity_stream": f"UMAP of {adata.n_obs} cells coloured by {col}, with "
@@ -515,7 +576,8 @@ def analyse(argv, full_argv):
         "scVelo velocity pseudotime (0 at the inferred root cells, 1 at the end "
         f"points; {graph}).",
         "fate_by_group": f"Mean CellRank predicted fate probability per {col} group "
-        f"towards each of {len(states)} terminal states ({how}); bars sum to 100%; "
+        f"towards each of {len(states)} terminal states ({how}; "
+        f"{p['kernel_model']} kernel); bars sum to 100%; "
         "a model prediction, not observed lineage.",
         "phase_portraits": f"Phase portraits of the {len(top)} genes with the "
         f"highest {score}: smoothed unspliced (Mu) against spliced (Ms) per cell, "

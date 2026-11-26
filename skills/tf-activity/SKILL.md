@@ -178,6 +178,20 @@ python scripts/tf_activity.py --demo --outdir demo_out
 python scripts/tf_activity.py --demo --input contrast --outdir demo_contrast
 ```
 
+## Layer contract
+
+- Input (cells): log-normalised values in `X`; refused when negative, all
+  integers, or above 20 at the maximum (`log1p` of counts scaled to a fixed total
+  cannot reach it; CPM or linear data do). Layers, including sc-embed's
+  `counts`, are not read. Contrast mode reads no h5ad.
+- Output: no h5ad is written; `X` and layers are untouched on disk.
+
+## Fixed method settings
+
+decoupler `dc.mt.ulm` / `dc.mt.mlm` run with their package defaults apart from
+`tmin`; `dc.tl.rankby_group(reference="rest")`; BH within group (cells) or
+across sources (contrast); `empty=False` in contrast mode.
+
 ## Workflow (fixed order)
 
 1. **Validate** arguments, the mode's arguments and the network; bad input gives
@@ -194,6 +208,7 @@ python scripts/tf_activity.py --demo --input contrast --outdir demo_contrast
    - cells: one score per cell and source, then `dc.tl.rankby_group(...,
      reference="rest", method=--rank-method)` per group. `score` is the group
      mean; `stat`, `pvalue`, `padj` are the group-vs-rest test, BH within group.
+     They are descriptive: every row carries `unit = "cells (not replicates)"`.
    - contrast: one score per source for the `--stat-col` vector
      (`empty=False`). BH across sources. decoupler returns BH p for ULM and raw p
      for MLM; the script rebuilds the other one (ULM raw p from the t value with
@@ -206,7 +221,7 @@ python scripts/tf_activity.py --demo --input contrast --outdir demo_contrast
 ## Output structure
 
 `activity.tsv` columns: cells `source, group, score, stat, pvalue, padj,
-status, n_targets`, sorted by group (category order), then `stat` descending,
+status, n_targets, unit`, sorted by group (category order), then `stat` descending,
 then source; contrast `source, contrast, score, pvalue, padj, status,
 n_targets`, sorted by score descending, then source. Every network source has a
 row: scored sources have `status` `tested`; sources under `--tmin` follow as one

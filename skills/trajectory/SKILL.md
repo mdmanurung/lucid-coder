@@ -90,8 +90,8 @@ argument it names. Do not work around it.
 | embedding | `obsm["X_umap"]` | 2-D UMAP | sc-embed |
 | `--groups` | obs column | cluster or annotation labels, at least 2 | `leiden`, `stage` |
 
-The cell order in `obs` decides the root cell (step 5). To root at a specific
-cell, the user reorders the object or makes that cell's group the root group.
+The root cell does not depend on the cell order in `obs`: it is a named cell
+(`--root-cell`) or comes from a rule on the diffusion map (`--root-rule`, step 5).
 
 ## Parameters (all required, no defaults)
 
@@ -103,7 +103,9 @@ Each row is a grill question. Ask the user; never fill one in.
 |---|---|---|
 | `--adata` | Which embedded h5ad holds the cells? | `examples/demo.h5ad` |
 | `--groups` | Which obs column holds the groups for PAGA? | `stage` |
-| `--root-group` | Which group holds the start of the trajectory? The first cell of it in obs order is the root. | `progenitor` |
+| `--root-cell` (or `--root-rule`) | Which cell (an `obs_names` entry) is the root? Give exactly one of `--root-cell` and `--root-rule`; never both, never neither. | `cell0005` |
+| `--root-rule` (or `--root-cell`) | Pick the root by rule instead: `diffusion-extreme` takes the cell of `--root-group` furthest out on diffusion component 1 (step 5). Needs `--root-group`. | not used |
+| `--root-group` | With `--root-rule` only: which group holds the start of the trajectory? Refused with `--root-cell`. | not used |
 | `--n-dcs` | How many diffusion components (diffmap `n_comps` and DPT `n_dcs`)? | `10` |
 | `--paga-threshold` | Which PAGA connectivity must a group pair reach to count as an edge? | `0.1` |
 | `--genes` | Which genes get a trend plot? A comma list, or a file with one gene per line. | `G00,G01,G02` |
@@ -120,7 +122,8 @@ an error.
 
 ```bash
 python scripts/trajectory.py \
-  --adata data/embedded.h5ad --groups leiden --root-group 3 \
+  --adata data/embedded.h5ad --groups leiden \
+  --root-rule diffusion-extreme --root-group 3 \
   --n-dcs 10 --paga-threshold 0.1 --genes genes.txt \
   --reference "GRCh38, GENCODE 44" \
   --context "human bone marrow CD34+, healthy donors, Setty 2019" --seed 0 --outdir results/2026-10-27_trajectory
@@ -128,6 +131,21 @@ python scripts/trajectory.py \
 # Demo (only when the user asks for one)
 python scripts/trajectory.py --demo --outdir demo_out
 ```
+
+## Layer contract
+
+- Input: `X` holds log-normalised values (sc-embed's `embedded.h5ad`), used only
+  for the gene trends; the neighbour graph and `X_umap` come from sc-embed.
+  `layers["counts"]` is not read.
+- Output `data/trajectory.h5ad`: the input with `X` and layers unchanged, plus
+  `obs["dpt_pseudotime"]`, `uns["paga"]`, `uns["iroot"]` and `obsm["X_diffmap"]`.
+
+## Fixed method settings
+
+Not asked, recorded here. `sc.tl.paga` (scanpy 1.12.4): `model="v1.2"` default.
+`sc.tl.diffmap`: package defaults apart from `n_comps` and `random_state`.
+`sc.tl.dpt(n_branchings=0)`. Gene trends: 20 equal-width pseudotime bins with a
+t-based 95% CI (plot only).
 
 ## Workflow (fixed order)
 
@@ -138,12 +156,18 @@ python scripts/trajectory.py --demo --outdir demo_out
    Bad input gives `ERROR: <message>`, exit 2.
 2. **Groups** become categorical; an existing category order is kept, else
    labels sort alphabetically. Unused levels are dropped. At least 2 groups, and
-   `--root-group` must be one of them.
+   `--root-group` (with `--root-rule`) must be one of them, and `--root-cell`
+   must be an `obs_names` entry.
 3. **PAGA**: `sc.tl.paga(adata, groups=--groups)` on the stored neighbour graph.
 4. **Diffusion map**: `sc.tl.diffmap(n_comps=--n-dcs, random_state=--seed)`.
-5. **Root cell**: the first cell of `--root-group` in obs order
-   (`np.flatnonzero(obs[groups] == root)[0]`, as in the scanpy PAGA tutorial).
-   This rule needs no eigenvector sign, so it is stable across platforms.
+5. **Root cell**: `--root-cell` sets it directly. `--root-rule
+   diffusion-extreme` uses DC1 = `obsm["X_diffmap"][:, 1]` (column 0 is the
+   trivial constant component). DC1's sign is arbitrary, so the side comes from
+   the data: if the median DC1 of `--root-group` is at or above the median DC1 of
+   all cells, the side is `+1`, else `-1`. The root is the `--root-group` cell
+   with the largest `side * DC1`; an exact tie goes to the smallest `obs_names`
+   entry. Flipping the eigenvector sign picks the same cell, and reordering
+   `obs` does not change it. The root is stored in `uns["iroot"]`.
 6. **DPT**: `sc.tl.dpt(n_dcs=--n-dcs)` from that root, no branching. Cells not
    reachable from the root get `inf`: they stay `inf` in the table, are counted
    in the summary and per group (`dropped_per_group`), and are left out of the
@@ -162,7 +186,7 @@ pair once (upper triangle), in group order.
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_cells, n_groups, root_cell, n_unreachable, dropped_per_group, n_edges_above_threshold, edges_above_threshold, median_pseudotime, genes, params, seed, context, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # n_cells, n_groups, root_cell, root_group, root_rule, n_unreachable, dropped_per_group, n_edges_above_threshold, edges_above_threshold, median_pseudotime, genes, params, seed, context, reference, chat_summary_lines, preferred_artifacts
 ├── data/
 │   └── trajectory.h5ad        # input plus obs dpt_pseudotime, uns paga and iroot, obsm X_diffmap
 ├── tables/
@@ -199,8 +223,9 @@ outdir/
 ## Gotchas
 
 - **The model will want to pick the root cell by eye** or by the lowest DC1.
-  Do not. The root is the first `--root-group` cell in obs order; DC1's sign is
-  arbitrary. Ask the user for the root group, and report `root_cell`.
+  Do not. Ask the user for `--root-cell`, or for `--root-rule` with a root
+  group; DC1's sign is arbitrary, which is why the rule sets the side from the
+  group's median. Report `root_cell` and `root_rule`.
 - **The model will want to lower `--paga-threshold`** until the graph looks
   connected. Do not. The threshold is the user's answer; report the edges found.
 - **The model will want to re-run `sc.tl.dpt` or `sc.pl.paga` in-session** to

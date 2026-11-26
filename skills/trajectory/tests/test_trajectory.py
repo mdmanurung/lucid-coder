@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import anndata as ad
+import numpy as np
 import pandas as pd
 import pytest
 from scipy import stats
@@ -30,7 +31,7 @@ EDGES = [("progenitor", "early"), ("early", "mid"), ("mid", "late")]
 ARGS = {
     "--adata": str(DEMO),
     "--groups": "stage",
-    "--root-group": "progenitor",
+    "--root-cell": ROOT_CELL,
     "--n-dcs": "10",
     "--paga-threshold": "0.1",
     "--genes": "G00,G01,G02",
@@ -182,7 +183,12 @@ def test_demo_conflict(tmp_path):
         ({"seed": "-1"}, "--seed must be an integer >= 0, got -1"),
         ({"adata": "/no/such.h5ad"}, "input file not found: /no/such.h5ad"),
         ({"groups": "leiden"}, "obs column not found: leiden"),
-        ({"root_group": "stem"}, "root group 'stem' not found in obs column 'stage'"),
+        ({"root_cell": "cell9999"}, "root cell 'cell9999' not found in obs_names"),
+        (
+            {"root_rule": "diffusion-extreme"},
+            "give exactly one of --root-cell or --root-rule",
+        ),
+        ({"root_group": "progenitor"}, "--root-group goes with --root-rule"),
         ({"n_dcs": "600"}, "--n-dcs 600 must be below the number of cells (600)"),
         ({"genes": "G00,NOPE"}, "genes not in var_names: NOPE"),
         ({"genes": " , "}, "--genes names no genes: ' , '"),
@@ -192,6 +198,64 @@ def test_input_errors(tmp_path, changes, message):
     assert is_error(run_with(tmp_path, **changes), message)
 
 
+def rule_args(**changes):
+    return {
+        "drop": ["--root-cell"],
+        "root_rule": "diffusion-extreme",
+        "root_group": "progenitor",
+        **changes,
+    }
+
+
+def test_root_is_required(tmp_path):
+    completed = run_with(tmp_path, drop=["--root-cell"])
+    assert is_error(completed, "give exactly one of --root-cell or --root-rule")
+
+
+def test_root_rule_needs_a_known_group(tmp_path):
+    completed = run_with(tmp_path, **rule_args(root_group="stem"))
+    assert is_error(completed, "root group 'stem' not found in obs column 'stage'")
+    out = tmp_path / "none"
+    argv = [x for k, v in ARGS.items() if k != "--root-cell" for x in (k, v)]
+    completed = run(*argv, "--root-rule", "diffusion-extreme", "--outdir", str(out))
+    assert is_error(completed, "--root-rule diffusion-extreme needs --root-group")
+
+
+def reordered_demo(tmp_path):
+    adata = ad.read_h5ad(DEMO)
+    order = np.random.default_rng(1).permutation(adata.n_obs)
+    adata[order].copy().write_h5ad(tmp_path / "shuffled.h5ad")
+    return str(tmp_path / "shuffled.h5ad")
+
+
+def pseudotime_of(out):
+    table = pd.read_csv(out / "tables" / "pseudotime.tsv", sep="\t")
+    return table.set_index("cell")
+
+
+@pytest.mark.parametrize("root", ["cell", "rule"])
+def test_obs_order_does_not_change_pseudotime(tmp_path, root):
+    if root == "cell":
+        extra = {}
+    else:
+        extra = rule_args()
+    original = tmp_path / "orig"
+    shuffled = tmp_path / "shuf"
+    original.mkdir()
+    shuffled.mkdir()
+    first = run_with(original, **extra)
+    second = run_with(shuffled, adata=reordered_demo(shuffled), **extra)
+    assert first.returncode == 0, first.stderr
+    assert second.returncode == 0, second.stderr
+    a, b = pseudotime_of(original / "out"), pseudotime_of(shuffled / "out")
+    assert a.index.equals(b.index)
+    assert a["is_root"].idxmax() == b["is_root"].idxmax()
+    assert np.allclose(a["dpt_pseudotime"], b["dpt_pseudotime"], atol=1e-6)
+    if root == "rule":
+        # The rule lands in the root group, whatever order the cells come in.
+        assert a.loc[a["is_root"], "stage"].tolist() == ["progenitor"]
+
+
 def test_outdir_exists(tmp_path):
     (tmp_path / "out").mkdir()
     assert is_error(run_with(tmp_path), "outdir already exists")
@@ -199,7 +263,7 @@ def test_outdir_exists(tmp_path):
 
 def test_one_group(tmp_path):
     path = broken_demo(tmp_path, lambda a: a.obs.__setitem__("one", "all"))
-    completed = run_with(tmp_path, adata=path, groups="one", root_group="all")
+    completed = run_with(tmp_path, adata=path, groups="one")
     assert is_error(completed, "obs column 'one' has 1 group(s); PAGA needs at least 2")
 
 

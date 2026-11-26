@@ -40,6 +40,7 @@ REQUIRED = [
     "mode",
     "expected_doublet_rate",
     "doublet_threshold",
+    "scrublet_n_prin_comps",
     "seed",
     "reference",
     "context",
@@ -59,6 +60,7 @@ DEMO = {
     "mode": "mad",
     "expected_doublet_rate": 0.08,
     "doublet_threshold": "auto",
+    "scrublet_n_prin_comps": 30,
     "seed": 0,
     "reference": "synthetic demo genes, no genome build",
     "context": "synthetic demo: 3 samples of 5 populations, planted "
@@ -82,7 +84,7 @@ ERRORS = {
     "no_mito_genes": "no gene name starts with --mito-prefix {prefix!r}; "
     "check the species and case (MT- human, mt- mouse)",
     "too_few_cells": "sample {sample!r} has {n} cells; Scrublet needs more than "
-    "{pcs} (one per principal component)",
+    "--scrublet-n-prin-comps {pcs}",
     "scrublet_failed": "Scrublet failed: {message}",
     "no_threshold": "Scrublet found no doublet-score threshold for sample {sample!r}; "
     "ask the user for a numeric --doublet-threshold",
@@ -93,8 +95,6 @@ ERRORS = {
 RIBO_PREFIXES = ("RPS", "RPL")
 # Fixed plot spec, not analysis thresholds.
 N_SCORE_BINS = 40
-# Scrublet's own default PC count, written out so the cell guard matches it.
-SCRUBLET_PCS = 30
 FACET_COLS = 4
 STATUS_COLOURS = {"kept": "0.3", "failed QC": "#B2182B", "doublet": "#2166AC"}
 METRICS = {
@@ -120,6 +120,7 @@ def parse_args(argv):
     parser.add_argument("--mads-mito", type=float)
     parser.add_argument("--expected-doublet-rate", type=float)
     parser.add_argument("--doublet-threshold")
+    parser.add_argument("--scrublet-n-prin-comps", type=int)
     parser.add_argument("--seed", type=int)
     parser.add_argument("--reference")
     parser.add_argument("--context")
@@ -146,6 +147,12 @@ def check_values(p):
     rules = [
         ("--expected-doublet-rate", rate, 0 < rate < 1, "in (0, 1)"),
         ("--seed", p["seed"], p["seed"] >= 0, "an integer >= 0"),
+        (
+            "--scrublet-n-prin-comps",
+            p["scrublet_n_prin_comps"],
+            p["scrublet_n_prin_comps"] >= 1,
+            "an integer >= 1",
+        ),
     ]
     if p["mode"] == "fixed":
         rules += [
@@ -231,9 +238,10 @@ def scrublet(cells, p):
         None if p["doublet_threshold"] == "auto" else float(p["doublet_threshold"])
     )
     sizes = cells.obs["sample"].value_counts()
-    if (sizes <= SCRUBLET_PCS).any():
+    pcs = p["scrublet_n_prin_comps"]
+    if (sizes <= pcs).any():
         small = sizes.idxmin()
-        fail(ERRORS, "too_few_cells", sample=small, n=sizes[small], pcs=SCRUBLET_PCS)
+        fail(ERRORS, "too_few_cells", sample=small, n=sizes[small], pcs=pcs)
     scored = cells.copy()
     try:
         sc.pp.scrublet(
@@ -241,7 +249,7 @@ def scrublet(cells, p):
             batch_key="sample",
             expected_doublet_rate=p["expected_doublet_rate"],
             threshold=threshold,
-            n_prin_comps=SCRUBLET_PCS,
+            n_prin_comps=pcs,
             # Exact kNN: annoy's approximate search is not reproducible.
             use_approx_neighbors=False,
             random_state=p["seed"],
@@ -259,6 +267,33 @@ def scrublet(cells, p):
     cutoff = scored.obs["sample"].map(thresholds).astype(float)
     calls["predicted_doublet"] = calls["doublet_score"] > cutoff
     return calls, pd.Series(thresholds, name="doublet_threshold")
+
+
+def zero_mad_rows(obs, limits, p):
+    """Samples whose MAD is 0 for a metric: the limit then equals the median."""
+    if p["mode"] != "mad":
+        return []
+    by = obs.groupby("sample")
+    metrics = {
+        "total_counts": ("log1p_total_counts", ("min_counts", "max_counts")),
+        "n_genes_by_counts": ("log1p_n_genes_by_counts", ("min_genes", "max_genes")),
+        "pct_counts_mito": ("pct_counts_mito", (None, "max_pct_mito")),
+    }
+    rows = []
+    for metric, (col, limit_cols) in metrics.items():
+        mad = by[col].agg(median_abs_deviation)
+        for sample in mad.index[mad == 0]:
+            rows.append(
+                {
+                    "sample": sample,
+                    "metric": metric,
+                    "limit_min": None
+                    if limit_cols[0] is None
+                    else float(limits.loc[sample, limit_cols[0]]),
+                    "limit_max": float(limits.loc[sample, limit_cols[1]]),
+                }
+            )
+    return rows
 
 
 def limits_per_sample(obs, p):
@@ -444,6 +479,7 @@ def analyse(argv, argv_full):
         calls, thresholds = scrublet(cells, p)
     obs = cells.obs.join(calls, validate="1:1")
     limits = limits_per_sample(obs, p)
+    zero_mad = zero_mad_rows(obs, limits, p)
     obs["qc_status"] = qc_status(obs, limits)
     obs["kept"] = (obs["qc_status"] == "pass") & ~obs["predicted_doublet"]
     obs["fate"] = np.select(
@@ -471,6 +507,8 @@ def analyse(argv, argv_full):
         obs[columns].rename_axis("cell").reset_index().sort_values(["sample", "cell"])
     )
     per_cell.to_csv(outdir / "tables" / "qc_per_cell.tsv", sep="\t", index=False)
+    # A cell that failed QC and is a doublet counts in both columns, once in removal.
+    both = (per_cell["qc_status"] != "pass") & per_cell["predicted_doublet"]
     per_sample = (
         per_cell.groupby("sample")
         .agg(
@@ -479,8 +517,12 @@ def analyse(argv, argv_full):
             n_doublets=("predicted_doublet", "sum"),
             n_cells_after=("kept", "sum"),
         )
-        .join(limits)
-        .join(thresholds)
+        .join(
+            both.groupby(per_cell["sample"]).sum().rename("n_failed_and_doublet"),
+            validate="1:1",
+        )
+        .join(limits, validate="1:1")
+        .join(thresholds, validate="1:1")
         .rename_axis("sample")
     )
     per_sample.to_csv(outdir / "tables" / "cells_per_sample.tsv", sep="\t")
@@ -496,6 +538,7 @@ def analyse(argv, argv_full):
     n_before, n_after = len(per_cell), int(per_cell["kept"].sum())
     n_failed = int((per_cell["qc_status"] != "pass").sum())
     n_doublets = int(per_cell["predicted_doublet"].sum())
+    n_both = int(both.sum())
     rule = (
         f"{p['mads_counts']}/{p['mads_genes']}/{p['mads_mito']} MADs per sample "
         "(counts/genes/% mito)"
@@ -506,12 +549,21 @@ def analyse(argv, argv_full):
     summary = [
         f"{n_after} of {n_before} cells kept across {len(per_sample)} samples.",
         f"{n_failed} cells failed QC ({p['mode']} mode: {rule}); "
-        f"{n_doublets} Scrublet doublets (threshold {p['doublet_threshold']}).",
+        f"{n_doublets} are Scrublet doublets (threshold {p['doublet_threshold']}); "
+        f"{n_both} are both, so {n_before - n_after} cells were removed in total.",
     ]
+    if zero_mad:
+        zero = "; ".join(
+            f"{r['sample']} {r['metric']} (limit "
+            + (f"{r['limit_min']:.4g} to " if r["limit_min"] is not None else "<= ")
+            + f"{r['limit_max']:.4g})"
+            for r in zero_mad
+        )
+        summary.append(f"MAD is 0, so the limit equals the median: {zero}.")
     captions = {
         "qc_violins": "Violin plots of genes detected, UMI counts (log scale) and "
         "% mitochondrial counts per sample, before filtering; dashed segments mark "
-        "each sample's QC limits.",
+        "each sample's QC limits (MAD mode: median + n x unscaled MAD, scale = 1).",
         "counts_vs_genes": "Scatter of UMI counts against genes detected (log axes), "
         "one panel per sample, coloured by % mitochondrial counts; dashed lines mark "
         "that sample's count and gene limits.",
@@ -532,6 +584,8 @@ def analyse(argv, argv_full):
             "cells_after_per_sample": per_sample["n_cells_after"].astype(int).to_dict(),
             "failed_qc_per_sample": per_sample["n_failed_qc"].astype(int).to_dict(),
             "doublets_per_sample": per_sample["n_doublets"].astype(int).to_dict(),
+            "n_failed_and_doublet": n_both,
+            "zero_mad": zero_mad,
             "doublet_thresholds": thresholds.to_dict(),
             "mode": p["mode"],
             "seed": p["seed"],

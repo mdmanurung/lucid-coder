@@ -85,8 +85,10 @@ row IDs from `docs/clawbio-determinism/parts/*.md`.
 Checked against the installed reference skill `cellrank`
 (`~/.claude/skills/cellrank/references/kernel-pseudotime.md:49-83`): the root
 goes in `adata.uns["iroot"]` before `sc.tl.dpt`, as here. cellrank picks the
-root from a diffusion-component extremum; this skill uses the first
-`--root-group` cell instead, because a DC sign is arbitrary (step 5). Use
+root from a diffusion-component extremum; `--root-rule diffusion-extreme`
+does the same, with the side set by the root group's median so that the
+arbitrary DC sign does not matter (step 5). `--root-cell` names the cell
+directly. Use
 cellrank's `PseudotimeKernel` on `dpt_pseudotime` for fate probabilities.
 
 ## ClawBio mechanisms used

@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import anndata as ad
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -132,7 +133,8 @@ def test_demo_golden_values(demo_out):
     assert len(scores) == 16 and set(scores["n_cells"]) == {50}
     up = scores[scores["feature"] == "sig_up"].groupby("group")["value"]
     assert up.min()["disease"] > up.max()["healthy"]
-    assert read(demo_out, "cell_scores.tsv").shape == (400, 5)
+    assert read(demo_out, "cell_scores.tsv").shape == (400, 6)
+    assert set(read(demo_out, "cell_scores.tsv")["unit"]) == {"cells (not replicates)"}
 
 
 def test_tables_sorted(demo_out):
@@ -144,9 +146,7 @@ def test_tables_sorted(demo_out):
 
 
 def test_aucell_engine(tmp_path):
-    completed = run_with(
-        tmp_path, drop=["--ctrl-size", "--n-bins"], method="aucell", n_up="30"
-    )
+    completed = run_with(tmp_path, drop=["--ctrl-size"], method="aucell", n_up="30")
     assert completed.returncode == 0, completed.stderr
     result = json.loads((tmp_path / "out" / "result.json").read_text())
     assert result["beats_random"] == {"sig_null": False, "sig_up": True}
@@ -230,14 +230,16 @@ def test_outdir_exists(tmp_path):
     [
         ({"min_genes": "0"}, [], "--min-genes must be an integer >= 1, got 0"),
         ({"n_up": "30"}, [], "--method score_genes does not use --n-up"),
+        ({"n_bins": "1"}, [], "--n-bins must be an integer >= 2, got 1"),
+        ({"n_bins": "400"}, [], "--n-bins must be <= 201, got 400"),
         (
             {"method": "aucell"},
-            ["--ctrl-size", "--n-bins"],
+            ["--ctrl-size"],
             "--method aucell needs --n-up",
         ),
         (
             {"method": "aucell", "n_up": "301"},
-            ["--ctrl-size", "--n-bins"],
+            ["--ctrl-size"],
             "--n-up must be <= 300, got 301",
         ),
         ({"adata": "/no/such.h5ad"}, [], "input file not found: /no/such.h5ad"),
@@ -276,6 +278,72 @@ def test_raw_counts(tmp_path):
 
     completed = run_with(tmp_path, adata=edited_demo(tmp_path, counts))
     assert is_error(completed, "X does not look log-normalised: all integers")
+
+
+def test_missing_n_bins_fails_for_aucell_too(tmp_path):
+    completed = run_with(
+        tmp_path, drop=["--ctrl-size", "--n-bins"], method="aucell", n_up="30"
+    )
+    assert is_error(completed, "missing required arguments: --n-bins")
+
+
+def test_values_above_log_range(tmp_path):
+    def linear(adata):
+        dense = adata.X.toarray() + 0.5
+        dense[0, 0] = 25.5
+        adata.X = dense
+
+    completed = run_with(tmp_path, adata=edited_demo(tmp_path, linear))
+    assert is_error(completed, "X does not look log-normalised: max(X) = 25.5 > 20")
+
+
+def test_random_sets_share_the_expression_bins(monkeypatch):
+    # 100 genes with mean X = rank / 100; bins hold n_items = round(100 / 9) = 11.
+    monkeypatch.syspath_prepend(str(SKILL_DIR / "scripts"))
+    import signature_scoring as ss
+
+    genes = [f"G{i:03d}" for i in range(100)]
+    adata = ad.AnnData(
+        np.tile(np.arange(100, dtype=float) / 100, (4, 1)),
+        var=pd.DataFrame(index=genes),
+    )
+    sets = {"s": ["G005", "G006", "G050", "G090"]}
+    p = {"seed": 0, "n_bins": 10, "n_random": 30}
+    drawn, borrowed = ss.matched_random_sets(adata, sets, p)
+    assert len(drawn) == 30 and borrowed == {"s": 0}
+    cut = lambda g: (int(g[1:]) + 1) // 11  # noqa: E731 - rank(min) is index + 1
+    want = sorted(cut(g) for g in sets["s"])
+    for genes_drawn in drawn.values():
+        assert len(genes_drawn) == 4 and len(set(genes_drawn)) == 4
+        assert not set(genes_drawn) & set(sets["s"])
+        assert sorted(cut(g) for g in genes_drawn) == want
+
+
+def test_top_bin_borrows_from_the_neighbouring_bin(monkeypatch):
+    monkeypatch.syspath_prepend(str(SKILL_DIR / "scripts"))
+    import signature_scoring as ss
+
+    # 99 genes, 10 bins: n_items = round(99 / 9) = 11, bin = rank // 11. The
+    # top gene (rank 99, G098) sits alone in bin 9; bin 8 holds G087-G097.
+    genes = [f"G{i:03d}" for i in range(99)]
+    adata = ad.AnnData(
+        np.tile(np.arange(99, dtype=float) / 100, (4, 1)),
+        var=pd.DataFrame(index=genes),
+    )
+    # "t" has G097 in the neighbouring bin too: the borrowed gene and the own-bin
+    # gene must still be two different genes.
+    sets = {"s": ["G098", "G005"], "t": ["G098", "G097"]}
+    p = {"seed": 0, "n_bins": 10, "n_random": 20}
+    drawn, borrowed = ss.matched_random_sets(adata, sets, p)
+    assert borrowed == {"s": 1, "t": 1}
+    assert all(len(set(g)) == len(g) == 2 for g in drawn.values())
+    for key, genes_drawn in drawn.items():
+        if key.startswith("t|"):
+            continue
+        numbers = [int(g[1:]) for g in genes_drawn]
+        assert len(numbers) == 2 and not set(genes_drawn) & set(sets["s"])
+        assert sum(n < 10 for n in numbers) == 1  # G005's bin
+        assert sum(87 <= n <= 97 for n in numbers) == 1  # nearest bin to G098's
 
 
 def test_negative_values(tmp_path):

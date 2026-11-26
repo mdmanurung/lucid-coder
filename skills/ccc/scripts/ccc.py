@@ -97,6 +97,8 @@ ERRORS = {
     "no_pass": "zero interactions pass {rule}; nothing to plot",
 }
 
+# Largest value a log1p-normalised X can hold; above it X is not log1p data.
+LOGNORM_MAX = 20
 COLUMNS = ["source", "target", "ligand", "receptor", "magnitude_rank"]
 COLUMNS += ["specificity_rank", "passes"]
 # Fixed plot spec, not a grill question: the dot plot widens 6 mm per pair, so a
@@ -201,6 +203,10 @@ def load(p):
         fail(ERRORS, "not_lognorm", why="negative values (scaled?)")
     if np.array_equal(values, np.round(values)):
         fail(ERRORS, "not_lognorm", why="all integers (raw counts?)")
+    # log1p of counts scaled to 1e4 peaks near 9-10; CPM or linear data run higher.
+    if values.size and values.max() > LOGNORM_MAX:
+        why = f"max(X) = {values.max():.1f} > {LOGNORM_MAX} (CPM or linear data?)"
+        fail(ERRORS, "not_lognorm", why=why)
 
     # Complex subunits are joined by "_"; a pair counts if every subunit is a gene.
     genes = set(adata.var_names)
@@ -282,10 +288,11 @@ def pair_status(interactions, resource, gene_ids):
     def subunits(lr):
         return [g for x in lr.split("|") for g in x.split("_")]
 
+    tested = set(key)
     reasons = {
         lr: "not_tested" if all(g in gene_ids for g in subunits(lr)) else "not_measured"
         for lr in universe
-        if lr not in set(key)
+        if lr not in tested
     }
     table = with_status(interactions.assign(lr=key), universe, "lr", reasons)
     split = table["lr"].str.split("|", expand=True)

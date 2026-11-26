@@ -38,7 +38,12 @@ ARGS = {
     "--reference": "synthetic demo, no genome build",
     "--k": "3",
     "--n-hvg": "200",
+    "--hvg-flavor": "seurat",
+    "--target-sum": "10000",
     "--n-replicates": "20",
+    "--neighbour-fraction": "0.3",
+    "--nmf-max-iter": "1000",
+    "--kmeans-n-init": "10",
     "--density-threshold": "0.5",
     "--active-threshold": "0.1",
     "--n-top-genes": "10",
@@ -218,6 +223,21 @@ def test_duplicate_ids(tmp_path, axis, id_col, message):
     assert is_error(completed, message)
 
 
+@pytest.mark.parametrize(
+    "flag",
+    [
+        "--hvg-flavor",
+        "--target-sum",
+        "--neighbour-fraction",
+        "--nmf-max-iter",
+        "--kmeans-n-init",
+    ],
+)
+def test_fixed_steps_are_required(tmp_path, flag):
+    completed = run_with(tmp_path, drop=[flag])
+    assert is_error(completed, f"missing required arguments: {flag}")
+
+
 def test_missing_argument_fails_without_demo(tmp_path):
     completed = run_with(tmp_path, drop=["--density-threshold"])
     assert is_error(completed, "missing required arguments: --density-threshold")
@@ -237,6 +257,13 @@ def test_outdir_exists(tmp_path):
     ("changes", "message"),
     [
         ({"k": "1"}, "--k must be an integer >= 2, got 1"),
+        (
+            {"neighbour_fraction": "0.01"},
+            "--neighbour-fraction must be in (0, 1] and at least 1 neighbour",
+        ),
+        ({"nmf_max_iter": "0"}, "--nmf-max-iter must be an integer >= 1, got 0"),
+        ({"kmeans_n_init": "0"}, "--kmeans-n-init must be an integer >= 1, got 0"),
+        ({"target_sum": "0"}, "--target-sum must be > 0, got 0.0"),
         ({"n_replicates": "3"}, "--n-replicates must be >= 4, got 3"),
         ({"active_threshold": "1"}, "--active-threshold must be in (0, 1), got 1.0"),
         ({"adata": "/no/such.h5ad"}, "input file not found: /no/such.h5ad"),

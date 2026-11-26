@@ -287,6 +287,22 @@ def edited_demo(tmp_path, edit):
     return str(path)
 
 
+def test_values_above_log_range(tmp_path):
+    def linear(adata):
+        dense = np.asarray(adata.X, dtype=float) + 0.5
+        dense[0, 0] = 25.5
+        adata.X = dense
+
+    completed = run_with(tmp_path, adata=edited_demo(tmp_path, linear))
+    assert is_error(completed, "X does not look log-normalised: max(X) = 25.5 > 20")
+
+
+def test_cells_rows_say_cells_not_replicates(demo_out, contrast_out):
+    table = pd.read_csv(demo_out / "tables" / "activity.tsv", sep="\t")
+    assert set(table["unit"]) == {"cells (not replicates)"}
+    assert "unit" not in pd.read_csv(contrast_out / "tables" / "activity.tsv", sep="\t")
+
+
 def test_not_lognorm(tmp_path):
     def counts(adata):
         adata.X = np.round(np.expm1(adata.X))

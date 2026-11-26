@@ -99,8 +99,8 @@ argument it names. Do not work around it.
 
 | Input | Format | Required content | Example |
 |---|---|---|---|
-| `--query` | `.h5ad` | raw counts (non-negative integers) in `X`; `obsm["X_umap"]`; the `--over-clustering` obs column | `examples/demo_query.h5ad` |
-| `--reference-adata` | `.h5ad` | raw counts in `X`; the `--reference-label` obs column with at least 2 labels | `examples/demo_reference.h5ad` |
+| `--query` | `.h5ad` | raw counts (non-negative integers) in `X`, or in `--counts-layer` when `X` is not counts; `obsm["X_umap"]`; the `--over-clustering` obs column | `examples/demo_query.h5ad` |
+| `--reference-adata` | `.h5ad` | raw counts in `X` (or `--reference-counts-layer`); the `--reference-label` obs column with at least 2 labels | `examples/demo_reference.h5ad` |
 | `--model` | `.pkl` | a CellTypist model saved by `model.write` or downloaded beforehand | `data/celltypist_model.pkl` of a demo run |
 | `--markers` | `.tsv` | exactly the columns `label` and `gene`, one row per marker | `examples/demo_markers.tsv` |
 
@@ -128,6 +128,8 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--majority-voting` | celltypist only: refine labels by majority vote within each cluster (`yes`/`no`)? | `yes` |
 | `--n-pcs` | ingest only: how many reference PCs? | `10` |
 | `--n-neighbors` | ingest only: how many reference neighbours vote? | `15` |
+| `--counts-layer` | Required when `X` of the query is not raw counts (sc-embed's `embedded.h5ad` has log-normalised `X`): which query layer holds the raw counts? Refused absent otherwise. | absent (`X`) |
+| `--reference-counts-layer` | Same for `--reference-adata` when its `X` is not raw counts. | absent (`X`) |
 | `--outdir` | Which new directory gets the outputs? It must not exist. | `sc_annotate_demo` |
 
 The last column is **demo-only, not defaults**. `--demo` alone pins all of them.
@@ -135,13 +137,34 @@ With `--demo`, only `--engine` and `--outdir` may also be given; `--demo
 --engine ingest` uses the ingest demo values. An argument of the other engine is
 an error, so a run never silently ignores one.
 
+## Layer contract
+
+- Input: raw integer counts in `X`, or in the layer named by `--counts-layer`
+  (query) and `--reference-counts-layer` (reference). After sc-embed, `X` is
+  log-normalised and `layers["counts"]` holds the counts: pass
+  `--counts-layer counts`. Without the option, a non-count `X` stops the run.
+- Output `data/annotated.h5ad`: `X` and every layer exactly as in the input
+  (sc-embed's log-normalised `X` stays log-normalised, so ccc, sc-markers,
+  signature-scoring and tf-activity accept it), plus obs `transferred_label` and
+  `transferred_confidence`.
+
+## Fixed method settings
+
+Not asked, recorded here. `normalize_total(target_sum=1e4)` and `log1p` on copies
+before CellTypist and ingest (the corpus rule); `celltypist.train` at its default
+solver with `n_jobs=1`; `celltypist.annotate` in best-match mode;
+`sc.tl.Ingest` kNN vote with `map_labels(method="knn")`; confidence is the model
+probability or the neighbour agreement. Plot sizes (dot 4 mm, jitter 0.3) change
+figures only.
+
 ## Workflow (fixed order)
 
 1. **Validate** arguments and inputs; bad input gives `ERROR: <message>`, exit 2.
    Gene names and cell ids must be unique in the query and the reference
    (`skillkit.check_unique`).
 2. **Normalise** copies of query and reference: `normalize_total(1e4)`, then
-   `log1p`. `X` in the saved h5ad stays raw counts.
+   `log1p`, starting from the raw counts (`X`, or `--counts-layer`). `X` in the
+   saved h5ad is exactly the input `X`, whatever it held.
 3. **Transfer** labels with `--engine`:
    - `celltypist`: load `--model`, or train on `--reference-adata` by
      `--reference-label` (`celltypist.train`, CellTypist's default solver,
@@ -174,7 +197,7 @@ outdir/
 ├── report.md                  # params, summary, figures with captions
 ├── result.json                # n_cells, n_labels, n_shared_genes, n_matched, n_in_resource, label_counts, median_confidence, params, engine, seed, reference, context, chat_summary_lines (first: "Context: ..."), preferred_artifacts
 ├── data/
-│   ├── annotated.h5ad         # the query, raw X, plus obs transferred_label and transferred_confidence
+│   ├── annotated.h5ad         # the query, X and layers as input, plus obs transferred_label and transferred_confidence
 │   └── celltypist_model.pkl   # only when celltypist trained on --reference-adata
 ├── tables/
 │   ├── labels.tsv             # cell, label, confidence
@@ -230,8 +253,8 @@ outdir/
   check. Do not. The error names the absent genes or labels; ask the user to fix
   the TSV or the gene names.
 - **The model will want to feed log-normalised data** to fix a `must hold raw
-  counts` error. Do not. Point the user to the raw counts; the script
-  normalises them itself.
+  counts` error. Do not. Point the user to the raw counts (after sc-embed, pass
+  `--counts-layer counts`); the script normalises them itself.
 - **The model will want to compute a UMAP or clusters** for a query that lacks
   them. Do not, inside this skill. That is an upstream step with its own
   parameters.

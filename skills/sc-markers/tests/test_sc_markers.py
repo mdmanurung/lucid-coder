@@ -233,6 +233,23 @@ def test_negative_values(tmp_path):
     assert is_error(completed, "X does not look log-normalised: negative values")
 
 
+def test_values_above_log_range(tmp_path):
+    def linear(adata):
+        dense = adata.X.toarray() + 0.5
+        dense[0, 0] = 25.5
+        adata.X = dense
+
+    completed = run_with(tmp_path, adata=edited_demo(tmp_path, linear))
+    assert is_error(completed, "X does not look log-normalised: max = 25.5 > 20")
+
+
+def test_rows_say_cells_not_replicates(demo_out):
+    for name in ["markers.tsv", "top_markers.tsv"]:
+        table = pd.read_csv(demo_out / "tables" / name, sep="\t")
+        assert set(table["unit"]) == {"cells (not replicates)"}
+    assert "cells (not replicates)" in (demo_out / "report.md").read_text()
+
+
 def test_one_group(tmp_path):
     def one_group(adata):
         adata.obs["cluster"] = "c1"

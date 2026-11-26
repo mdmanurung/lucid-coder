@@ -120,6 +120,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--mads-mito` (mad) | How many MADs above the median % mito? | `3` |
 | `--expected-doublet-rate` | Which doublet rate does the 10x loading table give for these libraries' recovered cells? (tut: kai uses 0.1, 0.02 or 0.06, never tied to the 10x loading table.) | `0.08` |
 | `--doublet-threshold` | Let Scrublet pick a cutoff per sample (`auto`), or one fixed score in (0, 1)? | `auto` |
+| `--scrublet-n-prin-comps` | How many principal components does Scrublet use? Recommended `30` (scanpy 1.12.4 `sc.pp.scrublet` default). | `30` |
 | `--seed` | Which seed for Scrublet? | `0` |
 | `--reference` | Which genome build and annotation release named the genes (e.g. `GRCh38, GENCODE 44`)? Recorded in `result.json`. | `synthetic demo genes, no genome build` |
 | `--context` | Species, tissue or cell type, condition and dataset? | `synthetic demo: 3 samples of 5 populations, planted low-quality cells and doublets, no real tissue` |
@@ -138,7 +139,7 @@ The four fixed-mode flags are required with `--mode fixed` and refused with
    `mito` = genes starting with `--mito-prefix` and `ribo` = genes starting
    with `RPS` or `RPL` (any case). Ribo is reported, never thresholded.
 3. **Scrublet** per sample: `sc.pp.scrublet(batch_key=<sample>,
-   expected_doublet_rate=..., random_state=--seed, n_prin_comps=30,
+   expected_doublet_rate=..., random_state=--seed, n_prin_comps=--scrublet-n-prin-comps,
    use_approx_neighbors=False)` on all cells. A cell is a predicted doublet when
    its score exceeds its sample's threshold (`--doublet-threshold auto` lets
    Scrublet pick one per sample).
@@ -148,10 +149,29 @@ The four fixed-mode flags are required with `--mode fixed` and refused with
    - `--mode mad`: per sample, median ± n × MAD on `log1p` counts
      (`--mads-counts`) and `log1p` genes (`--mads-genes`), both sides; median +
      n × MAD on % mito (`--mads-mito`), upper side only. MAD is unscaled
-     (`scipy.stats.median_abs_deviation`, scale 1).
+     (`scipy.stats.median_abs_deviation`, scale 1), so the limit is median ± n × MAD,
+     not n × 1.4826 × MAD. When a sample's MAD is 0 for a metric, the limit equals
+     the median; `result.json` `zero_mad` and the report name the sample, metric
+     and resulting limit.
    - `qc_status` names the first failing rule in the order `low_counts`,
      `high_counts`, `low_genes`, `high_genes`, `high_mito`; else `pass`.
 5. **Drop** cells that fail QC or are predicted doublets; write the filtered h5ad.
+
+## Layer contract
+
+- Input: raw integer counts in `X`, or in `--layer`. Other layers are carried
+  along, not read.
+- Output `data/qc_filtered.h5ad`: the kept cells with `X` and all layers exactly
+  as in the input (raw counts), plus the QC obs columns. sc-normalize or sc-embed
+  take it next.
+
+## Fixed method settings
+
+`sc.pp.scrublet` (scanpy 1.12.4): `use_approx_neighbors=False` (exact kNN, for
+reproducible runs); every other option stays at the package default.
+`sc.pp.calculate_qc_metrics(percent_top=None, log1p=True)`. Ribosomal genes
+(`RPS`, `RPL`) are reported, never thresholded. Plot bins (40) and facet columns
+(4) change figures only.
 
 ## Output structure
 
@@ -160,12 +180,12 @@ The four fixed-mode flags are required with `--mode fixed` and refused with
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_cells_before, n_cells_after, n_failed_qc, n_doublets, cells_after_per_sample, failed_qc_per_sample, doublets_per_sample, doublet_thresholds, mode, seed, params, reference, context, chat_summary_lines (first: "Context: ..."), preferred_artifacts
+├── result.json                # n_cells_before, n_cells_after, n_failed_qc, n_doublets, n_failed_and_doublet, zero_mad, cells_after_per_sample, failed_qc_per_sample, doublets_per_sample, doublet_thresholds, mode, seed, params, reference, context, chat_summary_lines (first: "Context: ..."), preferred_artifacts
 ├── data/
 │   └── qc_filtered.h5ad       # kept cells; X and layers as input; obs gains the QC columns
 ├── tables/
 │   ├── qc_per_cell.tsv        # cell, sample, total_counts, n_genes_by_counts, pct_counts_mito, pct_counts_ribo, doublet_score, predicted_doublet, qc_status, fate, kept
-│   └── cells_per_sample.tsv   # sample, n_cells_before, n_failed_qc, n_doublets, n_cells_after, min/max counts, min/max genes, max_pct_mito, doublet_threshold
+│   └── cells_per_sample.tsv   # sample, n_cells_before, n_failed_qc, n_doublets, n_failed_and_doublet, n_cells_after, min/max counts, min/max genes, max_pct_mito, doublet_threshold
 ├── figures/
 │   ├── qc_violins.pdf
 │   ├── qc_violins.png
@@ -186,7 +206,8 @@ outdir/
 ```
 
 `n_failed_qc` and `n_doublets` overlap: a doublet that also fails QC counts in
-both. `fate` is exclusive: `kept`, `failed QC`, or `doublet` (passed QC only).
+both, so they do not sum to `n_cells_before - n_cells_after`. The overlap is
+`n_failed_and_doublet`; removed = `n_failed_qc + n_doublets - n_failed_and_doublet`. `fate` is exclusive: `kept`, `failed QC`, or `doublet` (passed QC only).
 Limits in `cells_per_sample.tsv` are on the raw scale; `max_counts` is `inf` in
 fixed mode.
 
@@ -237,14 +258,14 @@ python scripts/sc_qc.py \
   --adata data/raw_cells.h5ad --layer counts --sample-col sample \
   --mito-prefix MT- --mode mad --mads-counts 5 --mads-genes 5 --mads-mito 3 \
   --expected-doublet-rate 0.06 --doublet-threshold auto \
-  --seed 0 --reference 'GRCh38, GENCODE 44' \
+  --scrublet-n-prin-comps 30 --seed 0 --reference 'GRCh38, GENCODE 44' \
   --context 'human PBMC, IFN-beta vs control, Kang 2018' --outdir results/2026-10-27_qc
 
 python scripts/sc_qc.py \
   --adata data/raw_cells.h5ad --sample-col sample --mito-prefix MT- \
   --mode fixed --min-genes 200 --max-genes 5000 --min-counts 500 --max-pct-mito 10 \
   --expected-doublet-rate 0.06 --doublet-threshold auto \
-  --seed 0 --reference 'GRCh38, GENCODE 44' \
+  --scrublet-n-prin-comps 30 --seed 0 --reference 'GRCh38, GENCODE 44' \
   --context 'human PBMC, IFN-beta vs control, Kang 2018' --outdir results/2026-10-27_qc-fixed
 
 # Demo (only when the user asks for one)

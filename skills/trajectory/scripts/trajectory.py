@@ -42,7 +42,6 @@ SKILL_DIR = Path(__file__).resolve().parents[1]
 REQUIRED = [
     "adata",
     "groups",
-    "root_group",
     "n_dcs",
     "paga_threshold",
     "genes",
@@ -50,11 +49,17 @@ REQUIRED = [
     "context",
     "seed",
 ]
+# Exactly one of --root-cell or --root-rule is given; --root-group goes with the rule.
+ROOT_ARGS = ["root_cell", "root_rule", "root_group"]
+ROOT_RULES = ["diffusion-extreme"]
+KEYS = [*REQUIRED[:2], *ROOT_ARGS, *REQUIRED[2:]]
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
     "adata": str(SKILL_DIR / "examples" / "demo.h5ad"),
     "groups": "stage",
-    "root_group": "progenitor",
+    "root_cell": "cell0005",
+    "root_rule": None,
+    "root_group": None,
     "n_dcs": 10,
     "paga_threshold": 0.1,
     "genes": "G00,G01,G02",
@@ -70,6 +75,10 @@ ERRORS = {
     "missing_column": "obs column not found: {col}",
     "one_group": "obs column {col!r} has {n} group(s); PAGA needs at least 2",
     "root_absent": "root group {root!r} not found in obs column {col!r}",
+    "root_choice": "give exactly one of --root-cell or --root-rule",
+    "root_group_needed": "--root-rule {rule} needs --root-group",
+    "root_group_unused": "--root-group goes with --root-rule, not with --root-cell",
+    "root_cell_absent": "root cell {cell!r} not found in obs_names",
     "no_neighbors": "no neighbour graph (uns['neighbors'], obsp['connectivities']); "
     "run sc-embed or sc.pp.neighbors first",
     "no_umap": "obsm['X_umap'] not found; run sc-embed or sc.tl.umap first",
@@ -92,6 +101,8 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--adata")
     parser.add_argument("--groups")
+    parser.add_argument("--root-cell")
+    parser.add_argument("--root-rule", choices=ROOT_RULES)
     parser.add_argument("--root-group")
     parser.add_argument("--n-dcs", type=int)
     parser.add_argument("--paga-threshold", type=float)
@@ -99,10 +110,16 @@ def parse_args(argv):
     parser.add_argument("--reference")
     parser.add_argument("--context")
     parser.add_argument("--seed", type=int)
-    return parse_required(parser, REQUIRED, DEMO, argv)
+    return parse_required(parser, REQUIRED, DEMO, argv, optional=ROOT_ARGS)
 
 
 def check_values(p):
+    if (p["root_cell"] is None) == (p["root_rule"] is None):
+        fail(ERRORS, "root_choice")
+    if p["root_rule"] is not None and p["root_group"] is None:
+        fail(ERRORS, "root_group_needed", rule=p["root_rule"])
+    if p["root_cell"] is not None and p["root_group"] is not None:
+        fail(ERRORS, "root_group_unused")
     rules = [
         ("--n-dcs", p["n_dcs"], p["n_dcs"] >= 2, "an integer >= 2"),
         (
@@ -156,9 +173,29 @@ def load(p, genes):
     levels = list(adata.obs[col].cat.categories)
     if len(levels) < 2:
         fail(ERRORS, "one_group", col=col, n=len(levels))
-    if p["root_group"] not in levels:
+    if p["root_group"] is not None and p["root_group"] not in levels:
         fail(ERRORS, "root_absent", root=p["root_group"], col=col)
+    if p["root_cell"] is not None and p["root_cell"] not in adata.obs_names:
+        fail(ERRORS, "root_cell_absent", cell=p["root_cell"])
     return adata, levels
+
+
+def diffusion_extreme_root(adata, col, group):
+    """Root index for --root-rule diffusion-extreme, independent of obs order.
+
+    DC1 is X_diffmap[:, 1] (column 0 is the trivial constant component). Its sign
+    is arbitrary, so the side is set by the data: the group lies on the side of
+    the all-cell median that its own median is on, and the root is the group cell
+    furthest out on that side (argmax of side * DC1; ties go to the smallest
+    obs name). Flipping the eigenvector sign picks the same cell.
+    """
+    dc1 = adata.obsm["X_diffmap"][:, 1]
+    members = np.flatnonzero((adata.obs[col] == group).to_numpy())
+    side = 1.0 if np.median(dc1[members]) >= np.median(dc1) else -1.0
+    best = (side * dc1[members]).max()
+    tied = members[side * dc1[members] == best]
+    names = adata.obs_names
+    return int(min(tied, key=lambda i: names[i]))
 
 
 def gene_trends(adata, genes, pseudotime):
@@ -301,11 +338,20 @@ def analyse(argv, full_argv):
     # Steps 3-5: PAGA on the groups, diffusion map, DPT from the root cell.
     sc.tl.paga(adata, groups=col)
     sc.tl.diffmap(adata, n_comps=p["n_dcs"], random_state=p["seed"])
-    # Root rule: the first cell of --root-group in obs order (scanpy tutorial).
-    root = int(np.flatnonzero(adata.obs[col] == p["root_group"])[0])
+    # Root: the named cell, or the extreme-DC1 cell of --root-group (SKILL.md).
+    if p["root_cell"] is not None:
+        root = int(adata.obs_names.get_loc(p["root_cell"]))
+    else:
+        root = diffusion_extreme_root(adata, col, p["root_group"])
     adata.uns["iroot"] = root
     sc.tl.dpt(adata, n_dcs=p["n_dcs"])
     root_cell = adata.obs_names[root]
+    root_group = str(adata.obs[col].iloc[root])
+    root_how = (
+        "named by --root-cell"
+        if p["root_cell"] is not None
+        else f"extreme DC1 cell of {p['root_group']}"
+    )
 
     cells = pd.DataFrame(
         {
@@ -376,7 +422,7 @@ def analyse(argv, full_argv):
         f"{p['paga_threshold']}, width by connectivity, node size by group size. "
         f"{how}.",
         "umap_pseudotime": f"UMAP of {adata.n_obs} cells coloured by diffusion "
-        f"pseudotime from root cell {root_cell} in {p['root_group']}; grey cells are "
+        f"pseudotime from root cell {root_cell} ({root_how}); grey cells are "
         f"unreachable ({n_unreachable}). {how}; {dpt_how}.",
         "pseudotime_by_group": f"Diffusion pseudotime per {col} group; each point "
         f"is one cell, {summary_mark}; {n_unreachable} unreachable cells left out. "
@@ -387,21 +433,23 @@ def analyse(argv, full_argv):
     }
     summary = [
         f"{adata.n_obs} cells in {len(levels)} {col} groups; root cell {root_cell} "
-        f"(first {p['root_group']} cell); {n_unreachable} cells unreachable.",
+        f"({root_how}, in {root_group}); {n_unreachable} cells unreachable.",
         f"{len(kept)} of {len(edges_long)} PAGA group pairs have connectivity >= "
         f"{p['paga_threshold']}.",
         "Median pseudotime by group: "
         + ", ".join(f"{lv} {v:.3f}" for lv, v in medians.items())
         + ".",
     ]
-    keys = REQUIRED
+    keys = KEYS
     write_report(
-        outdir, f"Trajectory: DPT from {p['root_group']}", p, keys, summary, captions
+        outdir, f"Trajectory: DPT from {root_group}", p, keys, summary, captions
     )
     result = {
         "n_cells": adata.n_obs,
         "n_groups": len(levels),
         "root_cell": root_cell,
+        "root_group": root_group,
+        "root_rule": p["root_rule"] or "root-cell",
         "n_unreachable": n_unreachable,
         "dropped_per_group": dropped_per_group,
         "n_edges_above_threshold": len(kept),

@@ -50,13 +50,14 @@ REQUIRED = [
     "group_col",
     "method",
     "min_genes",
+    "n_bins",
     "n_random",
     "reference",
     "seed",
     "context",
 ]
-ENGINE_ARGS = {"score_genes": ["ctrl_size", "n_bins"], "aucell": ["n_up"]}
-OPTIONAL = ["ctrl_size", "n_bins", "n_up"]
+ENGINE_ARGS = {"score_genes": ["ctrl_size"], "aucell": ["n_up"]}
+OPTIONAL = ["ctrl_size", "n_up"]
 KEYS = [*REQUIRED[:5], *OPTIONAL, *REQUIRED[5:]]
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
@@ -96,6 +97,10 @@ ERRORS = {
 GROUP_COLOURS = ("#4477AA", "#EE6677", "#228833", "#CCBB44", "#66CCEE", "#AA3377")
 JITTER_WIDTH = 0.2
 PANEL_MM = 60
+# Largest value a log1p-normalised X can hold; above it X is not log1p data.
+LOGNORM_MAX = 20
+# Per-cell scores describe cells; the replicate is the sample.
+UNIT = "cells (not replicates)"
 SCORE_UNIT = {"score_genes": "a.u.", "aucell": "AUC"}
 
 
@@ -124,6 +129,7 @@ def parse_args(argv):
         fail(ERRORS, "unused_args", method=p["method"], args=" ".join(extra))
     rules = [
         ("--min-genes", p["min_genes"], p["min_genes"] >= 1, "an integer >= 1"),
+        ("--n-bins", p["n_bins"], p["n_bins"] >= 2, "an integer >= 2"),
         ("--n-random", p["n_random"], p["n_random"] >= 1, "an integer >= 1"),
         ("--seed", p["seed"], p["seed"] >= 0, "an integer >= 0"),
     ] + [(flag(k), p[k], p[k] >= 1, "an integer >= 1") for k in used]
@@ -151,6 +157,26 @@ def load(p):
         fail(ERRORS, "not_lognorm", why="negative values (scaled?)")
     if np.array_equal(values, np.round(values)):
         fail(ERRORS, "not_lognorm", why="all integers (raw counts?)")
+    # log1p of counts scaled to 1e4 peaks near 9-10; CPM or linear data run higher.
+    if values.size and values.max() > LOGNORM_MAX:
+        why = f"max(X) = {values.max():.1f} > {LOGNORM_MAX} (CPM or linear data?)"
+        fail(ERRORS, "not_lognorm", why=why)
+    # score_genes and the random control need 2+ genes per expression bin to
+    # find a control gene besides the signature gene itself.
+    ok_bins = (
+        b
+        for b in range(2, adata.n_vars + 2)
+        if int(np.round(adata.n_vars / (b - 1))) >= 2
+    )
+    max_bins = max(ok_bins, default=1)
+    if p["n_bins"] > max_bins:
+        fail(
+            ERRORS,
+            "bad_value",
+            arg="--n-bins",
+            rule=f"<= {max_bins}",
+            value=p["n_bins"],
+        )
     if p["method"] == "aucell" and p["n_up"] > adata.n_vars:
         fail(
             ERRORS,
@@ -193,7 +219,9 @@ def load(p):
     found = listed.groupby("set").agg(
         n_listed=("gene", "size"), n_found=("found", "sum")
     )
-    found = found.join(missing.rename("missing")).fillna("").reset_index()
+    found = (
+        found.join(missing.rename("missing"), validate="1:1").fillna("").reset_index()
+    )
     # Sets under --min-genes are kept as not_tested rows; stop only if none is left.
     small = found[found["n_found"] < p["min_genes"]]
     if len(small) == len(found):
@@ -259,15 +287,69 @@ def group_spread(means, group):
     return by_set.max() - by_set.min()
 
 
-def random_control(adata, sets, means, p):
-    """Step 5: n_random size-matched random sets per signature, same engine."""
+def matched_random_sets(adata, sets, p):
+    """Step 5a: `n_random` random sets per signature, matched on size and bin.
+
+    Returns the sets and, per signature, how many genes of each random set had to
+    come from a neighbouring bin because the signature gene's own bin (minus the
+    signature genes) held too few candidates (the top bin, often one gene).
+    """
     rng = np.random.default_rng(p["seed"])
-    random_sets = {}
+    # Expression bins as in scanpy score_genes (Tirosh et al. 2016): genes ranked
+    # by mean X, cut into bins of n_items genes; a random set takes one gene from
+    # the bin of each signature gene, never a signature gene or a repeat.
+    mean_x = pd.Series(np.asarray(adata.X.mean(axis=0)).ravel(), adata.var_names)
+    n_items = int(np.round(len(mean_x) / (p["n_bins"] - 1)))
+    if n_items < 1:
+        fail(
+            ERRORS,
+            "bad_value",
+            arg="--n-bins",
+            rule=f"<= {len(mean_x) + 1} (the genes + 1)",
+            value=p["n_bins"],
+        )
+    bins = mean_x.rank(method="min") // n_items
+    random_sets, borrowed = {}, {}
     for name, genes in sets.items():
-        pool = np.array(sorted(set(adata.var_names) - set(genes)))
+        free = bins.drop(genes)
+        # Per signature-gene bin: the candidate genes by distance in bins, nearest
+        # first (same bin = tier 0); one tier holds both sides at that distance.
+        tiers = {}
+        for bin_id, members in bins[genes].groupby(bins[genes]):
+            distance = (free - bin_id).abs()
+            by_distance = free.index.to_series().groupby(distance)
+            tiers[bin_id] = (
+                len(members),
+                int((distance == 0).sum()),
+                [np.array(g) for _, g in by_distance],
+            )
+        borrowed[name] = sum(max(0, k - own) for k, own, _ in tiers.values())
         for i in range(p["n_random"]):
-            draw = rng.choice(pool, size=len(genes), replace=False)
+            draw, missing = [], {}
+            # Own bin first, for every bin, so a borrowing bin cannot use them up.
+            for bin_id, (k, own, tier_list) in tiers.items():
+                take = min(k, own)
+                if take:
+                    draw += list(rng.choice(tier_list[0], size=take, replace=False))
+                missing[bin_id] = k - take
+            for bin_id, need in missing.items():
+                # Nearest bins next; a gene already in this set is not drawn twice.
+                for tier in tiers[bin_id][2][1 if tiers[bin_id][1] else 0 :]:
+                    if need == 0:
+                        break
+                    taken = set(draw)
+                    free_genes = [g for g in tier if g not in taken]
+                    take = min(need, len(free_genes))
+                    if take:
+                        draw += list(rng.choice(free_genes, size=take, replace=False))
+                        need -= take
             random_sets[f"{name}|{i}"] = sorted(draw)
+    return random_sets, borrowed
+
+
+def random_control(adata, sets, means, p):
+    """Step 5: n_random size- and expression-matched random sets per signature."""
+    random_sets, borrowed = matched_random_sets(adata, sets, p)
     random_means = sample_means(adata, score(adata, random_sets, p), p)
     random_spread = group_spread(random_means, p["group_col"]).rename("spread")
     draws = random_spread.reset_index()
@@ -287,12 +369,14 @@ def random_control(adata, sets, means, p):
     table = table.assign(
         n_genes=table["set"].map(lambda s: len(sets[s])),
         n_random=p["n_random"],
+        n_borrowed=table["set"].map(borrowed),
         observed_spread=table["set"].map(observed),
         # Empirical p with the +1 correction, so it is never 0.
         p_empirical=(1 + table["n_exceed"]) / (p["n_random"] + 1),
     )
     table["beats_random"] = table["observed_spread"] > table["random_max"]
-    cols = ["set", "n_genes", "n_random", "observed_spread", "random_mean"]
+    cols = ["set", "n_genes", "n_random", "n_borrowed", "observed_spread"]
+    cols += ["random_mean"]
     table = table[[*cols, "random_max", "p_empirical", "beats_random"]]
     draws = pd.concat(
         [
@@ -398,7 +482,7 @@ def analyse(argv, full_argv):
         adata.obs[f"{p['method']}_{name}"] = scores[name]
     adata.write_h5ad(data / "scored.h5ad")
 
-    cells = pd.concat([adata.obs[[sample, group]], scores], axis=1)
+    cells = pd.concat([adata.obs[[sample, group]], scores], axis=1).assign(unit=UNIT)
     cells.rename_axis("cell").reset_index().sort_values("cell").to_csv(
         tables / "cell_scores.tsv", sep="\t", index=False
     )
@@ -430,7 +514,8 @@ def analyse(argv, full_argv):
     for name in scores.columns:
         captions[f"score_by_group_{name}"] = (
             f"{form} of the per-sample mean {name} score by {group}{median}, one "
-            f"point per sample ({n_samples} samples); {engine}."
+            f"point per sample ({n_samples} samples); {engine}. Per-cell scores in "
+            f"cell_scores.tsv are descriptive (unit: {UNIT})."
         )
         if "X_umap" in adata.obsm:
             captions[f"score_umap_{name}"] = (
@@ -440,8 +525,8 @@ def analyse(argv, full_argv):
             )
     captions["random_control"] = (
         f"Spread (max minus min) of {group} means of sample-mean scores for each "
-        f"signature (red) and {p['n_random']} size-matched random gene sets (grey, "
-        f"seed {p['seed']}); a signature beats random when it exceeds every random set."
+        f"signature (red) and {p['n_random']} random gene sets matched on size and "
+        f"mean-expression bin ({p['n_bins']} bins; grey, seed {p['seed']}); a signature beats random when it exceeds every random set."
     )
     # Resource overlap over distinct genes across all sets.
     n_in_resource, n_matched = (

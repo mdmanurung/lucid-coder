@@ -93,6 +93,10 @@ MARKER_COLUMNS = {
 # 4 mm dot at 100% expressing fills its column without touching the next one.
 DOT_MAX_SIZE = 4
 MARKER_COLUMNS_STATS = list(MARKER_COLUMNS.values())[2:]
+# Largest value a log1p-normalised matrix can hold; above it the data are not log1p.
+LOGNORM_MAX = 20
+# Every cell is a unit in padj and passes: they describe, they do not test donors.
+UNIT = "cells (not replicates)"
 MEAN_LABEL = "mean log-normalised expression"
 FRAC_LABEL = "fraction expressing"
 Z_LABEL = "z-score of group mean"
@@ -155,6 +159,10 @@ def load(p):
         fail(ERRORS, "not_lognorm", source=source, why="negative values (scaled?)")
     if np.array_equal(values, np.round(values)):
         fail(ERRORS, "not_lognorm", source=source, why="all integers (raw counts?)")
+    # log1p of counts scaled to 1e4 peaks near 9-10; CPM or linear data run higher.
+    if values.size and values.max() > LOGNORM_MAX:
+        why = f"max = {values.max():.1f} > {LOGNORM_MAX} (CPM or linear data?)"
+        fail(ERRORS, "not_lognorm", source=source, why=why)
 
     # Categorical order is the group order of every table and figure.
     groups = adata.obs[col]
@@ -195,6 +203,7 @@ def rank_markers(adata, p, gene_ids):
     )
     # Every gene is tested in every group: no filter, so every status is "tested".
     markers = with_status(markers, adata.var_names, "gene_symbol", {})
+    markers["unit"] = UNIT
     return markers.sort_values(
         ["group", "score", "gene_symbol"], ascending=[True, False, True]
     ).reset_index(drop=True)
@@ -268,7 +277,9 @@ def analyse(argv, full_argv):
     if top.empty:
         fail(ERRORS, "no_markers", rule=rule)
     top = top.assign(rank=top.groupby("group", observed=True).cumcount() + 1)
-    top = top[["group", "rank", "gene_symbol", "gene_id", *MARKER_COLUMNS_STATS]]
+    top = top[
+        ["group", "rank", "gene_symbol", "gene_id", *MARKER_COLUMNS_STATS, "unit"]
+    ]
 
     outdir = make_outdir(p["outdir"])
     tables, figures = outdir / "tables", outdir / "figures"
@@ -286,16 +297,19 @@ def analyse(argv, full_argv):
     captions = {
         "marker_dotplot": f"Dot plot of the {len(genes)} top markers (up to "
         f"{p['n_top']} per {col} group, {rule}) across {n_groups} groups; colour is "
-        "mean log-normalised expression, dot area the fraction of cells expressing.",
+        "mean log-normalised expression, dot area the fraction of cells expressing; "
+        f"padj and passes are descriptive cell-level ranks (unit: {UNIT}).",
         "marker_heatmap": f"Heatmap of group-mean log-normalised expression for the "
         f"{len(genes)} top markers, z-scored per gene across {n_groups} {col} groups; "
         f"not clustered: rows in {col} order, columns in top-marker order; colours "
-        f"saturate at ±{p['limit']:g}.",
+        f"saturate at ±{p['limit']:g}; markers pass descriptive cell-level cutoffs "
+        f"(unit: {UNIT}).",
     }
     empty = n_pass.index[n_pass == 0].astype(str).tolist()
     summary = [
         f"{adata.n_obs} cells in {n_groups} {col} groups; {adata.n_vars} genes "
-        f"tested per group ({p['method']}, each group vs rest, BH).",
+        f"tested per group ({p['method']}, each group vs rest, BH; padj is "
+        f"descriptive, unit: {UNIT}).",
         f"{int(n_pass.sum())} group-gene pairs pass {rule}; "
         f"groups with none: {', '.join(empty) or 'none'}.",
     ]

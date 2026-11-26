@@ -117,6 +117,10 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--n-pcs` | How many PCs (from the elbow) feed the graph? | `10` |
 | `--min-dist` | Which UMAP `min_dist`? | `0.3` |
 | `--resolution` | Which Leiden resolution? | `0.3` |
+| `--leiden-n-iterations` | How many Leiden iterations (`-1` runs to convergence)? Recommended `2` (igraph flavor as used in the corpus; scanpy 1.12.4 default is `-1`). | `2` |
+| `--harmony-max-iter` | Maximum Harmony rounds? Ignored with `--integration none`. Recommended `20` (harmonypy 2.1.0 `max_iter_harmony`; its own default is 10). | `20` |
+| `--scale-max-value` | Clip scaled HVG values at this maximum, or `none`? Recommended `none` (scanpy 1.12.4 `sc.pp.scale` default). | `none` |
+| `--svd-solver` | Which PCA `svd_solver`? Recommended `arpack` (scanpy 1.12.4 default for sparse input, seeded). | `arpack` |
 | `--seed` | Which seed for PCA, Harmony, neighbours, UMAP and Leiden? | `0` |
 | `--reference` | Which genome build and annotation release named the genes (e.g. `GRCh38, GENCODE 44`)? Recorded in `result.json`. | `synthetic demo genes, no genome build` |
 | `--context` | Species, tissue or cell type, condition and dataset? | `synthetic demo: 2 batches x 3 groups, 300 genes, no real tissue` |
@@ -139,17 +143,32 @@ analysis argument is an error.
 4. **Normalise**: `normalize_total(target_sum=--target-sum)`, then `log1p`.
    X holds the log-normalised values for all genes.
 5. **PCA** on a copy subset to the HVGs, scaled to zero mean and unit variance
-   with no clipping: `--n-comps` components, `svd_solver="arpack"`, seeded.
+   (clipped at `--scale-max-value` unless `none`): `--n-comps` components,
+   `svd_solver=--svd-solver`, seeded.
 6. **Integrate**: `--integration harmony` runs `harmonypy.run_harmony` on the
-   PCs by `--batch-key` (20 rounds at most, seeded) into `X_pca_harmony`;
+   PCs by `--batch-key` (`--harmony-max-iter` rounds at most, seeded) into `X_pca_harmony`;
    `none` keeps `X_pca`.
 7. **Neighbours** on the first `--n-pcs` columns of that representation,
    `--n-neighbors` neighbours, seeded.
 8. **UMAP** with `--min-dist`, seeded.
-9. **Leiden**: `flavor="igraph"`, `n_iterations=2`, undirected, `--resolution`,
+9. **Leiden**: `flavor="igraph"`, `n_iterations=--leiden-n-iterations`, undirected, `--resolution`,
    seeded, into `obs["leiden"]`, levels in numeric order.
 
 BLAS and numba run on one thread (`threadpoolctl`, `sc.settings.n_jobs = 1`).
+
+## Layer contract
+
+- Input: `X` holds raw integer counts; layers are ignored.
+- Output `data/embedded.h5ad`: `X` holds log-normalised values for all genes,
+  `layers["counts"]` holds the raw counts. Downstream skills that need counts
+  (sc-annotate) take `--counts-layer counts`; skills that need log-normalised
+  `X` (ccc, sc-markers, signature-scoring, tf-activity) read `X` as it is.
+
+## Fixed method settings
+
+Not asked, recorded here. `harmonypy` 2.1.0 `theta`, `lambda`, `sigma` and
+other options stay at the package defaults; Leiden runs `directed=False`;
+PCA centres through `sc.pp.scale(zero_center=True)`; `sc.settings.n_jobs = 1`.
 
 ## Output structure
 
@@ -196,7 +215,7 @@ outdir/
   Show `pca_variance.png` and ask the user; the elbow is a judgement.
 - **The model will want to drop `--seed` or use the legacy `leidenalg` flavor**
   to match an old notebook. Do not. The igraph flavor with a fixed seed and
-  `n_iterations=2` is what makes reruns identical.
+  `--leiden-n-iterations` is what makes reruns identical.
 - **The model will want to pass log-normalised data** to fix the
   `counts in X must be non-negative integers` error. Do not. Ask where the raw
   counts are; this skill normalises them itself.
@@ -229,7 +248,8 @@ python scripts/sc_embed.py \
   --adata results/2026-10-27_qc/data/qc_filtered.h5ad \
   --target-sum 10000 --n-top-genes 2000 --flavor seurat_v3 --batch-key sample \
   --n-comps 50 --integration harmony --n-neighbors 20 --n-pcs 30 \
-  --min-dist 0.3 --resolution 1 --seed 0 --reference 'GRCh38, GENCODE 44' \
+  --min-dist 0.3 --resolution 1 --leiden-n-iterations 2 --harmony-max-iter 20 \
+  --scale-max-value none --svd-solver arpack --seed 0 --reference 'GRCh38, GENCODE 44' \
   --context 'human PBMC, IFN-beta vs control, Kang 2018' \
   --outdir results/2026-10-27_embed
 

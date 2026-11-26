@@ -36,6 +36,10 @@ ARGS = {
     "--n-pcs": "10",
     "--min-dist": "0.3",
     "--resolution": "0.3",
+    "--leiden-n-iterations": "2",
+    "--harmony-max-iter": "20",
+    "--scale-max-value": "none",
+    "--svd-solver": "arpack",
     "--seed": "0",
     "--reference": "synthetic demo genes, no genome build",
     "--context": "synthetic demo, no real tissue",
@@ -162,7 +166,17 @@ def test_output_contract(demo_out):
     assert "counts" in embedded.layers and embedded.n_vars == 300
 
 
-@pytest.mark.parametrize("flag", ["--seed", "--context"])
+@pytest.mark.parametrize(
+    "flag",
+    [
+        "--seed",
+        "--context",
+        "--leiden-n-iterations",
+        "--harmony-max-iter",
+        "--scale-max-value",
+        "--svd-solver",
+    ],
+)
 def test_missing_argument_fails_without_demo(tmp_path, flag):
     completed = run_with(tmp_path, drop=[flag])
     assert is_error(completed, f"missing required arguments: {flag}")
@@ -205,6 +219,7 @@ def test_outdir_exists(tmp_path):
             {"batch_key": "none"},
             "--integration harmony needs a --batch-key, got none",
         ),
+        ({"scale_max_value": "abc"}, "--scale-max-value must be a number > 0 or none"),
         ({"adata": "/no/such.h5ad"}, "input file not found: /no/such.h5ad"),
         ({"batch_key": "donor"}, "obs column not found: donor"),
     ],
