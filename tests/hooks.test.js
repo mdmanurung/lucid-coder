@@ -20,10 +20,10 @@ function setup() {
 
 // cwd is the empty temp home, so the repo's own R and Python files never
 // trigger language detection in a test.
-function run(script, home, { input = '', env = {}, cwd = home } = {}) {
+function run(script, home, { input = '', env = {}, cwd = home, args = [] } = {}) {
   const clean = { ...process.env };
   delete clean.LUCID_SUBAGENT_MATCHER;
-  return spawnSync(process.execPath, [path.join(root, 'hooks', script)], {
+  return spawnSync(process.execPath, [path.join(root, 'hooks', script), ...args], {
     cwd,
     env: { ...clean, HOME: home, CLAUDE_CONFIG_DIR: home, CLAUDE_PLUGIN_DATA: path.join(home, 'data'), ...env },
     input,
@@ -75,18 +75,33 @@ test('corrupt store still emits core', () => {
 test('oversized store stays under the cap and says what it hid', () => {
   const home = setup();
   writeStore(home, JSON.stringify({ rules: Array.from({ length: 200 }, (_, i) => rule(i)) }));
-  const r = run('activate.js', home);
-  assert.ok(r.stdout.length < 10000, `length ${r.stdout.length}`);
-  assert.match(r.stdout, /\d+ rules not shown; run \/lucid-coder:rules\./);
-  // Worst case: both tiers and the env block on top of 200 rules.
+  const learned = run('activate.js', home, { args: ['learned'] });
+  assert.strictEqual(learned.status, 0);
+  assert.ok(learned.stdout.length < 10000, `length ${learned.stdout.length}`);
+  assert.match(learned.stdout, /\d+ rules not shown; run \/lucid-coder:rules\./);
+  assert.doesNotMatch(learned.stdout, /## Habits/, 'the learned part carries no core text');
+  // Worst case for the core part: both tiers and the env block.
   fs.writeFileSync(path.join(home, '.lucid-coder-lang'), JSON.stringify({ [fs.realpathSync(home)]: 'both' }));
   fs.writeFileSync(path.join(home, 'lucid-coder.yaml'), ENV_YAML);
-  const both = run('activate.js', home).stdout;
-  assert.ok(both.length < 10000, `length ${both.length}`);
-  assert.match(both, /## Environment/);
-  assert.match(both, R_TIER);
-  assert.match(both, PY_TIER);
-  assert.match(both, /\d+ rules not shown/);
+  const core = run('activate.js', home).stdout;
+  assert.ok(core.length < 10000, `length ${core.length}`);
+  assert.match(core, /## Environment/);
+  assert.match(core, R_TIER);
+  assert.match(core, PY_TIER);
+  assert.doesNotMatch(core, /## Learned rules/, 'rules live in their own hook');
+});
+
+test('the core text no longer crowds out learned rules', () => {
+  const home = setup();
+  // 30 rules of 250 chars: the old shared budget showed about 7 beside both tiers.
+  writeStore(home, JSON.stringify({ rules: Array.from({ length: 30 }, (_, i) => ({ ...rule(i), statement: 'y'.repeat(250) })) }));
+  fs.writeFileSync(path.join(home, '.lucid-coder-lang'), JSON.stringify({ [fs.realpathSync(home)]: 'both' }));
+  const learned = run('activate.js', home, { args: ['learned'] }).stdout;
+  assert.strictEqual((learned.match(/^- \[/gm) || []).length, 30);
+  assert.doesNotMatch(learned, /rules not shown/);
+  const sub = JSON.parse(run('subagent.js', home, { args: ['learned'] }).stdout).hookSpecificOutput.additionalContext;
+  assert.strictEqual(sub, learned, 'subagents get the same learned part');
+  assert.strictEqual(run('activate.js', setup(), { args: ['learned'] }).stdout, '', 'no rules, no output');
 });
 
 // A fresh tree under home holding the given empty files.
@@ -144,7 +159,7 @@ test('narrowest scope is shown first', () => {
 test('only active rules are injected', () => {
   const home = setup();
   writeStore(home, JSON.stringify({ rules: [{ ...rule(1), status: 'proposed', statement: 'PROPOSED' }] }));
-  assert.doesNotMatch(run('activate.js', home).stdout, /PROPOSED/);
+  assert.doesNotMatch(run('activate.js', home, { args: ['learned'] }).stdout, /PROPOSED/);
 });
 
 test('activate is silent when off', () => {
@@ -206,9 +221,10 @@ test('rule files fit their budgets', () => {
 test('hook commands are portable and point at real files', () => {
   const config = JSON.parse(fs.readFileSync(path.join(root, 'hooks', 'hooks.json'), 'utf8'));
   const commands = Object.values(config.hooks).flat().flatMap(e => e.hooks).map(h => h.command);
-  assert.strictEqual(commands.length, 3);
+  assert.strictEqual(commands.length, 5);
   for (const command of commands) {
     assert.doesNotMatch(command, /&&|\|\||>|2>&1/);
+    assert.match(command, /\.js"( learned)?$/);
     const script = command.match(/hooks\/(\w+\.js)/)[1];
     assert.ok(fs.existsSync(path.join(root, 'hooks', script)), script);
   }
@@ -231,6 +247,17 @@ function runAt(script, home, cwd, ...args) {
   });
 }
 
+// trust needs the reviewed hash: read it with --show, then trust that hash.
+function trustAt(home, repo) {
+  const shown = runAt('scripts/rules.js', home, repo, 'trust', '--show').stdout;
+  return runAt('scripts/rules.js', home, repo, 'trust', '--sha256', shown.match(/sha256 ([0-9a-f]{64})/)[1]);
+}
+
+// What a session sees: the core hook and the learned-rules hook together.
+function sessionAt(home, cwd) {
+  return runAt('hooks/activate.js', home, cwd).stdout + runAt('hooks/activate.js', home, cwd, 'learned').stdout;
+}
+
 test('repo-scope rule is injected only in its own repo', () => {
   const home = setup();
   const atlas = fakeRepo(home, 'atlas', 'git@github.com:lab/atlas.git');
@@ -239,10 +266,10 @@ test('repo-scope rule is injected only in its own repo', () => {
     { ...rule(1), scope: { kind: 'repo', repo: 'github.com/lab/atlas' }, statement: 'ATLAS ONLY' },
     { ...rule(2), scope: { kind: 'file-glob', glob: '*.R' }, statement: 'GLOB RULE' },
   ] }));
-  const inAtlas = runAt('hooks/activate.js', home, atlas).stdout;
+  const inAtlas = sessionAt(home, atlas);
   assert.match(inAtlas, /\[user\.t1, repo\] ATLAS ONLY/);
   assert.match(inAtlas, /\[user\.t2, file-glob: \*\.R\] GLOB RULE/);
-  const inOther = runAt('hooks/activate.js', home, other).stdout;
+  const inOther = sessionAt(home, other);
   assert.doesNotMatch(inOther, /ATLAS ONLY/);
   assert.match(inOther, /GLOB RULE/);
 });
@@ -261,17 +288,17 @@ test('repo rules file loads only while its trusted hash matches', () => {
   const notice = /lucid-coder\.rules\.json in this repo is not trusted/;
 
   fs.writeFileSync(file, team('TEAM RULE'));
-  let out = runAt('hooks/activate.js', home, repo).stdout;
+  let out = sessionAt(home, repo);
   assert.doesNotMatch(out, /TEAM RULE/);
   assert.match(out, notice);
 
-  assert.strictEqual(runAt('scripts/rules.js', home, repo, 'trust').status, 0);
-  out = runAt('hooks/activate.js', home, repo).stdout;
+  assert.strictEqual(trustAt(home, repo).status, 0);
+  out = sessionAt(home, repo);
   assert.match(out, /\[user\.t9, repo\] TEAM RULE/);
   assert.doesNotMatch(out, notice);
 
   fs.writeFileSync(file, team('CHANGED RULE'));
-  out = runAt('hooks/activate.js', home, repo).stdout;
+  out = sessionAt(home, repo);
   assert.doesNotMatch(out, /CHANGED RULE|TEAM RULE/);
   assert.match(out, notice);
 });
@@ -296,7 +323,7 @@ test('language-scoped learned rules follow the languages in use', () => {
     { id: 'r-py', topic: 'user.py_only', scope: { kind: 'language', language: 'python' }, status: 'active', statement: 'PY RULE' },
     { id: 'r-r', topic: 'user.r_only', scope: { kind: 'language', language: 'r' }, status: 'active', statement: 'R RULE' },
   ] }));
-  const inR = run('activate.js', home, { cwd: langTree(home, ['scripts/01_x.R']) }).stdout;
+  const inR = run('activate.js', home, { cwd: langTree(home, ['scripts/01_x.R']), args: ['learned'] }).stdout;
   assert.match(inR, /R RULE/);
   assert.doesNotMatch(inR, /PY RULE/);
 });
@@ -368,8 +395,8 @@ test('trusted team rules that fail validation are skipped with one notice', () =
     teamRule('NO WHY', { id: 'r-0010', topic: 'user.no_why', why: undefined }),
     teamRule('SECRET token=abc', { id: 'r-0011', topic: 'user.secret' }),
   ] }));
-  assert.strictEqual(runAt('scripts/rules.js', home, repo, 'trust').status, 0);
-  const out = runAt('hooks/activate.js', home, repo).stdout;
+  assert.strictEqual(trustAt(home, repo).status, 0);
+  const out = sessionAt(home, repo);
   assert.match(out, /GOOD RULE/);
   assert.doesNotMatch(out, /BAD ID|NO WHY|token=abc/);
   assert.match(out, /3 rules in lucid-coder\.rules\.json fail validation and were skipped\./);

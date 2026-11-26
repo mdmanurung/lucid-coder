@@ -12,6 +12,11 @@ The plugin has three hooks:
 | `SubagentStart` | each subagent | Injects the same rules, so delegated code follows them too |
 | `UserPromptSubmit` | each prompt | Handles `/lucid-coder on/off/status/nudge/lang`; adds at most one nudge line when a prompt reads like a lasting correction |
 
+SessionStart and SubagentStart each run twice: once for the core rules and
+language tiers, once for your learned rules. Claude Code caps each hook's text
+at 10,000 characters, so the learned rules get their own budget (about 9,000).
+Approving a rule warns when active rules no longer fit.
+
 Prompt text is never stored. Only the on/off flags are written to disk.
 
 ## The rule files

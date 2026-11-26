@@ -271,10 +271,17 @@ line with no leading `#`.
 
 ### 5.5 Injection budget
 
-The core rules get 4,000 characters. Learned rules get 4,000 characters, which
-leaves 2,000 of margin under the 10,000 cap. Over budget, the hook injects the
-narrowest-scope rules first. It then adds one line: "N rules not shown; run
-`/lucid-coder:rules`." Nothing is dropped silently.
+Claude Code caps each hook's output at 10,000 characters on its own, even when
+several hooks run for one event. So the core (persona, house rules, language
+tiers, env block) and the learned rules are two hooks: `activate.js` and
+`activate.js learned` (likewise `subagent.js`). Learned rules get 9,000
+characters. Over budget, the hook injects the narrowest-scope rules first. It
+then adds one line: "N rules not shown; run `/lucid-coder:rules`." `approve`
+and `supersede` print a warning when that happens. Nothing is dropped silently.
+
+Changed 2026-11-24: the two parts shared one hook until then. The core had grown
+to 7,354 characters, which left the learned rules about 1,700, and 9 of 16
+active rules were hidden.
 
 ## 6. Hooks
 

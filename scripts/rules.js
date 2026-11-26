@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const { parseArgs } = require('util');
-const { dataDir, repoInfo, sha256, ruleProblem, STATUSES } = require('../hooks/lib');
+const { dataDir, repoInfo, sha256, ruleProblem, STATUSES, readActiveRules, renderLearned } = require('../hooks/lib');
 const { harvest, markSeen } = require('../hooks/memory');
 
 const USAGE = `Usage: node scripts/rules.js <command>
@@ -81,6 +81,16 @@ function show(r) {
   return `${r.id} [${r.status}] ${r.topic} (${scopeText(r.scope)}): ${r.statement}`;
 }
 
+// The learned-rules hook has a fixed budget; say when active rules fall outside it.
+// Counted with every language in use, the most rules a session here can get.
+function hiddenWarning() {
+  const hidden = (renderLearned(readActiveRules()).match(/(\d+) rules not shown/) || [])[1];
+  if (hidden) {
+    console.log(`Warning: ${hidden} active rules exceed the injection budget and will not reach the model. ` +
+      'Retire or narrow some (node scripts/rules.js list --status active).');
+  }
+}
+
 function currentRepo() {
   const repo = repoInfo(process.cwd());
   if (!repo) die('Not inside a git repository; run this from the repo the rule is for.');
@@ -133,6 +143,7 @@ const commands = {
     Object.assign(rule, { status: 'active', approved: today() });
     save(store);
     console.log('Approved ' + show(rule));
+    hiddenWarning();
   },
 
   supersede(store, [newId, oldId]) {
@@ -145,6 +156,7 @@ const commands = {
     old.status = 'superseded';
     save(store);
     console.log(`Approved ${show(next)}\nSuperseded ${oldId}`);
+    hiddenWarning();
   },
 
   reject(store, [id]) {
