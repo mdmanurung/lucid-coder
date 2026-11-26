@@ -28,8 +28,10 @@ versions differ, a skill's frontmatter name does not match its folder, or a
 `references/` path or `/lucid-coder:` command cited in the docs does not exist.
 The CI workflow (`.github/workflows/test.yml`) runs the suite and
 `claude plugin validate --strict .`, and fails when the count of skipped tests
-rises above `tests/skip-baseline.txt`. Tests skip when R, uv, ruff or air is
-missing.
+rises above `tests/skip-baseline.txt` (77, estimated from the skip guards;
+confirm it on the first CI run). Tests skip when R, uv, ruff or air is missing.
+A second CI job, `skills`, installs the pixi `dev` env and runs the pipeline
+skill suites with pytest.
 
 The eval scripts read the R prefix from `R_ROOT`, then `LUCID_R_ENV`, then the
 `Rscript` on PATH. Set `R_ROOT` before running them; a different R can change

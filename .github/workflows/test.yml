@@ -50,3 +50,23 @@ jobs:
         run: |
           command -v claude || { echo "::error::claude CLI not found after install"; exit 1; }
           claude plugin validate --strict .
+
+  # The 21 pipeline skills' pytest suites, in the locked pixi dev env (R and
+  # Python). A separate job, so a slow env install never hides a node failure.
+  skills:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          environments: dev
+          locked: true
+          cache: true
+      - name: Install dreamlet (Bioconductor, not on conda)
+        run: pixi run -e dev setup-r
+      - name: Run skill tests
+        run: pixi run -e dev python -m pytest -q -p no:cacheprovider skills
