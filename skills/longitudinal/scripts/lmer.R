@@ -3,8 +3,10 @@
 # Outputs: <out_tsv> with feature, n_obs, n_subjects, estimate, se, df, t, num_df, f, pvalue,
 #          singular, converged, fit_message; R, lme4, lmerTest (and mice) versions on stdout.
 # Run:     Rscript lmer.R long.tsv "value ~ time + age + (1|subject)" time3 factor 1 0 out.tsv \
-#            "" "" complete-case
-# Notes:   exit 4 = an R package is missing, exit 3 = --term is not a fixed-effect coefficient;
+#            "" "" complete-case 0
+# Notes:   also writes <out_tsv>.levels (term, reference): the reference level of each
+#          factor term, alphabetical except time (the reference visit).
+#          exit 4 = an R package is missing, exit 3 = --term is not a fixed-effect coefficient;
 #          longitudinal.py maps both to fixed error strings. Spline time: `time` becomes the
 #          natural-spline basis (columns time1..timeK), and --term time is their joint F test.
 #          Impute: mice per feature on a subject-level table, the fit on each imputation, the
@@ -41,7 +43,8 @@ names(args) <- c(
   "out",
   "knots",
   "boundary",
-  "missing"
+  "missing",
+  "n_imputations"
 )
 seed <- as.integer(args[["seed"]])
 # lmer draws no random numbers; mice does and takes the seed per feature.
@@ -96,6 +99,7 @@ long <- mutate(
     forcats::fct(x, levels = sort(unique(x)))
   })
 )
+# The formula arrives with its random term (1|subject) or (1 + time | subject).
 model_formula <- as.formula(args[["formula"]])
 term <- args[["term"]]
 # Covariates with a missing value: only present under --missing impute.
@@ -234,7 +238,7 @@ impute_feature <- \(d) {
   )
   imputation <- mice::mice(
     select(subjects, -subject),
-    m = 5, # the mice default; longitudinal.py reports it
+    m = as.integer(args[["n_imputations"]]), # --n-imputations; longitudinal.py reports it
     seed = seed,
     printFlag = FALSE
   )
@@ -301,6 +305,19 @@ results <- long |>
 
 # Write outputs ----------------------------------------------------------------
 readr::write_tsv(results, args[["out"]], na = "")
+# Reference level of each factor term: the first level, which lmer's treatment coding uses.
+factor_terms <- intersect(
+  all.vars(reformulas::nobars(model_formula)),
+  names(long)
+)
+factor_terms <- factor_terms[map_lgl(long[factor_terms], is.factor)]
+readr::write_tsv(
+  tibble::tibble(
+    term = factor_terms,
+    reference = map_chr(factor_terms, \(x) levels(long[[x]])[1])
+  ),
+  paste0(args[["out"]], ".levels")
+)
 cat(R.version.string, "\n", sep = "")
 cat("lme4 ", as.character(packageVersion("lme4")), "\n", sep = "")
 cat("lmerTest ", as.character(packageVersion("lmerTest")), "\n", sep = "")

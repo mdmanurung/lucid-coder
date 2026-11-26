@@ -84,6 +84,8 @@ ERRORS = {
     "or '~ a + (1|b)' with a random effect, got {value!r}",
     "missing_file": "input file not found: {path}",
     "missing_column": "column not found: {col}",
+    "missing_ids": "column {col!r} has {n} missing value(s); every row needs an id, "
+    "so fix or drop those rows first",
     "varies_within_sample": "column {col!r} varies within a sample; "
     "formula terms and --group-col must be sample-level",
     "bad_counts": "--counts must hold non-negative integers, one column per label",
@@ -174,14 +176,17 @@ def read_counts(p, columns):
     """Step 1-2: samples x labels counts and sample metadata, both sorted by sample."""
     if p["adata"]:
         obs = read_file(p["adata"], lambda f: ad.read_h5ad(f, backed="r")).obs
-        # Categories become strings; numeric columns stay covariates.
-        obs = obs.apply(
-            lambda c: c.astype(str) if isinstance(c.dtype, pd.CategoricalDtype) else c
-        )
         check_unique(obs.index, "cell ids in --adata")
         for col in (p["sample_col"], p["label_col"]):
             if col not in obs.columns:
                 fail(ERRORS, "missing_column", col=col)
+            # Before any cast: astype(str) turns a missing id into the label "nan".
+            if obs[col].isna().any():
+                fail(ERRORS, "missing_ids", col=col, n=int(obs[col].isna().sum()))
+        # Categories become strings; numeric columns stay covariates.
+        obs = obs.apply(
+            lambda c: c.astype(str) if isinstance(c.dtype, pd.CategoricalDtype) else c
+        )
         ids = [p["sample_col"], p["label_col"]]
         obs[ids] = obs[ids].astype(str)
         meta = sample_level(obs, p["sample_col"], columns)
@@ -189,6 +194,13 @@ def read_counts(p, columns):
         return counts.sort_index().rename_axis("sample"), meta.sort_index()
 
     counts = read_file(p["counts"], lambda f: pd.read_csv(f, sep="\t", index_col=0))
+    if counts.index.isna().any():
+        fail(
+            ERRORS,
+            "missing_ids",
+            col="--counts sample id",
+            n=int(counts.index.isna().sum()),
+        )
     values = counts.to_numpy()
     if (
         counts.shape[1] == 0
@@ -200,6 +212,13 @@ def read_counts(p, columns):
     check_unique(counts.index.astype(str), "sample ids in --counts")
     # Numeric columns enter the formula as covariates, as in R's read.delim.
     table = read_file(p["meta"], lambda f: pd.read_csv(f, sep="\t"))
+    if table[table.columns[0]].isna().any():
+        fail(
+            ERRORS,
+            "missing_ids",
+            col=table.columns[0],
+            n=int(table[table.columns[0]].isna().sum()),
+        )
     table[table.columns[0]] = table[table.columns[0]].astype(str)
     check_unique(table[table.columns[0]], "sample ids in --meta")
     meta = sample_level(table, table.columns[0], columns)

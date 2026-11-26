@@ -36,10 +36,13 @@ PLANTED = {
 ARGS = {
     "--counts": str(COUNTS),
     "--meta": str(META),
+    "--donor-col": "donor",
     "--formula": "~ (1|donor) + (1|condition) + rin",
     "--min-frac": "0.1",
     "--n-top": "5",
     "--max-cancor": "0.9",
+    "--norm-method": "TMM",
+    "--voom": "yes",
     "--reference": "synthetic demo genes, no genome build",
     "--context": "synthetic demo: 12 donors, ctrl vs stim pseudobulk, no real tissue",
     "--seed": "0",
@@ -148,7 +151,10 @@ def test_demo_golden_values(demo_out):
     assert result["max_cancor"] == pytest.approx(0.761163, abs=1e-6)
     for term, planted in PLANTED.items():
         assert set(result["top_genes"][term]) <= planted, term
-    assert result["seed"] == 0 and result["n_donors"] is None
+    # Changed on purpose: --counts mode now runs check_replication, so n_donors is set.
+    assert result["seed"] == 0 and result["n_donors"] == 12
+    assert result["norm_method"] == "TMM" and result["voom"] == "yes"
+    assert "normalisation TMM, voom yes" in result["chat_summary_lines"][1]
     assert result["reference"] == "synthetic demo genes, no genome build"
     assert 3 <= len(result["chat_summary_lines"]) <= 4  # Context line first
     fractions = pd.read_csv(demo_out / "tables" / "variance_fractions.tsv", sep="\t")
@@ -174,6 +180,20 @@ def test_biology_core_fields(demo_out):
     fractions = pd.read_csv(demo_out / "tables" / "variance_fractions.tsv", sep="\t")
     g000 = fractions.loc[fractions["gene_symbol"] == "G000", "gene_id"]
     assert g000.tolist() == ["ENSG90000000000.1"]
+
+
+@needs_r
+def test_norm_method_and_voom_are_used(tmp_path, demo_out):
+    completed = run_with(tmp_path, norm_method="RLE", voom="no")
+    assert completed.returncode == 0, completed.stderr
+    out = tmp_path / "out"
+    result = json.loads((out / "result.json").read_text())
+    assert result["norm_method"] == "RLE" and result["voom"] == "no"
+    cmd = (out / "reproducibility" / "commands.sh").read_text()
+    assert "--norm-method RLE" in cmd and "--voom no" in cmd
+    a = pd.read_csv(demo_out / "tables" / "variance_fractions.tsv", sep="\t")
+    b = pd.read_csv(out / "tables" / "variance_fractions.tsv", sep="\t")
+    assert not np.allclose(a["donor"], b["donor"])
 
 
 @needs_r
@@ -265,8 +285,7 @@ def test_missing_adata_arguments(tmp_path):
     completed = run_with(tmp_path, drop=["--counts", "--meta"], adata="x.h5ad")
     assert is_error(
         completed,
-        "missing required arguments: --gene-id-col --sample-col --donor-col "
-        "--min-cells",
+        "missing required arguments: --gene-id-col --sample-col --min-cells",
     )
 
 
@@ -288,11 +307,30 @@ def test_demo_conflict(tmp_path):
         ({"min_cells": "3"}, "--min-cells applies only to --adata input"),
         ({"counts": "/no/such.tsv"}, "input file not found: /no/such.tsv"),
         ({"formula": "~ (1|batch)"}, "column not found in the sample metadata: batch"),
+        ({"donor_col": "subject"}, "column not found in the sample metadata: subject"),
+        (
+            {"formula": "~ (1|condition) + rin"},
+            "12 donor(s) in 'donor' have more than one sample, but the design has "
+            "no 'donor' term",
+        ),
         ({"formula": "~ donor + rin"}, "covariate 'donor' is categorical"),
     ],
 )
 def test_input_errors(tmp_path, changes, message):
     assert is_error(run_with(tmp_path, **changes), message)
+
+
+@pytest.mark.parametrize("changes", [{"norm_method": "TMM2"}, {"voom": "maybe"}])
+def test_closed_choices(tmp_path, changes):
+    completed = run_with(tmp_path, **changes)
+    assert completed.returncode == 2 and "invalid choice" in completed.stderr
+
+
+@pytest.mark.parametrize("arg", ["--norm-method", "--voom", "--donor-col"])
+def test_new_required_arguments(tmp_path, arg):
+    assert is_error(
+        run_with(tmp_path, drop=[arg]), f"missing required arguments: {arg}"
+    )
 
 
 def test_bad_counts(tmp_path):

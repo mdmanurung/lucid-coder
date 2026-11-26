@@ -233,7 +233,21 @@ def build_pseudobulk(p, terms, factor, levels):
             ERRORS, "cell_type_absent", cell_type=p["cell_type"], col=p["cell_type_col"]
         )
     cols = list(dict.fromkeys([p["sample_col"], p["donor_col"], *terms]))
-    obs = adata.obs.loc[in_type, cols].astype(str)
+    random = RANDOM_TERM.findall(p["design"])
+    fixed = list(dict.fromkeys(t for t in terms if t not in random))
+    # Ids and group factors are strings. A numeric covariate keeps its dtype, so the
+    # engines fit one continuous column, not one dummy per value.
+    factors = {p["sample_col"], p["donor_col"], factor, *random}
+    numeric = [
+        c
+        for c in fixed
+        if c not in factors
+        and pd.api.types.is_numeric_dtype(adata.obs[c])
+        and not pd.api.types.is_bool_dtype(adata.obs[c])
+    ]
+    obs = adata.obs.loc[in_type, cols].astype(
+        {c: str for c in cols if c not in numeric}
+    )
     counts = adata.layers[p["layer"]] if p["layer"] else adata.X
     counts = sparse.csr_matrix(counts[in_type])
     if not is_raw_counts(counts):
@@ -281,11 +295,7 @@ def build_pseudobulk(p, terms, factor, levels):
 
     # Design checks run on the kept samples, the rows the engine fits.
     kept_cells = samples.isin(meta.index)
-    random = RANDOM_TERM.findall(p["design"])
-    fixed = list(dict.fromkeys(t for t in terms if t not in random))
-    # obs was cast to str; a numeric covariate is one column, not one dummy per value.
-    numeric = [c for c in fixed if pd.api.types.is_numeric_dtype(adata.obs[c])]
-    check_design_rank(meta[fixed].astype(dict.fromkeys(numeric, float)), fixed)
+    check_design_rank(meta[fixed], fixed)
     n_donors, _ = check_replication(
         obs[kept_cells], p["sample_col"], p["donor_col"], terms
     )
@@ -306,6 +316,7 @@ def build_pseudobulk(p, terms, factor, levels):
         "n_donors": n_donors,
         "reasons": reasons,
         "gene_ids": gene_ids,
+        "numeric": numeric,
     }
     return summed.loc[genes, meta.index], meta, drops, int(adata.n_vars)
 
@@ -332,7 +343,14 @@ def run_python(counts, meta, p, contrast):
     )
     stats.summary()
     res = stats.results_df.rename(columns=PYDESEQ2_NAMES)
-    return res.rename_axis("gene").reset_index()[DE_COLUMNS], []
+    # Treatment coding takes the alphabetically first level of each factor as reference.
+    levels = {
+        c: sorted(meta[c].unique())[0]
+        for c in meta.columns.drop("n_cells")
+        if not pd.api.types.is_numeric_dtype(meta[c])
+    }
+    info = {"design_columns": list(dds.obsm["design_matrix"].columns)}
+    return res.rename_axis("gene").reset_index()[DE_COLUMNS], [], levels, info
 
 
 def run_r(counts, tables, meta, p, contrast):
@@ -369,7 +387,13 @@ def run_r(counts, tables, meta, p, contrast):
                 ERRORS, "r_failed", script=engine.name, code=proc.returncode, tail=tail
             )
         res = pd.read_csv(out, sep="\t")
-    return res[DE_COLUMNS], [f"Rscript {rscript}", *proc.stdout.strip().splitlines()]
+        # The R engines write the reference level R chose for each factor term.
+        ref = pd.read_csv(
+            Path(tmp) / "de.tsv.levels", sep="\t", dtype=str, keep_default_na=False
+        )
+        levels = dict(zip(ref["term"], ref["reference"], strict=True))
+    versions = [f"Rscript {rscript}", *proc.stdout.strip().splitlines()]
+    return res[DE_COLUMNS], versions, levels, {}
 
 
 def log_cpm(counts):
@@ -490,9 +514,9 @@ def analyse(argv, full_argv):
     meta.drop(columns="n_cells").to_csv(tables / "sample_meta.tsv", sep="\t")
 
     if p["engine"] == "python":
-        de, r_versions = run_python(counts, meta, p, contrast)
+        de, r_versions, ref_levels, info = run_python(counts, meta, p, contrast)
     else:
-        de, r_versions = run_r(counts, tables, meta, p, contrast)
+        de, r_versions, ref_levels, info = run_r(counts, tables, meta, p, contrast)
     # A gene the engine drops (dreamlet: all-zero or failed fit) stays as an NA row,
     # tested; a gene filtered before the engine keeps NA with its reason.
     de = de.set_index("gene").reindex(counts.index).rename_axis("gene").reset_index()
@@ -539,7 +563,9 @@ def analyse(argv, full_argv):
         f"{len(meta)} samples from {drops['n_donors']} donors kept; dropped by "
         f"--min-cells {p['min_cells']}: {by_level}. {n_tested} of {n_genes_in} genes "
         "tested; filtered genes are not tested, not absent.",
-        f"{n_sig} genes significant ({num} vs {den}, {rule}), engine {p['engine']}.",
+        f"{n_sig} genes significant ({num} vs {den}, {rule}), engine {p['engine']}. "
+        "Reference level per factor (alphabetical, not chosen): "
+        f"{'; '.join(f'{k} = {v}' for k, v in ref_levels.items()) or 'none'}.",
     ]
     title = f"Pseudobulk DE: {p['cell_type']}, {p['contrast']}"
     # A bare "|" in (1|x) would split the markdown table cell.
@@ -560,6 +586,9 @@ def analyse(argv, full_argv):
         "dropped_by_level": drops["by_level"],
         "top_genes": top[["gene", "log2_fc", "padj"]].to_dict(orient="records"),
         "params": p,
+        "reference_levels": ref_levels,
+        "numeric_covariates": drops["numeric"],
+        **info,
         "engine": p["engine"],
         "seed": p["seed"],
     }

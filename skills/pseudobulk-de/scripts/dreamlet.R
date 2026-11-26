@@ -107,6 +107,23 @@ out <- data.frame(
   padj = res$adj.P.Val
 )
 write.table(out, args[["out"]], sep = "\t", quote = FALSE, row.names = FALSE)
+# Reference level per fixed factor term: alphabetical, except the contrast factor,
+# which is set to the denominator above.
+fixed_terms <- intersect(
+  all.vars(reformulas::nobars(as.formula(args[["design"]]))),
+  colnames(meta)
+)
+fixed_terms <- fixed_terms[sapply(meta[fixed_terms], is.factor)]
+write.table(
+  data.frame(
+    term = fixed_terms,
+    reference = sapply(meta[fixed_terms], \(x) levels(x)[1])
+  ),
+  paste0(args[["out"]], ".levels"),
+  sep = "\t",
+  quote = FALSE,
+  row.names = FALSE
+)
 cat(R.version.string, "\n", sep = "")
 for (pkg in c("dreamlet", "variancePartition", "limma", "edgeR", "lme4")) {
   cat(pkg, " ", as.character(packageVersion(pkg)), "\n", sep = "")

@@ -35,6 +35,7 @@ REQUIRED = [
     "view",
     "metadata",
     "group_col",
+    "assoc_cols",
     "likelihoods",
     "factors",
     "scale_views",
@@ -44,6 +45,7 @@ REQUIRED = [
     "seed",
     "reference",
 ]
+OPTIONAL = ["donor_col"]
 EXAMPLES = SKILL_DIR / "examples"
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
@@ -51,6 +53,8 @@ DEMO = {
     "view": [f"{v}={EXAMPLES / f'demo_{v}.tsv'}" for v in ("rna", "adt", "tf")],
     "metadata": str(EXAMPLES / "demo_meta.tsv"),
     "group_col": "group",
+    "assoc_cols": "group,age",
+    "donor_col": None,
     "likelihoods": "rna=gaussian,adt=gaussian,tf=gaussian",
     "factors": 6,
     "scale_views": "yes",
@@ -77,6 +81,11 @@ ERRORS = {
     "unknown_samples": "{n} samples in view {view!r} are not in the metadata, "
     "e.g. {example!r}",
     "missing_group": "{n} modelled samples have no value in {col!r}",
+    "bad_assoc_cols": "--assoc-cols must name metadata columns other than 'sample', "
+    "comma-separated, got {value!r}",
+    "missing_donor": "{n} modelled samples have no value in --donor-col {col!r}",
+    "varies_within_donor": "column {col!r} varies within a donor of {donor_col!r}; "
+    "--assoc-cols must be donor-level when donors have several samples",
     "too_few_groups": "{col!r} needs at least 2 levels, got {levels}",
     "too_many_labels": "{what} has {n} levels; the fixed palette holds {max}",
     "too_many_factors": "--factors ({factors}) must be below the number of "
@@ -88,6 +97,7 @@ ERRORS = {
 COLOURS = ("#4477AA", "#EE6677", "#228833", "#CCBB44", "#66CCEE", "#AA3377", "#BBBBBB")
 JITTER_WIDTH = 0.2
 PANEL_MM = 60
+TEST_NAMES = {"spearman": "Spearman", "kruskal-wallis": "Kruskal-Wallis"}
 PACKAGES = ["mofapy2", "h5py", "numpy", "pandas", "scipy", "matplotlib"]
 
 
@@ -101,6 +111,8 @@ def parse_args(argv):
     parser.add_argument("--view", action="append")
     parser.add_argument("--metadata")
     parser.add_argument("--group-col")
+    parser.add_argument("--assoc-cols")
+    parser.add_argument("--donor-col")
     parser.add_argument("--likelihoods")
     parser.add_argument("--factors", type=int)
     parser.add_argument("--scale-views", choices=["yes", "no"])
@@ -109,7 +121,7 @@ def parse_args(argv):
     parser.add_argument("--n-top-features", type=int)
     parser.add_argument("--seed", type=int)
     parser.add_argument("--reference")
-    return skillkit.parse_required(parser, REQUIRED, DEMO, argv)
+    return skillkit.parse_required(parser, REQUIRED, DEMO, argv, optional=OPTIONAL)
 
 
 def check_values(p):
@@ -128,6 +140,10 @@ def check_values(p):
     for arg, value, ok, rule in rules:
         if not ok:
             fail("bad_value", arg=arg, rule=rule, value=value)
+    cols = [c.strip() for c in p["assoc_cols"].split(",")]
+    if not all(cols) or "sample" in cols or len(set(cols)) != len(cols):
+        fail("bad_assoc_cols", value=p["assoc_cols"])
+    p["assoc_cols"] = ",".join(cols)
     views = {}
     for item in p["view"]:
         name, sep, path = item.partition("=")
@@ -203,7 +219,8 @@ def read_metadata(p, tables):
     """Step 3: metadata rows for the modelled samples (sorted union over views)."""
     path = Path(p["metadata"])
     meta = read_tsv(path)
-    for col in ("sample", p["group_col"]):
+    donor = [p["donor_col"]] if p["donor_col"] else []
+    for col in ("sample", p["group_col"], *p["assoc_cols"].split(","), *donor):
         if col not in meta.columns:
             fail("missing_column", col=col, path=path)
     skillkit.check_unique(meta["sample"], f"sample IDs in {path}")
@@ -227,6 +244,15 @@ def read_metadata(p, tables):
         fail("too_many_labels", what=p["group_col"], n=len(levels), max=len(COLOURS))
     if p["factors"] >= len(samples):
         fail("too_many_factors", factors=p["factors"], n=len(samples))
+    if p["donor_col"]:
+        donors = meta[p["donor_col"]]
+        if donors.isna().any():
+            fail("missing_donor", n=int(donors.isna().sum()), col=p["donor_col"])
+        # Tested columns must be donor-level when donors are averaged in step 7.
+        if donors.duplicated().any():
+            for col in p["assoc_cols"].split(","):
+                if (meta[col].groupby(donors).nunique(dropna=False) > 1).any():
+                    fail("varies_within_donor", col=col, donor_col=p["donor_col"])
     return meta, levels, dropped
 
 
@@ -300,10 +326,22 @@ def read_model(model_path, views):
     return factors, weights, r2, r2_total
 
 
-def associate(factors, meta):
-    """Step 7: each factor against each metadata column; BH across all rows."""
+def associate(factors, meta, p):
+    """Step 7: each factor against each --assoc-cols column; BH across all rows.
+
+    With --donor-col and a donor of several samples, factor scores are averaged per
+    donor first (read_metadata checked the columns are donor-level), so the unit
+    of the test is the donor. Returns the table and the unit used.
+    """
+    cols = p["assoc_cols"].split(",")
+    unit = "sample"
+    if p["donor_col"] and meta[p["donor_col"]].duplicated().any():
+        donors = meta[p["donor_col"]]
+        factors = factors.groupby(donors).mean()
+        meta = meta[cols].groupby(donors).first()
+        unit = "donor"
     rows = []
-    for col in sorted(meta.columns):
+    for col in sorted(cols):
         values = meta[col]
         numeric = pd.to_numeric(values, errors="coerce")
         is_numeric = numeric.notna().sum() == values.notna().sum()
@@ -331,7 +369,7 @@ def associate(factors, meta):
             table.loc[tested, "pvalue"], method="bh"
         )
     table["order"] = table["factor"].str[6:].astype(int)
-    return table.sort_values(["order", "covariate"]).drop(columns="order")
+    return table.sort_values(["order", "covariate"]).drop(columns="order"), unit
 
 
 def plot_weights(top, pal):
@@ -387,7 +425,7 @@ def draw_figures(figures, p, factors, weights, r2_long, meta, levels, active, as
     )
 
     group_pal = dict(zip(levels, COLOURS, strict=False))
-    scores = factors.join(meta[p["group_col"]]).reset_index()
+    scores = factors.join(meta[p["group_col"]], validate="1:1").reset_index()
     # Factor scores, not a UMAP: restore axes, ticks and a free aspect. Drop the
     # tiny points and corner arrows; the axis titles name the factors.
     plot = plot_embedding(
@@ -415,6 +453,7 @@ def draw_figures(figures, p, factors, weights, r2_long, meta, levels, active, as
 
     hits = assoc[assoc["covariate"] == p["group_col"]]
     padj = dict(zip(hits["factor"], hits["padj"], strict=True))
+    test = dict(zip(hits["factor"], hits["test"].map(TEST_NAMES), strict=True))
     n_tests = int(assoc["pvalue"].notna().sum())
     view_pal = dict(zip(weights["view"].unique(), COLOURS, strict=False))
     for factor in active:
@@ -452,9 +491,14 @@ def draw_figures(figures, p, factors, weights, r2_long, meta, levels, active, as
             PANEL_MM,
             PANEL_MM,
             f"Box plot of {factor} scores per {p['group_col']}; each point is one "
-            f"sample, jittered sideways (seed {p['seed']}). Kruskal-Wallis padj "
-            f"{padj[factor]:.2g} "
-            f"(BH over {n_tests} factor-covariate tests).",
+            f"sample, jittered sideways (seed {p['seed']}). "
+            + (
+                f"{test[factor]} padj {padj[factor]:.2g} (BH over {n_tests} "
+                "factor-covariate tests, the --assoc-cols family)."
+                if factor in padj and pd.notna(padj[factor])
+                else f"{p['group_col']} is not tested here (not in --assoc-cols, "
+                "or no testable p-value)."
+            ),
         )
     return captions
 
@@ -502,7 +546,7 @@ def analyse(argv, argv_as_run):
     weights = weights.sort_values(["view", "feature", "order"])[
         ["view", "feature", "factor", "weight"]
     ]
-    assoc = associate(factors, meta)
+    assoc, unit = associate(factors, meta, p)
 
     tab = outdir / "tables"
     fmt = {"sep": "\t", "index": False, "float_format": "%.6g"}
@@ -516,7 +560,22 @@ def analyse(argv, argv_as_run):
         outdir / "figures", p, factors, weights, r2_long, meta, levels, active, assoc
     )
 
-    by_group = assoc[assoc["covariate"] == p["group_col"]].sort_values("padj")
+    in_group = assoc[assoc["covariate"] == p["group_col"]]
+    by_group = in_group.dropna(subset=["padj"]).sort_values(["padj", "factor"])
+    family = (
+        f"BH over {int(assoc['pvalue'].notna().sum())} factor-covariate tests, "
+        f"the --assoc-cols family ({p['assoc_cols']}), one {unit} per row"
+    )
+    if by_group.empty:
+        closest = f"No factor was tested against {p['group_col']}: " + (
+            "no testable p-value." if len(in_group) else "it is not in --assoc-cols."
+        )
+    else:
+        top = by_group.iloc[0]
+        closest = (
+            f"Closest factor to {p['group_col']}: {top['factor']}, "
+            f"{TEST_NAMES[top['test']]} padj {top['padj']:.2g} ({family})."
+        )
     summary = [
         f"MOFA on {len(samples)} samples and {len(tables)} views "
         f"({', '.join(f'{v} {t.shape[1]}' for v, t in tables.items())} features); "
@@ -525,13 +584,20 @@ def analyse(argv, argv_as_run):
         f"{len(active)} factors explain >= {thr}% of a view: "
         + ("; ".join(f"{f} ({', '.join(v)})" for f, v in explains.items()) or "none")
         + ".",
-        f"Closest factor to {p['group_col']}: {by_group['factor'].iloc[0]}, "
-        f"Kruskal-Wallis padj {by_group['padj'].iloc[0]:.2g} (BH over "
-        f"{int(assoc['pvalue'].notna().sum())} factor-covariate tests).",
+        closest,
     ]
-    shown = {**p, "view": " ".join(p["view"])}
+    shown = {
+        **p,
+        "view": " ".join(p["view"]),
+        "donor_col": p["donor_col"] or "none (one row per sample)",
+    }
     skillkit.write_report(
-        outdir, "MOFA multi-omics factors", shown, REQUIRED, summary, captions
+        outdir,
+        "MOFA multi-omics factors",
+        shown,
+        [*REQUIRED, *OPTIONAL],
+        summary,
+        captions,
     )
     threads = [f"{v}={os.environ[v]}" for v in THREAD_VARS]
     result = {
@@ -545,6 +611,8 @@ def analyse(argv, argv_as_run):
         "threads": threads,
         "dropped_per_group": dropped,
         "n_shared_ids": n_shared,
+        "assoc_unit": unit,
+        "assoc_n_tests": int(assoc["pvalue"].notna().sum()),
         "params": p,
         "seed": p["seed"],
     }
@@ -563,7 +631,13 @@ def analyse(argv, argv_as_run):
         reference=p["reference"],
     )
     skillkit.write_reproducibility(
-        outdir, __file__, p, REQUIRED, argv_as_run, PACKAGES, ["device cpu", *threads]
+        outdir,
+        __file__,
+        p,
+        [*REQUIRED, *OPTIONAL],
+        argv_as_run,
+        PACKAGES,
+        ["device cpu", *threads],
     )
     return outdir
 

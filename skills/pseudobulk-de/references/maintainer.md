@@ -133,7 +133,8 @@ From `docs/pipeline-skills.md` "Biology-core checks". Applied:
   after the random draws, so the goldens hold). `check_gene_ids` replaces the
   `check_unique(var_names)` check. `de_results.tsv` writes `gene_symbol` and
   `gene_id`; the code keeps `gene` inside. `pseudobulk_counts.tsv` starts with
-  `gene_id`, `gene_symbol` so variance-partition `--counts` accepts it; `run_r`
+  `gene_id`, `gene_symbol` so variance-partition `--counts` accepts it (with
+  `--donor-col` naming a column of `sample_meta.tsv`); `run_r`
   hands the R engines a symbol-keyed temp copy, so `deseq2.R` and `dreamlet.R`
   are unchanged.
 - claim wording: one gotcha says a DE call is an association, not a mechanism.

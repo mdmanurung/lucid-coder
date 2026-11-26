@@ -30,7 +30,8 @@ GAP_SUBJECT = "S24"  # misses visit 2 in every feature
 ARGS = {
     "--context": "synthetic demo, 3 visits",
     "--input": str(DEMO),
-    "--formula": "value ~ time + age + (1|subject)",
+    "--formula": "value ~ time + age",
+    "--random": "intercept",
     "--term": "time3",
     "--time-type": "factor",
     "--reference-time": "1",
@@ -112,6 +113,10 @@ def test_demo_golden_values(demo_out):
     assert result["singular_features"] == ["F30"]
     assert result["n_not_converged"] == 0 and result["failed_features"] == []
     assert result["seed"] == 0 and result["term"] == "time3"
+    assert result["random"] == "intercept" and result["random_term"] == "(1|subject)"
+    # Only time is a factor in the demo; its reference is --reference-time.
+    assert result["reference_levels"] == {"time": "1"}
+    assert "(value ~ time + age + (1|subject)" in result["chat_summary_lines"][1]
     assert 3 <= len(result["chat_summary_lines"]) <= 4
     assert result["chat_summary_lines"][0].startswith("Context: synthetic demo")
     table = results(demo_out)
@@ -132,6 +137,26 @@ def test_numeric_time_golden(tmp_path):
     assert set(table.loc[table["significant"], "feature"]) == TIME_TRUTH
     # Planted slope 0.75 per visit.
     assert table["estimate"].head(6).between(0.65, 0.85).all()
+
+
+@needs_r
+def test_random_slope_changes_the_model(tmp_path):
+    """(1 + time | subject) needs numeric time; its time SEs differ from (1|subject)."""
+    base = run_with(tmp_path / "i", time_type="numeric", term="time")
+    assert base.returncode == 0, base.stderr
+    slope = run_with(tmp_path / "s", time_type="numeric", term="time", random="slope")
+    assert slope.returncode == 0, slope.stderr
+    out = tmp_path / "s" / "out"
+    result = json.loads((out / "result.json").read_text())
+    assert (
+        result["random"] == "slope" and result["random_term"] == "(1 + time | subject)"
+    )
+    assert result["n_fitted"] == 30
+    assert "random slope" in (out / "report.md").read_text()
+    assert "--random slope" in (out / "reproducibility" / "commands.sh").read_text()
+    a = results(tmp_path / "i" / "out").set_index("feature")["se"]
+    b = results(out).set_index("feature")["se"]
+    assert not np.allclose(a.sort_index(), b.sort_index())
 
 
 def test_gap_is_not_bridged(demo_out):
@@ -178,9 +203,7 @@ def test_drops_per_time(tmp_path):
 def test_rank_deficient(tmp_path):
     """A covariate that copies time is aliased with it: the run stops before R."""
     path = demo_variant(tmp_path, lambda d: d.assign(batch="b" + d["time"]))
-    completed = run_with(
-        tmp_path, input=path, formula="value ~ time + batch + (1|subject)"
-    )
+    completed = run_with(tmp_path, input=path, formula="value ~ time + batch")
     assert is_error(completed, "design is rank-deficient")
 
 
@@ -245,12 +268,29 @@ def test_outdir_exists(tmp_path):
             {"time_type": "numeric", "reference_time": "V1"},
             "--reference-time must be a number for --time-type numeric, got V1",
         ),
-        ({"formula": "value ~ time + (time|subject)"}, "--formula needs the random"),
-        ({"formula": "value ~ time + log(age) + (1|subject)"}, "--formula must be"),
-        ({"formula": "value ~ age + (1|subject)"}, "--formula must have time"),
+        (
+            {"formula": "value ~ time + (time|subject)"},
+            "--formula holds the fixed part only; the random term comes from --random",
+        ),
+        ({"formula": "value ~ time + log(age)"}, "--formula must be"),
+        ({"formula": "value ~ age"}, "--formula must have time"),
+        (
+            {"random": "slope"},
+            "--random slope needs --time-type numeric, got factor",
+        ),
+        (
+            {"time_type": "spline", "term": "time", "knots": "1", "random": "slope"},
+            "--random slope needs --time-type numeric, got spline",
+        ),
+        ({"n_imputations": "5"}, "--n-imputations is used only with --missing impute"),
+        ({"missing": "impute"}, "--missing impute needs --n-imputations"),
+        (
+            {"missing": "impute", "n_imputations": "1"},
+            "--n-imputations must be an integer >= 2, got 1",
+        ),
         ({"input": "/no/such.tsv"}, "input file not found: /no/such.tsv"),
         (
-            {"formula": "value ~ time + bmi + (1|subject)"},
+            {"formula": "value ~ time + bmi"},
             "input column not found: bmi",
         ),
         ({"reference_time": "9"}, "reference time '9' not found in column 'time'"),
@@ -264,7 +304,10 @@ def test_outdir_exists(tmp_path):
             {"time_type": "spline", "term": "time", "knots": "1", "missing": "impute"},
             "--missing impute pools one coefficient",
         ),
-        ({"missing": "impute"}, "--missing is used only when a formula covariate"),
+        (
+            {"missing": "impute", "n_imputations": "5"},
+            "--missing is used only when a formula covariate",
+        ),
     ],
 )
 def test_argument_errors(tmp_path, changes, message):
@@ -300,15 +343,27 @@ def test_missing_covariate_needs_choice(tmp_path):
 
 @needs_r
 @pytest.mark.parametrize(
-    ("choice", "n_dropped", "named"),
+    ("choice", "n_imp", "n_dropped", "named"),
     [
-        ("complete-case", 180, "complete-case, those rows dropped"),
-        ("impute", 0, "multiple imputation (mice, m = 5, pooled with Rubin's rules)"),
+        ("complete-case", None, 180, "complete-case, those rows dropped"),
+        (
+            "impute",
+            5,
+            0,
+            "multiple imputation (mice, m = 5, pooled with Rubin's rules)",
+        ),
+        (
+            "impute",
+            3,
+            0,
+            "multiple imputation (mice, m = 3, pooled with Rubin's rules)",
+        ),
     ],
 )
-def test_missing_covariate_choice(tmp_path, choice, n_dropped, named):
+def test_missing_covariate_choice(tmp_path, choice, n_imp, n_dropped, named):
     path = demo_variant(tmp_path, blank_age)
-    completed = run_with(tmp_path, input=path, missing=choice)
+    extra = {"n_imputations": str(n_imp)} if n_imp else {}
+    completed = run_with(tmp_path, input=path, missing=choice, **extra)
     assert completed.returncode == 0, completed.stderr
     out = tmp_path / "out"
     result = json.loads((out / "result.json").read_text())
@@ -324,7 +379,12 @@ def test_impute_needs_subject_level(tmp_path):
         d.loc[(d["subject"] == "S01") & (d["time"] == "2"), "age"] = "99"
         return d
 
-    completed = run_with(tmp_path, input=demo_variant(tmp_path, vary), missing="impute")
+    completed = run_with(
+        tmp_path,
+        input=demo_variant(tmp_path, vary),
+        missing="impute",
+        n_imputations="5",
+    )
     assert is_error(completed, "--missing impute needs covariates fixed within subject")
 
 

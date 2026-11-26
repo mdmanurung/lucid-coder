@@ -109,17 +109,17 @@ Environment: pixi feature `bioc-de` (`pixi install -e bioc-de`, from `templates/
 
 ## Input contract
 
-Give one of two inputs: `--counts` with `--meta`, or `--adata` with
+Give one of two inputs: `--counts` with `--meta` and `--donor-col`, or `--adata` with
 `--gene-id-col`, `--sample-col`, `--donor-col` and `--min-cells`. Giving both is an error.
 
 | Input | Format | Required content | Example |
 |---|---|---|---|
 | `--counts` | TSV | columns `gene_id` (Ensembl; empty when the source has none) and `gene_symbol`, then one column per sample; non-negative integer summed counts | pseudobulk-de `tables/pseudobulk_counts.tsv`; `examples/demo_counts.tsv` |
-| `--meta` | TSV | first column sample IDs, the same set as the `--counts` columns; every formula term | pseudobulk-de `tables/sample_meta.tsv`; `examples/demo_meta.tsv` |
+| `--meta` | TSV | first column sample IDs, the same set as the `--counts` columns; every formula term and the `--donor-col` column | pseudobulk-de `tables/sample_meta.tsv`; `examples/demo_meta.tsv` |
 | `--adata` | `.h5ad` | raw integer counts in `X`, or in `--layer`; one cell per row | one cell type's cells |
 | `--gene-id-col` | var column | Ensembl gene ids; `var_names` are the symbols; `none` when the source has no ids | `gene_ids` |
 | `--sample-col` | obs column | the sample each cell belongs to; every formula term is constant within a sample | `sample` |
-| `--donor-col` | obs column | the donor each sample comes from; constant within a sample | `donor` |
+| `--donor-col` | obs column (`--adata`) or `--meta` column (`--counts`) | the donor each sample comes from; constant within a sample | `donor` |
 
 A `(1|x)` term is categorical, even when its values look numeric. A plain term
 must be numeric (a continuous covariate); a categorical plain term is an error,
@@ -136,10 +136,10 @@ Required checks (docs/pipeline-skills.md, adopted 2026-10-27):
 - **Design rank**: the plain (fixed) terms go through `skillkit.check_design_rank`;
   aliased numeric covariates stop the run. Random terms are checked by
   `--max-cancor`.
-- **Donor versus sample** (`--adata`): `skillkit.check_replication` stops when a
-  donor gives several samples and the formula has no donor term. `result.json`
-  reports `n_donors` (null for `--counts`, whose donors the script cannot see:
-  put `(1|donor)` in the formula yourself) and `n_samples`.
+- **Donor versus sample** (both inputs): `skillkit.check_replication` stops when a
+  donor gives several samples and the formula has no donor term. With `--counts`
+  the donor comes from the `--donor-col` column of `--meta`. `result.json`
+  reports `n_donors`.
 - **Reference record**: `--reference` (genome build and annotation release) is
   required and written to `result.json`.
 - **Drops per group**: there is no contrast group here; dropped samples are
@@ -159,12 +159,14 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--layer` (optional, `--adata` only) | raw-count layer | Which layer holds the raw counts? Absent means `X`. | absent |
 | `--gene-id-col` (`--adata` only) | var column of Ensembl ids, or `none` | Which var column holds the Ensembl gene ids (or `none` if the source has none)? | absent |
 | `--sample-col` (`--adata` only) | obs column of samples | Which obs column names the sample? | absent |
-| `--donor-col` (`--adata` only) | obs column of donors | Which obs column names the donor? Several samples per donor need a donor term in `--formula`. | absent |
+| `--donor-col` | obs column (`--adata`) or `--meta` column (`--counts`) of donors | Which column names the donor? Several samples per donor need a donor term in `--formula`. | `donor` (`--counts` demo); absent with `--adata` |
 | `--min-cells` (`--adata` only) | sample floor | How many cells must a sample have to be kept? | absent |
 | `--formula` | model | Which covariates enter, and which are categorical (`(1|x)`) or continuous (`x`)? | `~ (1|donor) + (1|condition) + rin` |
 | `--min-frac` | gene filter | In what fraction of cells (`--adata`) or samples (`--counts`) must a gene be detected? | `0.1` |
 | `--n-top` | genes per term in the percent bars | How many top genes per term go in the percent bars? | `5` |
 | `--max-cancor` | collinearity ceiling | Above which canonical correlation between two terms should the run stop? | `0.9` |
+| `--norm-method` | edgeR normalisation | Which `calcNormFactors` method: `TMM`, `TMMwsp`, `RLE`, `upperquartile` or `none`? No default. Recommended: `TMM`, the method this skill used before it became an argument (edgeR 4.8.2 default of `calcNormFactors`). | `TMM` |
+| `--voom` | expression scale | `yes`: precision weights from `voomWithDreamWeights` (variancePartition 1.40.2) with the formula; `no`: edgeR `cpm(log = TRUE)` (log2 CPM, edgeR 4.8.2 default `prior.count`), no weights. No default. Recommended: `yes`, the call this skill used before it became an argument. | `yes` |
 | `--reference` | genome build and annotation | Which genome build and annotation release are the genes from (e.g. `GRCh38, GENCODE 44`)? | `synthetic demo genes, no genome build` |
 | `--context` | biological context, printed first in the report and summary | Species, tissue or cell type, condition and dataset? | `synthetic demo: 12 donors, ctrl vs stim pseudobulk, no real tissue` |
 | `--seed` | seed | Which seed? (Recorded; the lme4 fits draw no random numbers.) | `0` |
@@ -178,6 +180,7 @@ python scripts/variance_partition.py \
   --counts results/2026-10-27_mono-de/tables/pseudobulk_counts.tsv \
   --meta results/2026-10-27_mono-de/tables/sample_meta.tsv \
   --formula "~ (1|donor) + (1|condition) + (1|sex) + age" \
+  --donor-col donor --norm-method TMM --voom yes \
   --min-frac 0.1 --n-top 5 --max-cancor 0.9 --reference "GRCh38, GENCODE 44" \
   --context "human PBMC CD14 monocytes, IFN-beta vs control, 8 donors" \
   --seed 0 --outdir results/2026-10-27_mono-varpart
@@ -187,7 +190,7 @@ python scripts/variance_partition.py --adata data/mono.h5ad --layer counts \
   --gene-id-col gene_ids --sample-col sample --donor-col donor --min-cells 10 \
   --context "human PBMC CD14 monocytes, IFN-beta vs control, 8 donors" \
   --formula "~ (1|donor) + (1|condition)" --min-frac 0.1 --n-top 5 \
-  --max-cancor 0.9 --reference "GRCh38, GENCODE 44" --seed 0 --outdir results/mono-vp
+  --norm-method TMM --voom yes --max-cancor 0.9 --reference "GRCh38, GENCODE 44" --seed 0 --outdir results/mono-vp
 
 # Demo (only when the user asks for one)
 python scripts/variance_partition.py --demo --outdir demo_out
@@ -207,8 +210,9 @@ python scripts/variance_partition.py --demo --outdir demo_out
 4. **Collinearity**: `canCorPairs(formula, meta)`. Any pair above
    `--max-cancor` stops the run before the outdir exists; the error lists every
    pair's value. Every refusal leaves no outdir.
-5. **Normalise**: `DGEList`, `calcNormFactors` (TMM), `voomWithDreamWeights`
-   with the formula.
+5. **Normalise**: `DGEList`, `calcNormFactors(method = --norm-method)`, then
+   `voomWithDreamWeights` with the formula (`--voom yes`) or `cpm(log = TRUE)`
+   (`--voom no`). `result.json` and the report summary name both.
 6. **Fit** `fitExtractVarPartModel(vobj, formula, meta)`, one mixed model per gene.
 7. **Summarise**: median and mean fraction per term; terms ordered as
    `sortCols` does (median descending, Residuals last). Top genes per term: the
@@ -228,7 +232,7 @@ descending. `cancor.tsv` keeps formula order on both axes.
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_samples, n_donors, n_genes, status_counts, gene_id_col (--adata), dropped_samples, context, reference, top_covariate, median_fractions, max_cancor, top_genes, params, seed, chat_summary_lines, preferred_artifacts
+├── result.json                # n_samples, n_donors, n_genes, status_counts, gene_id_col (--adata), dropped_samples, context, reference, top_covariate, median_fractions, max_cancor, top_genes, norm_method, voom, params, seed, chat_summary_lines, preferred_artifacts
 ├── tables/
 │   ├── variance_fractions.tsv # gene_symbol, gene_id, one column per term, Residuals, status
 │   ├── summary.tsv            # term, median_fraction, mean_fraction
@@ -274,6 +278,18 @@ outdir/
   Do not. The script needs raw summed counts; voom does the normalisation.
 - **The model will want to fill in a missing argument** with a "standard" value
   (0.1, 10 cells, 0.9). Do not. Ask, or run `--demo` only when asked for one.
+
+## Fixed method settings
+
+Not arguments: the script sets these, and `reproducibility/environment.txt`
+records the package versions. A change is a maintainer edit, not a user choice.
+
+- variancePartition 1.40.2: `fitExtractVarPartModel` with package defaults (lme4
+  REML for random terms); `voomWithDreamWeights` with the formula when
+  `--voom yes`; `canCorPairs` for the collinearity check.
+- edgeR 4.8.2: `cpm(log = TRUE)` for `--voom no` uses the package default
+  `prior.count` (2).
+- At most 23 formula terms: the largest colour-blind-safe palette, a plot limit.
 
 ## Maintainer notes
 

@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 import anndata as ad
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -27,6 +28,7 @@ N_SAMPLES, N_GENES_TESTED, N_SIGNIFICANT = 12, 250, 28
 # 29 significant, 29 of them among the 30 true DE genes.
 DREAMLET_SIGNIFICANT, DREAMLET_TRUE_HITS = 29, 29
 RANDOM_DESIGN = "~ condition + (1|patient)"
+RSCRIPT = os.environ.get("RSCRIPT") or shutil.which("Rscript")
 
 ARGS = {
     "--adata": str(DEMO),
@@ -237,6 +239,54 @@ def test_missing_reference(tmp_path):
     assert is_error(completed, "missing required arguments: --reference")
 
 
+def age_adata(tmp_path):
+    """Demo copy with a sample-level numeric covariate that varies within a patient."""
+    adata = ad.read_h5ad(DEMO)
+    rng = np.random.default_rng(1)
+    names = adata.obs["sample"].astype(str)
+    ages = {s: float(rng.normal(40, 8)) for s in sorted(names.unique())}
+    adata.obs["age"] = names.map(ages).astype(float)
+    path = tmp_path / "age.h5ad"
+    adata.write_h5ad(path)
+    return path
+
+
+def test_numeric_covariate_is_one_continuous_column(tmp_path):
+    path = age_adata(tmp_path)
+    completed = run_with(
+        tmp_path, adata=str(path), design="~ patient + condition + age"
+    )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads((tmp_path / "out" / "result.json").read_text())
+    columns = result["design_columns"]
+    # intercept + 5 patient dummies (6 kept patients) + condition + one age column
+    assert len(columns) == 8, columns
+    assert [c for c in columns if "age" in c] == ["age"]
+    assert result["numeric_covariates"] == ["age"]
+    # age has no reference level; the string factors do, alphabetically.
+    assert result["reference_levels"] == {"patient": "P1", "condition": "ctrl"}
+
+
+@pytest.mark.skipif(not RSCRIPT, reason="Rscript not found")
+def test_numeric_covariate_matches_r_engine(tmp_path):
+    path = age_adata(tmp_path)
+    design = "~ patient + condition + age"
+    py = run_with(tmp_path, adata=str(path), design=design)
+    assert py.returncode == 0, py.stderr
+    r_out = tmp_path / "r"
+    argv = [x for k, v in ARGS.items() for x in (k, str(path) if k == "--adata" else v)]
+    argv[argv.index("--design") + 1] = design
+    argv[argv.index("--engine") + 1] = "r"
+    assert run(*argv, "--outdir", str(r_out)).returncode == 0
+    cols = ["gene_symbol", "log2_fc"]
+    a = pd.read_csv(tmp_path / "out" / "tables" / "de_results.tsv", sep="\t")[cols]
+    b = pd.read_csv(r_out / "tables" / "de_results.tsv", sep="\t")[cols]
+    both = a.merge(b, on="gene_symbol", validate="1:1").dropna()
+    assert np.corrcoef(both["log2_fc_x"], both["log2_fc_y"])[0, 1] > 0.99
+    r_result = json.loads((r_out / "result.json").read_text())
+    assert r_result["reference_levels"] == {"patient": "P1", "condition": "ctrl"}
+
+
 @pytest.mark.parametrize(
     ("axis", "message"),
     [
@@ -312,9 +362,6 @@ def test_random_contrast_factor(tmp_path):
         tmp_path, design="~ patient + (1|condition)", engine="dreamlet"
     )
     assert is_error(completed, "contrast factor 'condition' is not a term of --design")
-
-
-RSCRIPT = os.environ.get("RSCRIPT") or shutil.which("Rscript")
 
 
 @pytest.mark.skipif(not RSCRIPT, reason="Rscript not found")

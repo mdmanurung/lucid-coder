@@ -3,8 +3,8 @@ name: longitudinal
 description: >-
   Longitudinal mixed models per feature on repeated sample-level values (CLR
   cell-type frequencies, pseudobulk vst or log CPM, signature scores, Olink
-  NPX): one lmerTest `lmer(value ~ time + covariates + (1|subject))` per
-  feature, the named coefficient tested with Satterthwaite df, BH or Bonferroni
+  NPX): one lmerTest `lmer(value ~ time + covariates + random term)` per
+  feature (random intercept or random slope, user's choice), the named coefficient tested with Satterthwaite df, BH or Bonferroni
   across features, singular and unconverged fits flagged per feature, subject
   trajectory, forest and p-value figures, a report and a reproducibility bundle.
   Fire on "mixed model per gene over visits", "lmer per cell type with a random
@@ -99,7 +99,7 @@ Do not work around it.
 | Input | Format | Required content | Example |
 |---|---|---|---|
 | `--input` | TSV, long | columns `feature`, `subject`, `time`, `value` (numeric) | `examples/demo.tsv` |
-| covariates | TSV columns | every other name in `--formula`; text columns become factors with levels in sorted order, numbers stay numeric | `age`, `sex` |
+| covariates | TSV columns | every other name in `--formula`; text columns become factors with levels in sorted order (alphabetical, so the first level is the reference; the script does not choose it), numbers stay numeric. The reference level per factor is in the report summary and `result.json` (`reference_levels`; time uses `--reference-time`) | `age`, `sex` |
 
 One row per feature, subject and time; a repeat is an error. A row with a
 missing `feature`, `subject`, `time` or `value` is dropped and counted. A missing
@@ -113,8 +113,9 @@ Required checks (docs/pipeline-skills.md, adopted 2026-10-27):
 - **Design rank**: the formula's fixed terms (time and covariates, one row per
   subject and time) go through `skillkit.check_design_rank`; a covariate aliased
   with time, such as a batch that equals the visit, stops the run before R.
-- **Donor versus sample**: the subject is the unit and `(1|subject)` is required,
-  so repeated visits are never treated as independent.
+- **Donor versus sample**: the subject is the unit and `--random` is required
+  (`(1|subject)` or `(1 + time | subject)`), so repeated visits are never
+  treated as independent.
 - **No `--reference`**: features are generic (frequencies, scores, NPX), so no
   genome build is recorded. Gene-level input belongs in `pseudobulk-de`.
 - **Drops per group**: rows dropped for a missing value are counted per time in
@@ -130,7 +131,8 @@ Each row is a grill question. Ask the user; never fill one in.
 |---|---|---|
 | `--context` | Species, tissue or cell type, condition and dataset? It opens the report and the chat summary. | `synthetic demo: 24 subjects, 3 visits, 30 features, no real tissue` |
 | `--input` | Which TSV holds the values? | `examples/demo.tsv` |
-| `--formula` | Which fixed covariates beside time? The form is `value ~ time + covariates + (1\|subject)`; `a:b` and `a*b` interactions allowed, no other random term. | `value ~ time + age + (1\|subject)` |
+| `--formula` | Which fixed covariates beside time? The form is `value ~ time + covariates`, the fixed part only; `a:b` and `a*b` interactions allowed. The random term comes from `--random`; a `\|` in the formula is an error. | `value ~ time + age` |
+| `--random` | Does each subject get a random intercept only (`intercept`: `(1\|subject)`, subjects differ in level) or also a random slope over time (`slope`: `(1 + time \| subject)`, subjects differ in trend)? `slope` needs `--time-type numeric`. No default. Recommended for the usual repeated-visits question: `intercept`, the `lmerTest::lmer` form used in the corpus (C-an-16, C-an-22); `slope` needs enough visits per subject, else the fit is singular and flagged. | `intercept` |
 | `--time-type` | Is time a set of visits (`factor`, one coefficient per visit against the reference), a number with a linear trend (`numeric`, one slope) or a number with a curved trend (`spline`, a natural spline)? | `factor` |
 | `--knots` | Only for `spline`: how many interior knots? They sit at time quantiles, the same for every feature, and `result.json` records them. At most the number of distinct times minus 2. | not asked |
 | `--reference-time` | Which visit is the baseline? For `numeric`, time is shifted so this value is 0; the slope does not change. For `spline` it must be a number but the fit does not use it. | `1` |
@@ -138,6 +140,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--time-unit` | What unit is `time` in (e.g. `visit`, `week`, `day`)? It labels the x axis. | `visit` |
 | `--term` | Which coefficient is tested? R names it `time<level>` for a visit (`time3` = visit 3 minus the reference) or `time` for a slope. For `spline`, `time` is the joint F test of all spline columns. | `time3` |
 | `--missing` | Only when a formula covariate has a missing value: drop those rows (`complete-case`) or impute them (`impute`: `mice`, pooled with Rubin's rules)? No default; the run stops and names the covariate until it is answered. | not asked |
+| `--n-imputations` | Only with `--missing impute`: how many imputed tables (mice `m`, an integer >= 2)? No default. Recommended: `5`, the value this skill used before it became an argument, which is the mice 3.19.0 default for `m`. | not asked |
 | `--adjust` | Correct across features with `bh` (FDR) or `bonferroni` (FWER)? | `bh` |
 | `--padj-max` | Which adjusted-p cutoff marks a feature significant? | `0.05` |
 | `--n-plot` | How many top features get a trajectory figure? | `4` |
@@ -146,14 +149,15 @@ Each row is a grill question. Ask the user; never fill one in.
 
 The last column is **demo-only, not defaults**. `--demo` alone pins all of them;
 beside `--demo` only `--outdir` may be given. Ask `--knots` only for spline time
-and `--missing` only after the run reports a missing covariate; giving either
-when it does not apply is an error.
+and `--missing` only after the run reports a missing covariate; ask
+`--n-imputations` only with `--missing impute`. Giving any of them when it does
+not apply is an error.
 
 ```bash
 python scripts/longitudinal.py \
   --context "human PBMC, CD4 T cell frequencies, pre vs post vaccination, cohort X" \
   --input results/2026-10-27_freqs/clr_long.tsv \
-  --formula "value ~ time + age + sex + (1|subject)" \
+  --formula "value ~ time + age + sex" --random intercept \
   --time-type factor --reference-time pre --term timepost \
   --value-unit CLR --time-unit visit \
   --adjust bh --padj-max 0.05 --n-plot 6 --seed 0 \
@@ -166,8 +170,8 @@ python scripts/longitudinal.py --demo --outdir demo_out
 ## Workflow (fixed order)
 
 1. **Validate** arguments: value ranges; `--formula` has `value` on the left,
-   `time` and exactly one `(1|subject)` on the right, and only column names,
-   `:` or `*` otherwise. A numeric `--reference-time` for `--time-type numeric`
+   `time` on the right, no `|`, and only column names, `:` or `*` otherwise.
+   `--random slope` needs numeric time; `--n-imputations` goes with `--missing impute`. A numeric `--reference-time` for `--time-type numeric`
    or `spline`; `--knots` with `spline` only.
 2. **Read** the TSV: keep `feature`, `subject`, `time`, `value` and the formula's
    columns; drop rows with a missing value and count them per time (under
@@ -175,7 +179,9 @@ python scripts/longitudinal.py --demo --outdir demo_out
    repeated (feature, subject, time), an absent factor reference time and a
    rank-deficient fixed design. For `spline`, place the interior knots at time
    quantiles over all rows, once for every feature.
-3. **Fit** each feature in `lmer.R`: `lmerTest::lmer(formula, data)` with REML
+3. **Fit** each feature in `lmer.R`: `lmerTest::lmer(formula + random term, data)`
+   (`--random intercept` adds `(1|subject)`, `slope` adds `(1 + time | subject)`;
+   the report and `result.json` name the one used) with REML
    (the lme4 default). Factor time has the reference as its first level; numeric
    time is `time - reference`. `--term` must be a fixed-effect column of the
    model matrix, or the run stops and lists the valid names. Spline time is the
@@ -185,7 +191,7 @@ python scripts/longitudinal.py --demo --outdir demo_out
    p for `--term` (num_df, F, denominator df and p for the joint test),
    `isSingular()`, whether the optimizer converged, and every lme4 warning or
    message. A fit that errors keeps its row with NA statistics and the error
-   text. Under `--missing impute`, each feature runs `mice` (m = 5, seeded) on
+   text. Under `--missing impute`, each feature runs `mice` (m = `--n-imputations`, seeded) on
    one row per subject holding the imputed covariates and the subject's mean
    value, fits the model on each completed table and pools the `--term`
    coefficient with Rubin's rules (`mice::pool.scalar`, the mean Satterthwaite
@@ -208,7 +214,7 @@ Figures are named by padj rank, `top01` to `top<n-plot>`; the demo draws four.
 ```
 outdir/
 ├── report.md                  # params, fit counts, figures with padj captions
-├── result.json                # context, term, n_features, n_fitted, n_significant, n_singular, n_not_converged, n_rows_dropped, n_rows_dropped_by_time, time_knots, missing_covariates, significant/singular/not_converged/failed_features, params, seed, chat_summary_lines, preferred_artifacts
+├── result.json                # context, term, n_features, n_fitted, n_significant, n_singular, n_not_converged, n_rows_dropped, n_rows_dropped_by_time, time_knots, missing_covariates, random, random_term, n_imputations, reference_levels, significant/singular/not_converged/failed_features, params, seed, chat_summary_lines, preferred_artifacts
 ├── tables/
 │   └── model_results.tsv
 ├── figures/
@@ -264,7 +270,7 @@ PNG and source CSV, with no title and no significance stars:
   on the one named `--term`.
 - **The model will want to put subject in as a fixed effect** or run an
   unpaired test across visits. Do not. Repeated visits of one subject are not
-  independent; `(1|subject)` is required.
+  independent; `--random` is required (the subject is always a random term).
 - **The model will want to change the reference visit or `--term`** after seeing
   results, or try `numeric` when `factor` finds little. Do not. Both are the
   user's answers, fixed before the run.
@@ -300,6 +306,18 @@ PNG and source CSV, with no title and no significance stars:
 - **The model will want to read spline knots as change points.** They are
   quantiles of time that shape the basis; the joint test asks whether any
   change over time exists, not where.
+
+## Fixed method settings
+
+Not arguments: the script sets these, and `reproducibility/environment.txt`
+records the package versions. A change is a maintainer edit, not a user choice.
+
+- lme4 2.1.0 `lmer` with its default REML fit; lmerTest 3.2.1 Satterthwaite
+  degrees of freedom for the t-tests (joint F test for the spline basis).
+- mice 3.19.0 with package defaults except `m` (`--n-imputations`) and the seed:
+  per-column default imputation method and default iterations; the pooled
+  `--term` coefficient uses Rubin's rules (`mice::pool.scalar`).
+- Spline time: `splines::ns()` on `--knots` interior knots at time quantiles.
 
 ## Maintainer notes
 

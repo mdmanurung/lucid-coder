@@ -44,6 +44,7 @@ ANALYSIS_ARGS = [
     "donor_col",
     "design",
     "model_contrasts",
+    "solver",
     "prop",
     "use_rep",
     "n_neighbors",
@@ -61,6 +62,7 @@ DEMO = {
     "donor_col": "donor",
     "design": "~condition",
     "model_contrasts": "conditionB-conditionA",
+    "solver": "pydeseq2",
     "prop": 0.1,
     "use_rep": "X_pca",
     "n_neighbors": 30,
@@ -80,13 +82,16 @@ ERRORS = {
     "not_nested": "design column {col!r} takes more than one value within a "
     "{sample} level; each sample needs one value",
     "model_refused": "pertpy da_nhoods refused the model: {message}",
+    "no_rpy2": "--solver edger needs R, rpy2 and edgeR; rpy2 is not installed",
 }
 
 # Fixed, not analysis parameters: the label for nhoods under --min-annotation-frac
-# (milopy annotate_nhoods), the layout basis of the nhood graph, the solver.
+# (milopy annotate_nhoods) and the layout basis of the nhood graph. REBUILT_METRIC is
+# the metric sc.pp.neighbors uses below (its default), so a stored graph must match it.
 MIXED = "Mixed"
 BASIS = "X_umap"
-SOLVER = "pydeseq2"
+REBUILT_METRIC = "euclidean"
+SOLVERS = ["pydeseq2", "edger"]
 NOT_SIGNIFICANT = "#D9D9D9"
 PACKAGES = [
     "pertpy",
@@ -110,6 +115,7 @@ def parse_args(argv):
     parser.add_argument("--donor-col")
     parser.add_argument("--design")
     parser.add_argument("--model-contrasts")
+    parser.add_argument("--solver", choices=SOLVERS)
     parser.add_argument("--prop", type=float)
     parser.add_argument("--use-rep")
     parser.add_argument("--n-neighbors", type=int)
@@ -187,23 +193,55 @@ def read_input(p):
     return adata, n_donors
 
 
-def graph_matches(adata, p):
+def graph_mismatch(adata, p):
+    """Why the stored kNN graph cannot be reused for this run; None when it can.
+
+    The graph is reused only if it was built with the same rep, k, metric and number
+    of PCs as a rebuild would use, and on this cell set: a graph made on more cells
+    and then subset has rows with fewer than k - 1 stored neighbours.
+    """
     params = adata.uns.get("neighbors", {}).get("params", {})
-    return (
-        "connectivities" in adata.obsp
-        and params.get("use_rep") == p["use_rep"]
-        and params.get("n_neighbors") == p["n_neighbors"]
-    )
+    n_dims = adata.obsm[p["use_rep"]].shape[1]
+    stored = {
+        "use_rep": params.get("use_rep"),
+        "n_neighbors": params.get("n_neighbors"),
+        "metric": params.get("metric"),
+    }
+    wanted = {
+        "use_rep": p["use_rep"],
+        "n_neighbors": p["n_neighbors"],
+        "metric": REBUILT_METRIC,
+    }
+    if "connectivities" not in adata.obsp or "distances" not in adata.obsp:
+        return "the input has no connectivities and distances in obsp"
+    for key, value in wanted.items():
+        if stored[key] != value:
+            return f"stored {key} is {stored[key]!r}, this run uses {value!r}"
+    # scanpy stores n_pcs only when given; a rebuild uses every column of the rep.
+    if params.get("n_pcs") not in (None, n_dims):
+        return f"stored n_pcs is {params['n_pcs']}, this run uses all {n_dims}"
+    n = adata.n_obs
+    if adata.obsp["connectivities"].shape != (n, n):
+        return f"the stored graph is not {n} x {n} cells"
+    per_row = np.diff(sparse.csr_matrix(adata.obsp["distances"]).indptr)
+    if (per_row != p["n_neighbors"] - 1).any():
+        return "the stored graph does not hold k - 1 neighbours per cell, so it was built on a different cell set"
+    return None
 
 
 def run_milo(adata, p):
-    """Steps 2-6; returns the MuData and whether the kNN graph was rebuilt."""
+    """Steps 2-6; returns the MuData and why the kNN graph was rebuilt (None: kept)."""
     # Imported here: pertpy and scanpy take ~20 s, which a refused run does not need.
     import pertpy as pt
     import scanpy as sc
 
-    rebuilt = not graph_matches(adata, p)
-    if rebuilt:
+    if p["solver"] == "edger":
+        try:
+            import rpy2  # noqa: F401
+        except ImportError:
+            fail(ERRORS, "no_rpy2")
+    reason = graph_mismatch(adata, p)
+    if reason:
         sc.pp.neighbors(
             adata,
             n_neighbors=p["n_neighbors"],
@@ -219,7 +257,7 @@ def run_milo(adata, p):
             mdata,
             design=p["design"],
             model_contrasts=p["model_contrasts"],
-            solver=SOLVER,
+            solver=p["solver"],
         )
     except ValueError as exc:
         fail(ERRORS, "model_refused", message=str(exc).splitlines()[0])
@@ -234,7 +272,7 @@ def run_milo(adata, p):
     # count_nhoods names the sample index after --sample-col, which h5mu cannot
     # write next to the column of the same name.
     mdata["milo"].obs.index.name = None
-    return mdata, rebuilt
+    return mdata, reason
 
 
 def draw_figures(figures, nhoods, mdata, p):
@@ -317,7 +355,7 @@ def analyse(argv, argv_run):
     # result does not depend on the worker count.
     with threadpool_limits(1):
         try:
-            mdata, rebuilt = run_milo(adata, p)
+            mdata, reason = run_milo(adata, p)
         except SkillError:
             # A refused model leaves no half-written outdir behind.
             shutil.rmtree(outdir)
@@ -371,8 +409,9 @@ def analyse(argv, argv_run):
     )
     n_samples = adata.obs[p["sample_col"]].nunique()
     graph = (
-        f"rebuilt with k = {p['n_neighbors']} on all columns of {p['use_rep']}"
-        if rebuilt
+        f"rebuilt with k = {p['n_neighbors']} on all columns of {p['use_rep']} "
+        f"(euclidean) because {reason}"
+        if reason
         else f"kept from the input (k = {p['n_neighbors']}, {p['use_rep']})"
     )
     captions = {
@@ -413,8 +452,9 @@ def analyse(argv, argv_run):
             "n_down": n_sig - n_up,
             "dominant_annotation": dominant,
             "significant_by_annotation": sig_counts.sort_index().to_dict(),
-            "graph_rebuilt": rebuilt,
-            "solver": SOLVER,
+            "graph_rebuilt": reason is not None,
+            "graph_rebuilt_reason": reason,
+            "solver": p["solver"],
             "seed": p["seed"],
             "params": p,
         },

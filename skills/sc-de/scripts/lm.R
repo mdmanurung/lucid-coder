@@ -47,4 +47,18 @@ out <- split(data, ~feature, drop = TRUE) |>
   map(fit_one) |>
   list_rbind(names_to = "feature")
 write.table(out, args[["out"]], sep = "\t", quote = FALSE, row.names = FALSE)
+# Reference level R used for each factor term: alphabetical, except the tested factor,
+# which was set to --reference above.
+factor_terms <- intersect(all.vars(form), colnames(data))
+factor_terms <- factor_terms[sapply(data[factor_terms], is.factor)]
+write.table(
+  data.frame(
+    term = factor_terms,
+    reference = sapply(data[factor_terms], \(x) levels(x)[1])
+  ),
+  paste0(args[["out"]], ".levels"),
+  sep = "\t",
+  quote = FALSE,
+  row.names = FALSE
+)
 cat(R.version.string, "\n", sep = "")

@@ -108,7 +108,7 @@ Environment: pixi feature `mofa` (`pixi install -e mofa`, from `templates/pixi.t
 | Input | Format | Required content | Example |
 |---|---|---|---|
 | `--view name=path` | TSV, wide, repeated | first column sample ID; one numeric column per feature; empty or `NA` is missing | `examples/demo_rna.tsv` |
-| `--metadata` | TSV | column `sample`, the `--group-col`; other columns are tested too | `examples/demo_meta.tsv` |
+| `--metadata` | TSV | column `sample`, the `--group-col`, every `--assoc-cols` column (and `--donor-col` if given); only the `--assoc-cols` columns are tested | `examples/demo_meta.tsv` |
 
 Feature names must be unique across views (prefix them, `rna_CD4`). Views are
 joined on sample IDs: `skillkit.check_compatible` stops the run when no sample
@@ -127,7 +127,9 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--context` | Species, tissue or cell type, condition and dataset? It opens the report and the chat summary. | `synthetic demo: 60 samples, healthy vs disease, no real tissue` |
 | `--view` | Which views, each as `name=path`? (repeat the flag) | `rna`, `adt`, `tf` from `examples/` |
 | `--metadata` | Which TSV holds one row per sample? | `examples/demo_meta.tsv` |
-| `--group-col` | Which metadata column holds the groups to colour and test? | `group` |
+| `--group-col` | Which metadata column holds the groups to colour the plots by? It is tested only when it is also in `--assoc-cols`. | `group` |
+| `--assoc-cols` | Which metadata columns (comma-separated) are tested against the factors? This list is the Benjamini-Hochberg family: adding a column adds tests and raises every padj. No default; never "all columns". | `group,age` |
+| `--donor-col` (optional) | Which metadata column names the donor? Give it when a donor has several samples: factor scores are averaged per donor before the tests, and every `--assoc-cols` column must be constant within a donor. Absent means one row per sample (use only when each donor has one sample). | absent |
 | `--likelihoods` | Per view, `gaussian` (continuous), `bernoulli` (0/1) or `poisson` (counts)? As `name=lik,...` | all `gaussian` |
 | `--factors` | How many factors to train (>= 2)? | `6` |
 | `--scale-views` | Scale each view to unit variance (`yes`), so large views do not dominate, or keep raw scales (`no`)? | `yes` |
@@ -150,6 +152,7 @@ python scripts/mofa.py \
   --view rna=results/pb/rna_scaled.tsv --view adt=results/pb/adt.tsv \
   --view olink=results/olink/npx.tsv \
   --metadata results/meta/samples.tsv --group-col status \
+  --assoc-cols status,age,batch --donor-col donor \
   --likelihoods rna=gaussian,adt=gaussian,olink=gaussian \
   --factors 6 --scale-views yes --convergence slow \
   --min-var-explained 2 --n-top-features 10 --seed 1 \
@@ -187,9 +190,15 @@ python scripts/mofa.py --demo --outdir demo_out
 6. **Flag** factors: a factor *explains* a view when its R² there is
    `>= --min-var-explained`; it is *active* when it explains at least one view.
    No factor is dropped.
-7. **Test** every factor against every metadata column except `sample`:
+7. **Test** every factor against each `--assoc-cols` column:
    Spearman for a numeric column, Kruskal-Wallis otherwise; BH across all
-   factor-covariate tests.
+   factor-covariate tests, so the `--assoc-cols` list is the BH family (the
+   captions and summary say so). With `--donor-col` and a donor of several
+   samples, factor scores are averaged per donor first (a column that varies
+   within a donor stops the run before training: `varies_within_donor`), and
+   `n` counts donors; `result.json` has `assoc_unit` (`sample` or `donor`). The
+   summary line names the test actually used for `--group-col`, or says the
+   group was not tested (not in `--assoc-cols`, or no testable p-value).
 8. **Draw** the R² heatmap and the Factor1 vs Factor2 scatter, then a weight
    chart and a group box for each active factor.
 
@@ -202,7 +211,7 @@ python scripts/mofa.py --demo --outdir demo_out
   feature, factor number.
 - `factor_vs_metadata.tsv`: factor, covariate, n, test (`spearman` or
   `kruskal-wallis`), statistic (rho or H), pvalue, padj (BH over all rows with
-  a p-value); sorted by factor number, then covariate.
+  a p-value, one row per `--assoc-cols` column and factor); sorted by factor number, then covariate.
 
 Weight and box figures exist for active factors only; the demo draws three of
 each.
@@ -210,7 +219,7 @@ each.
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # context, n_samples, views, n_factors, n_active, active_factors, r2_total, device, threads, dropped_per_group, n_shared_ids, params, seed, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # context, n_samples, views, n_factors, n_active, active_factors, r2_total, device, threads, dropped_per_group, n_shared_ids, assoc_unit, assoc_n_tests, params, seed, reference, chat_summary_lines, preferred_artifacts
 ├── tables/
 │   ├── variance_explained.tsv
 │   ├── factors.tsv
@@ -295,6 +304,20 @@ do not change the fit (a test shuffles one view). BLAS threads are pinned to 1
 Reruns here were bit-identical, so the rerun test compares checksums. Another
 BLAS build may move R² in the second decimal; the golden R² test allows ±0.5
 percentage points for that.
+
+## Fixed method settings
+
+Not arguments: the script sets these, and `reproducibility/environment.txt`
+records the package versions. A change is a maintainer edit, not a user choice.
+
+- mofapy2 0.7.5: `set_model_options(factors = --factors)` with the package
+  defaults for the rest (`spikeslab_weights = True`, `ard_weights = True`,
+  `spikeslab_factors = False`, `ard_factors = False`); `set_train_options` with
+  `convergence_mode = --convergence`, `dropR2 = None`, `gpu_mode = False`, default
+  `iter = 1000`.
+- Factor-metadata tests: Spearman (numeric column) or Kruskal-Wallis (scipy 1.18.1),
+  BH over the `--assoc-cols` family.
+- BLAS threads are pinned to 1 for bit-identical reruns.
 
 ## Maintainer notes
 

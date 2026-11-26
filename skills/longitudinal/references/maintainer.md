@@ -21,6 +21,12 @@ same space as factor time, so the joint F test (2 df) finds the same six.
 Blanking `age` for S03 and S07 (the NA fixture in the tests) drops 180 rows
 under `complete-case` and keeps them under `impute`; both find the same six.
 
+`--formula` holds the fixed part only; `--random intercept|slope` adds
+`(1|subject)` or `(1 + time | subject)` in `run_lmer`. There is no Python
+mixed-model engine: `lmer.R` is the only engine, so `statsmodels` `MixedLM` is
+not used. `test_random_slope_changes_the_model` compares the time SE under both
+terms on numeric time.
+
 Impute ceiling: `mice` runs per feature on one row per subject (imputed
 covariates and the subject's mean value), so a covariate must be fixed within
 subject and the other covariates are not predictors. A multilevel method

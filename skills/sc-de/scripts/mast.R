@@ -77,6 +77,20 @@ out <- data.frame(
   pvalue = lrt[, "hurdle", "Pr(>Chisq)"]
 )
 write.table(out, args[["out"]], sep = "\t", quote = FALSE, row.names = FALSE)
+# Reference level R used for each factor term: alphabetical, except the tested factor,
+# which was set to --reference above.
+factor_terms <- intersect(all.vars(reformulas::nobars(form)), colnames(meta))
+factor_terms <- factor_terms[sapply(meta[factor_terms], is.factor)]
+write.table(
+  data.frame(
+    term = factor_terms,
+    reference = sapply(meta[factor_terms], \(x) levels(x)[1])
+  ),
+  paste0(args[["out"]], ".levels"),
+  sep = "\t",
+  quote = FALSE,
+  row.names = FALSE
+)
 cat(R.version.string, "\n", sep = "")
 cat("MAST ", as.character(packageVersion("MAST")), "\n", sep = "")
 cat("lme4 ", as.character(packageVersion("lme4")), "\n", sep = "")

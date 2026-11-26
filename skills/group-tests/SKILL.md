@@ -246,6 +246,19 @@ outdir/
   (0.05, BH, the first two levels). Do not. Ask, or run `--demo` only when the
   user asked for a demo.
 
+## Fixed method settings
+
+Not arguments: the script sets these, and `reproducibility/environment.txt`
+records the package versions. A change is a maintainer edit, not a user choice.
+
+- scipy 1.18.1: `wilcoxon(zero_method="wilcox", method="auto")` on paired
+  differences (zero differences dropped, as R's `wilcox.test`);
+  `mannwhitneyu(alternative="two-sided", method="auto")`; `spearmanr` and
+  `pearsonr`.
+- Effect sizes: Walsh-average median (paired) and Hodges-Lehmann shift
+  (unpaired). A feature with fewer than 3 rows or a constant column has no
+  correlation (p = NA).
+
 ## Maintainer notes
 
 Corpus sources, ClawBio mechanisms, tests, citations and the plot spec are in `references/maintainer.md`. The agent running the script does not need them.

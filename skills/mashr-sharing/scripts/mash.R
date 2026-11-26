@@ -3,8 +3,9 @@
 # Outputs: <outdir>/{pm,psd,lfsr}.tsv (NA where the gene was not measured),
 #          <outdir>/sharing.tsv (cell type x cell type), <outdir>/null_corr.tsv (V);
 #          stdout: "n_strong <n>", then R, mashr and ashr versions.
-# Run:     Rscript mash.R bhat.tsv shat.tsv canonical+ed identity 0.05 0.05 0.5 0 outdir
-# Exit 3: mashr missing. Exit 4: fewer strong signals than cell types for ED.
+# Run:     Rscript mash.R bhat.tsv shat.tsv canonical+ed identity all 0 0.05 0.05 0.5 0 outdir
+# Exit 3: mashr missing. Exit 4: fewer strong signals than cell types for ED or for
+# --fit-subset strong.
 
 for (pkg in c("mashr", "ashr")) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
@@ -20,6 +21,8 @@ names(args) <- c(
   "shat",
   "covariances",
   "null_corr",
+  "fit_subset",
+  "fit_n",
   "strong_lfsr",
   "lfsr_max",
   "factor",
@@ -47,7 +50,9 @@ if (args[["null_corr"]] == "em") {
 }
 dimnames(V) <- list(colnames(bhat), colnames(bhat))
 n_strong <- NA
-if (args[["covariances"]] == "canonical+ed") {
+fit_subset <- args[["fit_subset"]]
+use_ed <- args[["covariances"]] == "canonical+ed"
+if (use_ed || fit_subset == "strong") {
   strong <- get_significant_results(
     mash_1by1(data),
     thresh = as.numeric(args[["strong_lfsr"]])
@@ -57,11 +62,32 @@ if (args[["covariances"]] == "canonical+ed") {
     message("n_strong ", n_strong)
     quit(status = 4)
   }
+}
+if (use_ed) {
   # npc = all cell types: no PCs are dropped, so npc is no choice to make.
   U_pca <- cov_pca(data, ncol(bhat), subset = strong)
   U <- c(U, cov_ed(data, U_pca, subset = strong))
 }
-m <- mash(data, U, verbose = FALSE, seed = seed)
+# --fit-subset all: one mash() fit on every gene. random or strong: the mixture
+# weights are fitted on that subset (mashr vignette workflow), then fixed (fixg) to get
+# the posteriors of every gene.
+if (fit_subset == "all") {
+  m <- mash(data, U, verbose = FALSE, seed = seed)
+} else {
+  set.seed(seed)
+  rows <- if (fit_subset == "strong") {
+    strong
+  } else {
+    sort(sample(nrow(bhat), as.integer(args[["fit_n"]])))
+  }
+  fit_data <- mash_set_data(
+    bhat[rows, , drop = FALSE],
+    shat[rows, , drop = FALSE],
+    V = V
+  )
+  m_fit <- mash(fit_data, U, outputlevel = 1, verbose = FALSE, seed = seed)
+  m <- mash(data, g = get_fitted_g(m_fit), fixg = TRUE, verbose = FALSE)
+}
 
 # As dreamlet's run_mash: no posterior where the gene was not measured.
 for (field in c("PosteriorMean", "PosteriorSD", "lfsr")) {

@@ -117,6 +117,7 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--donor-col` | Which obs column is the donor? A donor with several samples needs it in `--design`. | `donor` |
 | `--design` | Which design formula, with the test variable last (`~batch + condition`)? | `~condition` |
 | `--model-contrasts` | Which contrast, naming both levels (`conditionB-conditionA`)? | `conditionB-conditionA` |
+| `--solver` | Which `da_nhoods` solver: `pydeseq2` (NB-GLM Wald test, no R) or `edger` (R, rpy2 and edgeR; reproduces the R milo implementation)? No default. Recommended: `pydeseq2`, the solver this skill used before it became an argument (pertpy 1.4.0, pydeseq2 0.5.4). `edger` fails with an error when rpy2 is missing. | `pydeseq2` |
 | `--prop` | What fraction of cells to sample as index cells (0.05-0.2 is usual)? | `0.1` |
 | `--use-rep` | Which obsm embedding defines neighbourhoods (`X_pca`, `X_pca_harmony`, `X_scVI`)? | `X_pca` |
 | `--n-neighbors` | Which k for the graph? A different k from the input graph rebuilds it. | `30` |
@@ -137,16 +138,22 @@ analysis argument is an error.
    `--sample-col` level. On the per-sample rows, the design terms must not be
    aliased (`check_design_rank`), and a donor with several samples needs the
    donor column as a design term (`check_replication`).
-2. **kNN graph**: keep the input graph when `uns["neighbors"]["params"]` has
-   the same `use_rep` and `n_neighbors`; otherwise rebuild it with
+2. **kNN graph**: keep the input graph only when `connectivities` and `distances`
+   are in `obsp`, `uns["neighbors"]["params"]` has the same `use_rep`,
+   `n_neighbors` and `metric` (`euclidean`, what the rebuild uses), its `n_pcs`
+   is absent or equals the columns of `--use-rep`, the graph is n x n cells, and
+   every cell has k - 1 stored neighbours (a graph made on a larger cell set and
+   then subset has fewer, so it counts as a different cell set). Otherwise
+   rebuild it with
    `sc.pp.neighbors(n_neighbors=--n-neighbors, use_rep=--use-rep)` on all
-   columns of the representation, seeded. The summary says which.
+   columns of the representation, seeded. The summary and `result.json`
+   (`graph_rebuilt`, `graph_rebuilt_reason`) say which, and why.
 3. **Neighbourhoods**: `make_nhoods(prop=--prop, seed=--seed)` samples
    `round(prop * n_cells)` index cells, then refines each to the cell nearest
    its neighbours' median in `--use-rep`.
 4. **Count** cells per sample per neighbourhood: `count_nhoods(sample_col=)`.
 5. **Test**: `da_nhoods(design=--design, model_contrasts=--model-contrasts,
-   solver="pydeseq2")`. With a contrast the design drops its intercept, so the
+   solver=--solver)`. With a contrast the design drops its intercept, so the
    contrast names both levels (`conditionB-conditionA`). SpatialFDR is the
    Benjamini-Hochberg adjustment weighted by 1 / distance to the k-th neighbour.
 6. **Annotate**: `annotate_nhoods(anno_col=--annotation-col)` gives each
@@ -165,7 +172,7 @@ over all CPUs; each neighbourhood is fitted alone, so results do not change.
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # n_cells, n_samples, n_donors, n_nhoods, n_significant, n_up, n_down, dominant_annotation, significant_by_annotation, graph_rebuilt, solver, seed, params, context, chat_summary_lines (first: "Context: ..."), preferred_artifacts
+├── result.json                # n_cells, n_samples, n_donors, n_nhoods, n_significant, n_up, n_down, dominant_annotation, significant_by_annotation, graph_rebuilt, graph_rebuilt_reason, solver, seed, params, context, chat_summary_lines (first: "Context: ..."), preferred_artifacts
 ├── data/
 │   └── milo.h5mu              # "rna": cells, obsm nhoods, obs nhood_ixs_*; "milo": samples x nhoods counts, var logFC, PValue, SpatialFDR, nhood_annotation(_frac), Nhood_size
 ├── tables/
@@ -245,6 +252,18 @@ python scripts/milo_da.py \
 # Demo (only when the user asks for one); add --n-neighbors 20 to see a rebuild
 python scripts/milo_da.py --demo --outdir demo_out
 ```
+
+## Fixed method settings
+
+Not arguments: the script sets these, and `reproducibility/environment.txt`
+records the package versions. A change is a maintainer edit, not a user choice.
+
+- pertpy 1.4.0 (Milo): `make_nhoods(prop = --prop, seed = --seed)` with its
+  default refinement of index cells; `da_nhoods` with its default k-distance
+  SpatialFDR weighting; `annotate_nhoods` takes the most frequent label.
+- A rebuilt kNN graph uses `sc.pp.neighbors` (scanpy 1.12.4) with the euclidean
+  metric, all columns of `--use-rep` and `random_state = --seed`.
+- The `Mixed` label and the `X_umap` layout basis are fixed.
 
 ## Maintainer notes
 

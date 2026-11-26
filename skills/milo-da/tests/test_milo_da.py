@@ -42,6 +42,7 @@ ARGS = {
     "--donor-col": "donor",
     "--design": "~condition",
     "--model-contrasts": "conditionB-conditionA",
+    "--solver": "pydeseq2",
     "--prop": "0.1",
     "--use-rep": "X_pca",
     "--n-neighbors": "30",
@@ -112,6 +113,7 @@ def test_demo_golden_values(demo_out):
     result = json.loads((demo_out / "result.json").read_text())
     assert {k: result[k] for k in GOLDEN} == GOLDEN
     assert result["seed"] == 0 and result["solver"] == "pydeseq2"
+    assert result["graph_rebuilt_reason"] is None
     assert len(result["chat_summary_lines"]) == 4
     assert result["chat_summary_lines"][0] == "Context: " + result["context"]
     nhoods = pd.read_csv(demo_out / "tables" / "nhoods.tsv", sep="\t")
@@ -155,6 +157,48 @@ def test_other_k_rebuilds_graph(tmp_path):
     assert "rebuilt with k = 20" in result["chat_summary_lines"][2]
 
 
+def stored_graph_reason(adata, **changes):
+    """graph_mismatch() for the demo's stored graph and `changes` to the run."""
+    sys.path.insert(0, str(SCRIPT.parent))
+    import milo_da
+
+    p = {
+        "use_rep": "X_pca",
+        "n_neighbors": 30,
+        **{k: v for k, v in changes.items() if k in ("use_rep", "n_neighbors")},
+    }
+    return milo_da.graph_mismatch(adata, p)
+
+
+def test_stored_graph_is_reused_only_when_it_matches():
+    assert stored_graph_reason(ad.read_h5ad(DEMO)) is None
+    assert "stored n_neighbors is 30" in stored_graph_reason(
+        ad.read_h5ad(DEMO), n_neighbors=20
+    )
+    adata = ad.read_h5ad(DEMO)
+    adata.uns["neighbors"]["params"]["metric"] = "cosine"
+    assert "stored metric is 'cosine'" in stored_graph_reason(adata)
+    adata = ad.read_h5ad(DEMO)
+    adata.uns["neighbors"]["params"]["n_pcs"] = 5
+    assert "stored n_pcs is 5, this run uses all 10" in stored_graph_reason(adata)
+    # A graph made on more cells and then subset keeps the n x n shape but loses
+    # neighbours: the cell set no longer matches.
+    subset = ad.read_h5ad(DEMO)[:600].copy()
+    assert "different cell set" in stored_graph_reason(subset)
+
+
+def test_other_metric_rebuilds_graph(tmp_path):
+    def cosine(adata):
+        adata.uns["neighbors"]["params"]["metric"] = "cosine"
+
+    completed = run_with(tmp_path, adata=edited_demo(tmp_path, cosine))
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads((tmp_path / "out" / "result.json").read_text())
+    assert result["graph_rebuilt"] is True
+    assert "stored metric is 'cosine'" in result["graph_rebuilt_reason"]
+    assert "because stored metric is 'cosine'" in result["chat_summary_lines"][2]
+
+
 def test_mixed_label(tmp_path):
     # Mono nhoods are 100% Mono, so a cutoff of 1 marks only impure nhoods Mixed.
     def blend(adata):
@@ -175,6 +219,17 @@ def test_missing_argument_fails_without_demo(tmp_path):
     assert is_error(
         run_with(tmp_path, drop=["--seed"]), "missing required arguments: --seed"
     )
+
+
+def test_missing_solver_fails(tmp_path):
+    assert is_error(
+        run_with(tmp_path, drop=["--solver"]), "missing required arguments: --solver"
+    )
+
+
+def test_demo_solver_conflict(tmp_path):
+    completed = run("--demo", "--solver", "edger", "--outdir", str(tmp_path / "out"))
+    assert is_error(completed, "--demo fixes the analysis arguments; drop: --solver")
 
 
 def test_missing_context_fails(tmp_path):

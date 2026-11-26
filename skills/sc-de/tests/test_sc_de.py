@@ -133,6 +133,9 @@ def test_mast_demo_golden(mast_out):
     # All 15 planted genes plus G141: a cell-level false positive from donor noise.
     assert significant(mast_out) == MAST_TRUTH | {"G141"}
     assert result["formula_fitted"] == "~ condition + cngeneson"
+    # Only condition is a factor (cngeneson is numeric); ctrl sorts before stim.
+    assert result["reference_levels"] == {"condition": "ctrl"}
+    assert "Reference level per factor" in result["chat_summary_lines"][1]
     assert "overstate donor-level evidence" in result["chat_summary_lines"][1]
     assert result["chat_summary_lines"][0].startswith("Context: ")
     assert result["context"] == MAST["--context"]
@@ -152,6 +155,9 @@ def test_lm_demo_golden(lm_out):
     result = json.loads((lm_out / "result.json").read_text())
     assert (result["n_samples"], result["n_tested"]) == (40, 50)
     assert significant(lm_out) == STATUS_TRUTH
+    # healthy < disease is not alphabetical: the tested factor is set to --term's
+    # reference; sex is alphabetical (F before M).
+    assert result["reference_levels"] == {"status": "healthy", "sex": "F"}
     assert result["dropped_by_level"] == {}
     assert result["status_counts"] == {"tested": 50}
     assert "gene_id_col" not in result

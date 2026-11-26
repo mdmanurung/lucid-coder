@@ -5,7 +5,7 @@
 #          every canonical correlation is at most max_cancor (the caller fails
 #          otherwise). R and package versions on stdout.
 # Run:     Rscript varpart.R counts.tsv meta.tsv "~ (1|donor) + (1|condition) + rin" \
-#            0.9 0 out_dir
+#            0.9 0 TMM yes out_dir
 
 suppressPackageStartupMessages({
   library(variancePartition)
@@ -13,7 +13,16 @@ suppressPackageStartupMessages({
 })
 
 args <- commandArgs(trailingOnly = TRUE)
-names(args) <- c("counts", "meta", "formula", "max_cancor", "seed", "out")
+names(args) <- c(
+  "counts",
+  "meta",
+  "formula",
+  "max_cancor",
+  "seed",
+  "norm_method",
+  "voom",
+  "out"
+)
 # lme4 fits draw no random numbers; the seed is set for the record.
 set.seed(as.integer(args[["seed"]]))
 
@@ -48,10 +57,15 @@ if (max(cancor[upper.tri(cancor)]) > as.numeric(args[["max_cancor"]])) {
   quit(status = 0)
 }
 
-# Genes and samples are already filtered by the caller; TMM, then voom weights
-# from the same formula (dreamlet processAssays does the same per cell type).
-dge <- calcNormFactors(DGEList(counts))
-vobj <- voomWithDreamWeights(dge, form, meta, BPPARAM = SerialParam())
+# Genes and samples are already filtered by the caller. --norm-method picks the
+# calcNormFactors method; --voom yes gives voom weights from the same formula
+# (dreamlet processAssays does the same per cell type), no gives edgeR log2 CPM.
+dge <- calcNormFactors(DGEList(counts), method = args[["norm_method"]])
+vobj <- if (args[["voom"]] == "yes") {
+  voomWithDreamWeights(dge, form, meta, BPPARAM = SerialParam())
+} else {
+  cpm(dge, log = TRUE)
+}
 vp <- fitExtractVarPartModel(vobj, form, meta, BPPARAM = SerialParam())
 write.table(
   data.frame(gene = rownames(vp), as.data.frame(vp), check.names = FALSE),

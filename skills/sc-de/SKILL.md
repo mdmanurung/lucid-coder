@@ -159,6 +159,13 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--input`, (lm) | Which long TSV holds the values? | `examples/demo_npx.tsv` |
 | `--outdir` | Which new directory gets the outputs? It must not exist. | given by the user |
 
+Reference levels: every non-tested factor in `--formula` uses R's alphabetical
+levels (the first level is the reference); the script does not choose them. The
+tested factor's reference is the `--contrast-term` / `--term` reference. The
+level chosen for each factor goes into the report summary and `result.json`
+(`reference_levels`), so a covariate coefficient is never read against a level
+nobody named.
+
 The last column is **demo-only, not defaults**. `--demo` alone pins the mast
 values; `--demo --mode lm` pins the lm values. Beside `--demo` only `--mode` and
 `--outdir` may be given.
@@ -211,7 +218,7 @@ feature with a p-value; an untested feature keeps NA statistics and says why:
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # mode, formula_fitted, n_cells + n_donors (mast) or n_samples (lm), dropped_by_level (lm rows lost to a missing value, per term level), context, reference, n_features, n_tested, status_counts, gene_id_col (mast), n_significant, significant_features, params, seed, chat_summary_lines, preferred_artifacts
+├── result.json                # mode, formula_fitted, n_cells + n_donors (mast) or n_samples (lm), dropped_by_level (lm rows lost to a missing value, per term level), context, reference, n_features, n_tested, status_counts, gene_id_col (mast), n_significant, significant_features, reference_levels, params, seed, chat_summary_lines, preferred_artifacts
 ├── tables/
 │   └── de_results.tsv
 ├── figures/
@@ -271,6 +278,17 @@ is blue, the other red, jitter ±0.2 box widths with `--seed`. `skillkit.py`,
   significant gene.** Do not. A DE call says the gene's expression is associated
   with the term in this design; without a perturbation it is not a mechanism
   (house-style `claims.strength`).
+
+## Fixed method settings
+
+Not arguments: the script sets these, and `reproducibility/environment.txt`
+records the package versions. A change is a maintainer edit, not a user choice.
+
+- MAST 1.36.0 `zlm` defaults: the two-part hurdle model, empirical-Bayes
+  shrinkage on for fixed formulas (off with a `(1|donor)` glmer term), hurdle
+  likelihood-ratio test of `--contrast-term`; one core (`mc.cores = 1`).
+- `--mode lm`: R `stats::lm` per feature, the t-test of the `--term` coefficient,
+  no weights; BH across tested features.
 
 ## Maintainer notes
 

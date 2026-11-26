@@ -27,9 +27,13 @@ subjects = pd.DataFrame(
         "sex": rng.choice(["female", "male"], N_SUBJECTS),
     }
 )
-rows = subjects.merge(pd.DataFrame({"time": VISITS}), how="cross").merge(
+# Cross joins: every subject x visit x feature, so the cardinality is many-to-many.
+rows = subjects.merge(
+    pd.DataFrame({"time": VISITS}), how="cross", validate="m:m"
+).merge(
     pd.DataFrame({"feature": [f"F{i:02d}" for i in range(1, N_FEATURES + 1)]}),
     how="cross",
+    validate="m:m",
 )
 number = rows["feature"].str[1:].astype(int)
 baseline = rng.normal(0, SUBJECT_SD, (N_FEATURES, N_SUBJECTS))

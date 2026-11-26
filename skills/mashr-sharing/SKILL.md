@@ -135,7 +135,9 @@ Each row is a grill question. Ask the user; never fill one in.
 | `--align` | Keep only genes tested in every cell type (`intersect`), or every gene with the missing cells treated as unmeasured (`union`)? | `intersect` |
 | `--covariances` | Canonical covariances only (`canonical`, as dreamlet's `run_mash`), or canonical plus data-driven ED (`canonical+ed`)? | `canonical+ed` |
 | `--null-corr` | Do these DE tables come from the same donors? Then `em` (null correlation `V` by EM, as dreamlet's `run_mash`); `identity` only for independent cells and samples. | `identity` |
-| `--strong-lfsr` | Which lfsr in a one-by-one ash fit picks the strong signals that train the ED covariances? Used only with `canonical+ed`. | `0.05` |
+| `--fit-subset` | On which genes are the mixture weights fitted? `all`: one `mash()` fit on every gene. `random`: fit on a random subset, then fix the weights and compute every gene's posterior (the mashr eQTL vignette workflow; needs `--fit-n`). `strong`: fit on the strong genes (lfsr < `--strong-lfsr` in `mash_1by1`), then the same fixed-weight posterior. No default. Recommended: `all` (the mashr 0.2.79 `mash(data, Ulist)` call this skill used before it became an argument). | `all` |
+| `--fit-n` | Only with `--fit-subset random`: how many random genes (an integer >= 2, at most the aligned genes)? No recommended value; the vignette's subset size belongs to its data. The draw uses `--seed`. | not asked |
+| `--strong-lfsr` | Which lfsr in a one-by-one ash fit picks the strong signals that train the ED covariances? Used with `canonical+ed` and with `--fit-subset strong`. | `0.05` |
 | `--lfsr-max` | Which lfsr marks a gene significant in a cell type (also the sharing threshold)? | `0.05` |
 | `--sharing-factor` | Within what factor must two posterior means agree to count as shared (mashr's `factor`)? | `0.5` |
 | `--reference` | Which genome build and annotation release are the genes from (e.g. `GRCh38, GENCODE 44`)? | `synthetic demo genes, no genome build` |
@@ -151,7 +153,7 @@ python scripts/mashr_sharing.py \
   --de B=b/tables/de_results.tsv --de CD4T=cd4/tables/de_results.tsv \
   --de Mono=mono/tables/de_results.tsv \
   --effect-col log2_fc --se-col lfc_se --align intersect \
-  --covariances canonical+ed --strong-lfsr 0.05 --lfsr-max 0.05 \
+  --covariances canonical+ed --fit-subset all --strong-lfsr 0.05 --lfsr-max 0.05 \
   --sharing-factor 0.5 --reference "GRCh38, GENCODE 44" --seed 0 \
   --outdir results/2026-10-27_mash
 
@@ -173,8 +175,10 @@ python scripts/mashr_sharing.py --demo --outdir demo_out
 4. **Covariances:** `cov_canonical`. With `canonical+ed`, also: strong genes are
    those with lfsr < `--strong-lfsr` in any cell type in `mash_1by1`;
    `cov_pca(npc = K)` on them seeds `cov_ed`. K is the number of cell types, so
-   no PC is dropped and npc is no choice. Fewer strong genes than K is an error.
-5. **`mash(data, U, seed = --seed)`**, then `get_pm`, `get_psd`, `get_lfsr`. As in
+   no PC is dropped and npc is no choice. Fewer strong genes than K is an error (also with `--fit-subset strong`).
+5. **`mash(data, U, seed = --seed)`** (`--fit-subset all`; for `random` or `strong`,
+   a `mash` fit on that subset with `outputlevel = 1`, then `mash(data, g =
+   get_fitted_g(fit), fixg = TRUE)` for all genes), then `get_pm`, `get_psd`, `get_lfsr`. As in
    dreamlet's `run_mash`, a cell the gene was not measured in is set to NA.
 6. **Pairwise sharing:** for each pair, mashr's `get_pairwise_sharing(factor =
    --sharing-factor, lfsr_thresh = --lfsr-max)` on the genes measured in both.
@@ -195,7 +199,7 @@ no row for that cell type. Counts, figures and sharing use `tested` rows only;
 ```
 outdir/
 ├── report.md                  # params, summary, figures with captions
-├── result.json                # context, n_genes, cell_types, genes_dropped_by_align, n_shared_ids, joined_on, status_counts, n_strong, null_corr, n_significant_any, n_shared_all, n_specific, significant_per_cell_type, scatter_pair, params, seed, reference, chat_summary_lines, preferred_artifacts
+├── result.json                # context, n_genes, cell_types, genes_dropped_by_align, n_shared_ids, joined_on, status_counts, n_strong, null_corr, fit_subset, fit_n, n_significant_any, n_shared_all, n_specific, significant_per_cell_type, scatter_pair, params, seed, reference, chat_summary_lines, preferred_artifacts
 ├── tables/
 │   ├── posterior.tsv          # gene_id, gene_symbol, cell_type, raw_effect, raw_se, pm, psd, lfsr, significant, status
 │   ├── significant_counts.tsv # n_cell_types (1..K), n_genes
@@ -269,6 +273,19 @@ sharing evidence. `--null-corr` is required and has no default: `em` when the
 tables share donors (dreamlet's choice), `identity` only when they come from
 independent cells and samples. Its grill question: do these DE tables come from
 the same donors?
+
+## Fixed method settings
+
+Not arguments: the script sets these, and `reproducibility/environment.txt`
+records the package versions. A change is a maintainer edit, not a user choice.
+
+- mashr 0.2.79 `mash()` defaults: grid `gridmult = sqrt(2)`, `usepointmass = TRUE`,
+  `normalizeU = TRUE`; canonical covariances from `cov_canonical` (identity,
+  singletons, equal effects, simple heterogeneity); `cov_pca(npc = K)` feeding
+  `cov_ed` for `canonical+ed`; strong genes from `mash_1by1` (ashr 2.2.63
+  defaults).
+- Pairwise sharing is `get_pairwise_sharing(factor = --sharing-factor,
+  lfsr_thresh = --lfsr-max)` on the genes measured in both cell types.
 
 ## Maintainer notes
 

@@ -28,6 +28,7 @@ REQUIRED = [
     "context",
     "input",
     "formula",
+    "random",
     "term",
     "time_type",
     "reference_time",
@@ -38,13 +39,17 @@ REQUIRED = [
     "n_plot",
     "seed",
 ]
-# Asked only when they apply: --knots for spline time, --missing for a covariate NA.
-OPTIONAL = ["knots", "missing"]
+# Asked only when they apply: --knots for spline time, --missing for a covariate NA,
+# --n-imputations with --missing impute.
+OPTIONAL = ["knots", "missing", "n_imputations"]
+# --random picks the random-effects term lmer.R adds to --formula (fixed part only).
+RANDOM_TERMS = {"intercept": "(1|subject)", "slope": "(1 + time | subject)"}
 # Demo-only values, not defaults: SKILL.md lists them under the same label.
 DEMO = {
     "context": "synthetic demo: 24 subjects, 3 visits, 30 features, no real tissue",
     "input": str(SKILL_DIR / "examples" / "demo.tsv"),
-    "formula": "value ~ time + age + (1|subject)",
+    "formula": "value ~ time + age",
+    "random": "intercept",
     "term": "time3",
     "time_type": "factor",
     "reference_time": "1",
@@ -56,14 +61,18 @@ DEMO = {
     "seed": 0,
     "knots": None,
     "missing": None,
+    "n_imputations": None,
 }
 
 ERRORS = {
     "bad_value": "{arg} must be {rule}, got {value}",
-    "bad_formula": "--formula must be 'value ~ time + covariates + (1|subject)' with "
-    "column names, ':' or '*' interactions and no other random term, got {value!r}",
-    "no_subject_term": "--formula needs the random intercept (1|subject) once, "
-    "got {value!r}",
+    "bad_formula": "--formula must be 'value ~ time + covariates' with column "
+    "names and ':' or '*' interactions, got {value!r}",
+    "random_in_formula": "--formula holds the fixed part only; the random term "
+    "comes from --random (intercept or slope), got {value!r}",
+    "slope_needs_numeric": "--random slope needs --time-type numeric, got {time_type}",
+    "n_imputations_needed": "--missing impute needs --n-imputations",
+    "n_imputations_unused": "--n-imputations is used only with --missing impute",
     "no_time_term": "--formula must have time as a fixed term, got {value!r}",
     "missing_file": "input file not found: {path}",
     "missing_column": "input column not found: {col}",
@@ -91,9 +100,7 @@ ERRORS = {
 
 NAME = r"[A-Za-z_][\w.]*"
 FIXED = rf"{NAME}(?:\s*[:*]\s*{NAME})*"
-SUBJECT = r"\(\s*1\s*\|\s*subject\s*\)"
-TERM = rf"(?:{FIXED}|{SUBJECT})"
-FORMULA = re.compile(rf"\s*value\s*~\s*{TERM}(?:\s*\+\s*{TERM})*\s*")
+FORMULA = re.compile(rf"\s*value\s*~\s*{FIXED}(?:\s*\+\s*{FIXED})*\s*")
 
 # Fixed plot spec, not analysis thresholds. save_panel saves without a tight
 # bbox, so every figure sets a layout engine.
@@ -111,6 +118,7 @@ def parse_args(argv):
     parser.add_argument("--context")
     parser.add_argument("--input")
     parser.add_argument("--formula")
+    parser.add_argument("--random", choices=list(RANDOM_TERMS))
     parser.add_argument("--term")
     parser.add_argument("--time-type", choices=["factor", "numeric", "spline"])
     parser.add_argument("--reference-time")
@@ -122,6 +130,7 @@ def parse_args(argv):
     parser.add_argument("--seed", type=int)
     parser.add_argument("--knots", type=int)
     parser.add_argument("--missing", choices=["complete-case", "impute"])
+    parser.add_argument("--n-imputations", type=int)
     return skillkit.parse_required(parser, REQUIRED, DEMO, argv, optional=OPTIONAL)
 
 
@@ -132,6 +141,12 @@ def check_values(p):
         ("--padj-max", p["padj_max"], 0 < p["padj_max"] <= 1, "in (0, 1]"),
         ("--n-plot", p["n_plot"], p["n_plot"] >= 1, "an integer >= 1"),
         ("--seed", p["seed"], p["seed"] >= 0, "an integer >= 0"),
+        (
+            "--n-imputations",
+            p["n_imputations"],
+            p["n_imputations"] is None or p["n_imputations"] >= 2,
+            "an integer >= 2",
+        ),
         (
             "--reference-time",
             p["reference_time"],
@@ -149,9 +164,15 @@ def check_values(p):
         fail("knots_unused")
     if spline and p["term"] == "time" and p["missing"] == "impute":
         fail("impute_joint")
+    if p["missing"] == "impute" and p["n_imputations"] is None:
+        fail("n_imputations_needed")
+    if p["missing"] != "impute" and p["n_imputations"] is not None:
+        fail("n_imputations_unused")
+    if p["random"] == "slope" and p["time_type"] != "numeric":
+        fail("slope_needs_numeric", time_type=p["time_type"])
     formula = p["formula"]
-    if len(re.findall(SUBJECT, formula)) != 1:
-        fail("no_subject_term", value=formula)
+    if "|" in formula:
+        fail("random_in_formula", value=formula)
     if not FORMULA.fullmatch(formula):
         fail("bad_formula", value=formula)
     names = list(dict.fromkeys(re.findall(NAME, formula)))
@@ -269,7 +290,7 @@ def run_lmer(data, p, knots):
             rscript,
             str(ENGINE),
             str(long_tsv),
-            p["formula"],
+            f"{p['formula']} + {RANDOM_TERMS[p['random']]}",
             p["term"],
             p["time_type"],
             str(p["reference_time"]),
@@ -278,6 +299,7 @@ def run_lmer(data, p, knots):
             ",".join(map(str, knots["interior"])) if knots else "",
             ",".join(map(str, knots["boundary"])) if knots else "",
             p["missing"] or "complete-case",
+            str(p["n_imputations"] or 0),
         ]
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False, env=env)
         lines = proc.stderr.strip().splitlines()
@@ -291,8 +313,13 @@ def run_lmer(data, p, knots):
         if proc.returncode != 0:
             fail("r_failed", code=proc.returncode, tail=" | ".join(lines[-5:]))
         fits = pd.read_csv(out, sep="\t", keep_default_na=False, na_values=[""])
+        # lmer.R writes the reference level R used for each factor term.
+        ref = pd.read_csv(
+            Path(f"{out}.levels"), sep="\t", dtype=str, keep_default_na=False
+        )
     fits["fit_message"] = fits["fit_message"].fillna("")
-    return fits, [f"Rscript {rscript}", *proc.stdout.strip().splitlines()]
+    levels = dict(zip(ref["term"], ref["reference"], strict=True))
+    return fits, [f"Rscript {rscript}", *proc.stdout.strip().splitlines()], levels
 
 
 def adjust(pvalues, method):
@@ -451,7 +478,7 @@ def analyse(argv, argv_as_run):
     skillkit.seed_everything(p["seed"])
     data, n_dropped, dropped, imputation = read_values(p, names)
     knots = spline_knots(data["time"], p) if p["time_type"] == "spline" else None
-    fits, r_versions = run_lmer(data, p, knots)
+    fits, r_versions, ref_levels = run_lmer(data, p, knots)
 
     n_fitted = int(fits["pvalue"].notna().sum())
     if not n_fitted:
@@ -498,7 +525,8 @@ def analyse(argv, argv_as_run):
     choice = {
         None: "",
         "complete-case": "complete-case, those rows dropped",
-        "impute": "multiple imputation (mice, m = 5, pooled with Rubin's rules)",
+        "impute": f"multiple imputation (mice, m = {p['n_imputations']}, "
+        "pooled with Rubin's rules)",
     }[p["missing"]]
     notes = []
     if knots:
@@ -512,13 +540,16 @@ def analyse(argv, argv_as_run):
             f"rows of {imputation['n_subjects']} subjects: {choice}"
         )
     summary = [
-        f"{n_fitted} of {len(table)} features fitted ({p['formula']}, term "
+        f"{n_fitted} of {len(table)} features fitted ({p['formula']} + "
+        f"{RANDOM_TERMS[p['random']]}, random {p['random']}, term "
         f"{p['term']}); {n_dropped} input rows dropped (missing value), per time: "
         + ", ".join(f"{k} {v}" for k, v in dropped.items())
         + "".join(f"; {n}" for n in notes)
         + ".",
         f"{len(singular)} singular and {len(not_converged)} unconverged fits, kept "
-        f"and flagged; {len(failed)} features without a p-value.",
+        f"and flagged; {len(failed)} features without a p-value. Reference level per "
+        "factor (alphabetical, except time = --reference-time): "
+        f"{'; '.join(f'{k} = {v}' for k, v in ref_levels.items()) or 'none'}.",
         f"{len(sig)} features with padj < {p['padj_max']} ({family}): "
         f"{', '.join(sig[:10]) or 'none'}"
         + (f" and {len(sig) - 10} more." if len(sig) > 10 else "."),
@@ -537,6 +568,10 @@ def analyse(argv, argv_as_run):
         "n_rows_dropped_by_time": dropped,
         "time_knots": knots,
         "missing_covariates": imputation,
+        "random": p["random"],
+        "random_term": RANDOM_TERMS[p["random"]],
+        "n_imputations": p["n_imputations"],
+        "reference_levels": ref_levels,
         "significant_features": sig,
         "singular_features": singular,
         "not_converged_features": not_converged,
