@@ -4,12 +4,15 @@ Status on 2026-11-10 (v0.5.0): **the plugin is in real use; phases 1 to 3 are mo
 
 ## Where things stand (v0.5.0)
 
-- **Rules.** `rules/core.md` is a persona: a senior computational biologist, five facts about where analysis code fails, eight habits with their why. `rules/house.md` restates the user-decided conventions as flat rules plus a do-not-add list. `rules/r.md` and `rules/python.md` hold language syntax. The session hook injects all of them (about 7.4 KB of the 9.5 KB cap).
+- **Rules.** `rules/core.md` is a persona: a senior computational biologist, five facts about where analysis code fails, eight habits with their why. `rules/house.md` restates the user-decided conventions as flat rules plus a do-not-add list. `rules/r.md` and `rules/python.md` hold language syntax. The session hook injects all of them (about 7.5 KB of the 10,000-character cap); learned rules load in a second hook with their own 9,000-character budget.
 - **Evidence.** Blind side-by-side reviews by one reader (the user):
   - lucid-coder vs baseline Opus, tasks 02-04: 8-3, 2 ties;
   - rule-list core vs persona core: 5-4, 2 ties;
   - persona + house vs persona alone: 5-1.
   - Persona + house cut script length by a quarter to a third against the persona alone.
+  - None of these splits is significant. Exact two-sided sign tests, ties dropped: 8-3 p = 0.23; 5-4 p = 1.0; 5-1 and 5 of 6 panels p = 0.22. Panels from one task share a script, so they are not independent.
+  - The blinding hides the side, not the arm: D's header, knobs and dividers mark it on sight, and the one reader wrote the rules. So the counts show the style is recognisable and preferred by its author, not that a cold reader finds it more readable. #3 (second reader) tests that.
+  - Every stored run predates the provenance fields in `meta.json` (`arm_prompt_sha256`, CLI version, repo SHA; commit `c711397`), so no result cited above records them.
 - **Eval harness.** 25 tasks with planted traps and gates (`eval/tasks/`), the R4_51 conda R, notebook rendering via papermill, and blinded review pages built by `eval/side-by-side.js`.
 
 ## While in real use
@@ -34,6 +37,19 @@ Phase 2, harness fixes. Done:
 Phase 3, new eval tasks. Done: all ten catalog tasks are built as 07 to 16, plus 07b and 15b (`eval/TASK-CATALOG.md`). Arms A and D passed the gates of 07 to 16 almost everywhere, so the gates sit at the ceiling. Next: harder variants with fewer hints, then the catalog's next tier.
 
 Phase 4, skill evidence from the kai notebook corpus (#19): mine how 2,845 scverse tutorials call each pipeline skill's method, then propose gotchas and grill-question values for the user to approve (#20).
+
+## Decisions recorded 2026-11-24
+
+From the package evaluation and its fixes:
+- Learned rules load in a second SessionStart and SubagentStart hook, budget 9,000 characters. Before, the core text left room for 7 of 16 active rules. `rules.js approve` warns when active rules exceed the budget.
+- Pipeline skills expose every result-changing setting as a required argument. Package defaults left fixed are listed per skill under "Fixed method settings".
+- trajectory: exactly one of `--root-cell` or `--root-rule diffusion-extreme`.
+- velocity: `--use-rep` (rec X_pca, scVelo 0.3.4) and `--kernel-model` required; `--stability-threshold` (rec 0.96, CellRank 2.3.3) required with `--terminal-states auto`. Blanket warning filters removed.
+- signature-scoring: random sets drawn from expression bins, `--n-bins` required (rec 25, scanpy 1.12.4; Tirosh et al. 2016).
+- mofa: `--assoc-cols` required, optional `--donor-col` averages factors per donor.
+- longitudinal: `--random intercept|slope` required.
+- variance-partition: `--donor-col` required in `--counts` mode, because that mode now checks replication.
+- Eval: gates 03 and 05 test results, not existence; arm order is seeded and interleaved; the side-by-side key sits outside the review folder.
 
 ## Decisions recorded 2026-11-10
 
