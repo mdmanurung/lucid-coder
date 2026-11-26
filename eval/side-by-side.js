@@ -2,10 +2,11 @@
 // Builds a side-by-side review page: one panel per analysis step, the four arms as
 // columns, shuffled per panel so position never names an arm. Optional human-corpus
 // panels (four repos per step) follow. The reader picks a column and says why.
-// The arm key goes to <out>/side-by-side-key.tsv; eval/results/ is gitignored.
+// The arm key and the seed go to <out-dir>-key/, a sibling of the shareable folder; eval/results/ is gitignored.
 // Usage: node eval/side-by-side.js <results-dir> <out-dir> [--rep 1] [--arms A,D] [--tasks 02,04] [--whole] [--notes notes.json] [--human panels.json] [--seed N]
 // --whole compares whole scripts instead of banner sections.
-// --seed N rebuilds the same column order; without it a seed is drawn and written to <out>/side-by-side-meta.json.
+// --seed N rebuilds the same column order; without it a seed is drawn and written to <out-dir>-key/side-by-side-meta.json.
+// --tasks takes exact ids: 02 is 02_*, not 02py_* or 02b_*; an id that matches no run is an error.
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -67,11 +68,20 @@ const LABELS = ['W', 'X', 'Y', 'Z'];
 // One task's runs, one per arm, as panels. Several tasks in one folder get task-prefixed ids.
 function armPanels(resultsDir, rep, arms, onlyTasks, whole, seed = crypto.randomInt(2 ** 31)) {
   const rand = makeRng(seed);
-  const runs = fs.readdirSync(resultsDir)
-    .filter(d => new RegExp(`_[${arms.join('')}]_r${rep}$`).test(d))
-    .filter(d => !onlyTasks || onlyTasks.some(t => d.startsWith(t + '_')))
-    .sort();
-  const tasks = [...new Set(runs.map(run => run.replace(/_[A-D]_r\d+$/, '')))];
+  for (const arm of arms) if (!/^[A-Z]$/.test(arm)) throw new Error(`arm "${arm}" is not a single capital letter`);
+  const taskOf = run => run.replace(/_[A-Z]_r\d+$/, '');
+  const inRep = fs.readdirSync(resultsDir).filter(d => new RegExp(`_[${arms.join('')}]_r${rep}$`).test(d));
+  // 02 selects the task id 02 (02_*) or the full name 02_metadata-join; never 02py_* or 02b_*.
+  const wanted = (task, id) => task === id || task.startsWith(id + '_');
+  for (const id of onlyTasks || []) {
+    if (!inRep.some(d => wanted(taskOf(d), id))) {
+      throw new Error(`--tasks ${id} matches no run at rep ${rep} for arms ${arms}; tasks found: ${[...new Set(inRep.map(taskOf))].join(', ')}`);
+    }
+  }
+  const runs = inRep.filter(d => !onlyTasks || onlyTasks.some(id => wanted(taskOf(d), id))).sort();
+  const skipped = [...new Set(inRep.map(taskOf))].filter(t => !runs.some(r => taskOf(r) === t));
+  if (onlyTasks && skipped.length) console.error(`side-by-side.js: not selected: ${skipped.join(', ')}`);
+  const tasks = [...new Set(runs.map(taskOf))];
   const key = [];
   const panels = [];
   for (const task of tasks) {
@@ -167,14 +177,27 @@ function main() {
   for (const p of panels) if (notes[p.id]) p.note = notes[p.id];
   fs.mkdirSync(outDir, { recursive: true });
   const template = fs.readFileSync(path.join(__dirname, 'side-by-side.html'), 'utf8');
-  const data = JSON.stringify({ source: path.basename(resultsDir), panels: [...panels, ...human] }).replace(/</g, '\\u003c');
+  // A neutral id for the page's storage keys; the results-dir name stays out of the shareable file.
+  const pageId = 'sbs-' + crypto.createHash('sha256').update(`${path.basename(path.resolve(resultsDir))}:${seed}`).digest('hex').slice(0, 10);
+  const data = JSON.stringify({ source: pageId, panels: [...panels, ...human] }).replace(/</g, '\\u003c');
   fs.writeFileSync(path.join(outDir, 'side-by-side.html'), template.replace('/*DATA*/null', () => data));
-  fs.writeFileSync(path.join(outDir, 'side-by-side-key.tsv'),
+  // The key and the seed rebuild which arm is where, so they stay out of the folder that is shared.
+  const keyDir = `${path.resolve(outDir)}-key`;
+  fs.mkdirSync(keyDir, { recursive: true });
+  fs.writeFileSync(path.join(keyDir, 'side-by-side-key.tsv'),
     ['panel\tcolumn\trun_id\tarm', ...key.map(r => r.join('\t'))].join('\n') + '\n');
-  fs.writeFileSync(path.join(outDir, 'side-by-side-meta.json'), JSON.stringify({ seed, args: argv }, null, 2) + '\n');
+  fs.writeFileSync(path.join(keyDir, 'side-by-side-meta.json'), JSON.stringify({ seed, args: argv }, null, 2) + '\n');
+  console.log(`side-by-side.js: key and seed -> ${keyDir} (keep it out of the shared folder)`);
   console.log(`side-by-side.js: ${panels.length} arm panels, ${human.length} human panels -> ${outDir}`);
 }
 
-if (require.main === module) main();
+if (require.main === module) {
+  try {
+    main();
+  } catch (e) {
+    console.error(`side-by-side.js: ${e.message}`);
+    process.exit(1);
+  }
+}
 
 module.exports = { splitScript, notebookText, markdownSection, armPanels, makeRng };

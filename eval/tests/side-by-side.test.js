@@ -40,8 +40,13 @@ test('page embeds code with $ sequences intact and writes a per-panel key', () =
   const load = data.panels.find(p => p.id === 'arm_load');
   assert.ok(load.columns.every(c => c.code.includes('df$`a b`')));
   assert.match(data.panels.find(p => p.id === 'arm_notebook').columns[0].code, /code \[parameters\][\s\S]*#> # Report/);
-  const key = fs.readFileSync(path.join(out, 'side-by-side-key.tsv'), 'utf8').trim().split('\n');
+  const key = fs.readFileSync(path.join(`${out}-key`, 'side-by-side-key.tsv'), 'utf8').trim().split('\n');
   assert.strictEqual(key.length, 1 + 4 * data.panels.length);
+  // The shareable folder holds the page only; the page carries a neutral id, not the results-dir name.
+  assert.deepStrictEqual(fs.readdirSync(out), ['side-by-side.html']);
+  assert.match(data.source, /^sbs-[0-9a-f]{10}$/);
+  assert.ok(!html.includes(path.basename(root)), 'results-dir name is not in the page');
+  assert.match(r.stdout, /-key/);
 });
 
 test('--arms A,D builds two-column panels per task from scripts/', () => {
@@ -98,7 +103,7 @@ test('the same seed rebuilds the same key and --seed is written to the meta file
   const out = path.join(root, 'out');
   const r = spawnSync('node', [path.join(__dirname, '..', 'side-by-side.js'), root, out, '--arms', 'A,D', '--seed', '7'], { encoding: 'utf8' });
   assert.strictEqual(r.status, 0, r.stderr);
-  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(out, 'side-by-side-meta.json'), 'utf8')).seed, 7);
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(`${out}-key`, 'side-by-side-meta.json'), 'utf8')).seed, 7);
 });
 
 test('a script without banners turns that task into one whole-script panel', () => {
@@ -115,4 +120,41 @@ test('a script without banners turns that task into one whole-script panel', () 
   const data = JSON.parse(fs.readFileSync(path.join(out, 'side-by-side.html'), 'utf8').match(/const DATA = (.*);\n/)[1]);
   assert.deepStrictEqual(data.panels.map(p => p.id), ['arm_whole']);
   assert.ok(data.panels[0].columns.some(c => c.code.includes('# Write outputs ----')));
+});
+
+// Three tasks share the number 02: 02_join, 02py_join and 02b_join.
+function taskRoot() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sbs-ids-'));
+  for (const task of ['02_join', '02py_join', '02b_join']) {
+    for (const arm of ['A', 'D']) {
+      const dir = path.join(root, `${task}_${arm}_r1`, 'repo', 'scripts');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, `${task}.R`), '# Load data ----\nx <- 1\n');
+    }
+  }
+  return root;
+}
+const sbs = (...args) => spawnSync('node', [path.join(__dirname, '..', 'side-by-side.js'), ...args], { encoding: 'utf8' });
+
+test('--tasks 02 means task 02 exactly, names what it left out, and an unknown id is an error', () => {
+  const root = taskRoot();
+  const { panels, key } = armPanels(root, '1', ['A', 'D'], ['02'], false, 1);
+  assert.deepStrictEqual(panels.map(p => p.id), ['arm_load']);
+  assert.ok(key.every(row => row[2].startsWith('02_join_')));
+  const r = sbs(root, path.join(root, 'out'), '--arms', 'A,D', '--tasks', '02');
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.match(r.stderr, /not selected: 02b_join, 02py_join/);
+  const bad = sbs(root, path.join(root, 'out2'), '--arms', 'A,D', '--tasks', '02,05');
+  assert.strictEqual(bad.status, 1);
+  assert.match(bad.stderr, /--tasks 05 matches no run/);
+  assert.ok(!fs.existsSync(path.join(root, 'out2')), 'nothing is written on an error');
+});
+
+test('arm letters are validated before they reach a RegExp', () => {
+  const root = taskRoot();
+  for (const arms of ['A,.', 'A,]', 'A,d']) {
+    const r = sbs(root, path.join(root, 'out'), '--arms', arms);
+    assert.strictEqual(r.status, 1, arms);
+    assert.match(r.stderr, /is not a single capital letter/);
+  }
 });
